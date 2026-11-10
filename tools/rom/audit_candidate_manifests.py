@@ -96,6 +96,14 @@ def main() -> None:
                         "file": "/" + path.relative_to(system_root).as_posix(),
                     })
 
+    config_copy_root = out / "config-references"
+    for reference in config_references:
+        source = system_root / reference["file"].lstrip("/")
+        if source.is_file():
+            destination = config_copy_root / reference["file"].lstrip("/")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+
     (out / "candidate-manifest-audit.json").write_text(
         json.dumps(summaries, ensure_ascii=False, indent=2), encoding="utf-8"
     )
