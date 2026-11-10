@@ -7,7 +7,7 @@ This repository tracks the verified device baseline and the work needed to creat
 - Original ASUS kernel-source archive is stored as a GitHub Release asset, not expanded into Git history.
 - The uploaded archive passed SHA-256 and ZIP CRC verification.
 - Kernel and board-source inspection is complete for the available source package.
-- The complete stock firmware image has **not** yet been added or modified.
+- The original stock firmware package has been added as a Release asset and its SHA-256 matches the GitHub-published asset digest.
 - No custom ROM has been built and no flashing has been attempted.
 
 ## Confirmed device baseline
