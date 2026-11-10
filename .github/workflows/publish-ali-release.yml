@@ -5,6 +5,7 @@ on:
     branches: ["ali-car-system/**"]
     paths:
       - ".github/workflows/publish-ali-release.yml"
+      - "tools/flash/**"
 
 permissions:
   actions: read
