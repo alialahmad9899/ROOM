@@ -45,7 +45,7 @@ foreach ($section in $sections) {
     $content = Invoke-AdbText $section.Args
     if ($section.Title -eq "DEVICE BUILD PROPERTIES") {
         $content = ($content -split "\r?\n" | Where-Object {
-            $_ -match "\[(ro\.build\.|ro\.product\.|ro\.hardware|ro\.board\.platform|ro\.boot\.)"
+            $_ -match "^\[(ro\.build\.version\.release|ro\.build\.version\.sdk|ro\.build\.display\.id|ro\.product\.model|ro\.product\.device|ro\.product\.brand|ro\.hardware|ro\.board\.platform)\]"
         }) -join "`r`n"
     }
     [void]$builder.AppendLine($content)
