@@ -8,10 +8,11 @@
 |---|---|
 | أساس Android | System Server ومكونات الإقلاع وSystemUI وSettings وPackage Installer وDownload Provider وMedia Provider والتخزين ومكونات الشبكة |
 | اللمس والشاشة | خدمات Input وTouch وDisplay والواجهة الحالية إلى أن يصبح Launcher الجديد افتراضياً ويجتاز الاختبار |
-| الصوت | Audio/Flinger وخدمات الوسائط ومكونات Bluetooth Audio |
+| الصوت | Audio/Flinger وخدمات الوسائط ومكونات Bluetooth Audio، ومشغل الموسيقى المختار فقط |
 | الهاتف والشريحة | Telephony وRadio Interface Layer وPhone وTelephony Provider وSMS/MMS عند الحاجة |
 | الاتصال | Wi-Fi وBluetooth وUSB وDHCP وNetwork Location |
-| الملاحة والسرعة | GPS/Location Provider ومكونات الموقع، مع تطبيق خرائط متوافق |
+| الملاحة والسرعة | GPS/Location Provider ومكونات الموقع، مع تطبيق خرائط متوافق؛ عداد السرعة في Launcher يقرأ GPS مباشرة ولا يحتاج Google Play services |
+| راديو الإنترنت | تطبيق Acoustic فقط إذا اخترنا استخدام الراديو، ويعمل تشغيله الأمامي عند الاستماع؛ لا يوجد FM مدمج مؤكّد في الجهاز |
 | خدمات Google | لا نعطّل Google Play services وGoogle Services Framework وPlay Store قبل اختبار تطبيق الخرائط المثبت. لكن Android 5 خارج دعم إصدارات Google Play services الحالية؛ نحتفظ بالنسخة الموجودة مؤقتاً ونختبرها، ولا نفرض تحديثاً حديثاً عليها |
 | الطاقة | Battery/Power Management وUSB/Charger وThermal ومراقبة الطاقة |
 | النظام والملفات | Settings وPermissions وDownload Manager وStorage وMedia Scanner ومكونات الحسابات الضرورية |
