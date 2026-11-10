@@ -70,17 +70,13 @@ Asset: `UL-P01Y-WW-12.26.4.69-user_2.zip`
 Size: 1,121,160,179 bytes  
 GitHub asset digest: `sha256:a3cff1f6703cb68cbe189fc029ab0a94fd7a3ab85297cfdd271fe3e7ff16a6a2`
 
-The asset metadata digest matches the SHA-256 supplied by the user. An automated workflow is downloading the original package, independently hashing it, and reading its internal archive metadata. Its inspection report has not yet been reviewed.
+The asset metadata digest matches the SHA-256 supplied by the user, and an independent download reproduced the same hash. The outer ZIP CRC check passed. The original compressed package remains unchanged and is stored as a Release asset, not expanded into Git history.
 
-The original compressed package remains unchanged. It is stored as a Release asset, not expanded into Git history.
+The package is an OTA update, not a complete factory RAWDATA/AFT image. It contains a full block-update payload for the system partition and an Intel firmware update image, but no boot or recovery image.
 
-The inspection is intended to identify:
+The OTA payload was reconstructed to a temporary ext4 system image and verified. Its `build.prop` confirms Android 5.0.2 (SDK 21), 32-bit x86 userspace, board platform `sofia3g`, device `P01Y`, SKU `WW`, build date 2017-04-10, and security patch 2017-04-01.
 
-1. Actual boot/recovery/system image formats and contents.
-2. Build fingerprint, Android version, ABI/bitness, and kernel version from the installed firmware.
-3. Partition names/sizes and update mechanism.
-4. Vendor libraries and hardware HAL dependencies.
-5. Whether the desired changes can safely be made as a system/app overlay on the stock base, or require a deeper ROM port.
+Detailed results: [docs/STOCK-OTA-ANALYSIS.md](STOCK-OTA-ANALYSIS.md).
 
 ## 6. Project goals (pending implementation)
 
