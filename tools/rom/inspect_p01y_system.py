@@ -109,15 +109,21 @@ def main() -> None:
     archive = args.archive.resolve()
     outdir = args.out.resolve()
     outdir.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256()
+    with archive.open("rb") as source:
+        for chunk in iter(lambda: source.read(4 * 1024 * 1024), b""):
+            digest.update(chunk)
     report = [
         "ASUS Z170CG / P01Y WW STOCK SYSTEM INVENTORY",
         "Mode: READ ONLY; no source firmware files are modified",
         f"archive={archive.name}",
         f"archive_bytes={archive.stat().st_size}",
-        f"archive_sha256={hashlib.sha256(archive.read_bytes()).hexdigest()}",
+        f"archive_sha256={digest.hexdigest()}",
     ]
-    image = outdir / "system-reconstructed.img"
-    reconstruct(archive, image, report)
+    with tempfile.TemporaryDirectory(prefix="p01y-system-") as work:
+        workdir = pathlib.Path(work)
+        image = workdir / "system-reconstructed.img"
+        reconstruct(archive, image, report)
 
     build_prop = outdir / "system-build.prop"
     if extract_file(image, "/build.prop", build_prop) or extract_file(image, "/system/build.prop", build_prop):
@@ -134,7 +140,7 @@ def main() -> None:
     (outdir / "system-root-listing.txt").write_text(root_listing, encoding="utf-8")
     report += ["", "SYSTEM ROOT LISTING:", root_listing]
 
-    extracted = outdir / "apk-tree"
+    extracted = workdir / "apk-tree"
     extracted.mkdir(exist_ok=True)
     candidate_dirs = ["/app", "/priv-app", "/vendor/app", "/vendor/priv-app", "/system/app", "/system/priv-app"]
     found_dirs = []
