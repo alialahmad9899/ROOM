@@ -1,0 +1,181 @@
+name: Inspect ASUS Z170CG Stock Firmware
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/inspect-stock-firmware.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-stock-firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Download and verify original stock firmware
+        env:
+          DOWNLOAD_URL: https://github.com/alialahmad9899/ROOM/releases/download/stock-firmware-v1/UL-P01Y-WW-12.26.4.69-user_2.zip
+          EXPECTED_SHA256: a3cff1f6703cb68cbe189fc029ab0a94fd7a3ab85297cfdd271fe3e7ff16a6a2
+          EXPECTED_SIZE: "1121160179"
+        run: |
+          python3 - <<'PY'
+          import hashlib, io, json, os, pathlib, re, struct, urllib.request, zipfile
+
+          work = pathlib.Path("firmware-inspection")
+          work.mkdir(exist_ok=True)
+          archive = pathlib.Path("stock-firmware-original.zip")
+          request = urllib.request.Request(
+              os.environ["DOWNLOAD_URL"],
+              headers={"User-Agent": "ROOM-Z170CG-stock-firmware-inspector"},
+          )
+          digest = hashlib.sha256()
+          size = 0
+          with urllib.request.urlopen(request, timeout=600) as response, archive.open("wb") as target:
+              while True:
+                  chunk = response.read(4 * 1024 * 1024)
+                  if not chunk:
+                      break
+                  target.write(chunk)
+                  digest.update(chunk)
+                  size += len(chunk)
+                  print(f"Downloaded {size:,} bytes", flush=True)
+
+          expected_size = int(os.environ["EXPECTED_SIZE"])
+          actual_hash = digest.hexdigest()
+          expected_hash = os.environ["EXPECTED_SHA256"]
+          report = [
+              "ASUS Z170CG / P01Y STOCK FIRMWARE INSPECTION",
+              f"File: {archive.name}",
+              f"Downloaded bytes: {size}",
+              f"Expected bytes: {expected_size}",
+              f"SHA-256: {actual_hash}",
+              f"Expected SHA-256: {expected_hash}",
+              f"Size matches: {size == expected_size}",
+              f"SHA-256 matches: {actual_hash == expected_hash}",
+              "",
+          ]
+          if size != expected_size or actual_hash != expected_hash:
+              (work / "integrity-failure.txt").write_text("\\n".join(report), encoding="utf-8")
+              raise SystemExit("Original firmware integrity verification failed; analysis stopped.")
+
+          def safe_name(name):
+              return name.replace("\\\\", "/").lstrip("./")
+
+          def boot_header(data):
+              if len(data) < 48 or data[:8] != b"ANDROID!":
+                  return None
+              vals = struct.unpack_from("<10I", data, 8)
+              return {
+                  "kernel_size": vals[0], "kernel_addr": hex(vals[1]),
+                  "ramdisk_size": vals[2], "ramdisk_addr": hex(vals[3]),
+                  "second_size": vals[4], "second_addr": hex(vals[5]),
+                  "tags_addr": hex(vals[6]), "page_size": vals[7],
+                  "header_version_or_dt_size": vals[8], "os_version": hex(vals[9]),
+              }
+
+          with zipfile.ZipFile(archive) as z:
+              bad = z.testzip()
+              if bad:
+                  raise SystemExit(f"ZIP CRC verification failed at entry: {bad}")
+              infos = [i for i in z.infolist() if not i.is_dir()]
+              report += [
+                  "Outer ZIP CRC test: passed",
+                  f"File entries: {len(infos)}",
+                  f"Total uncompressed bytes: {sum(i.file_size for i in infos)}",
+                  "",
+                  "FIRMWARE FILE INVENTORY:",
+              ]
+              inventory = []
+              key_pattern = re.compile(
+                  r"(boot|recovery|system|vendor|product|userdata|cache|partition|"
+                  r"fastboot|droidboot|ifwi|dnx|fw|firmware|modem|radio|"
+                  r"updater|update-script|build\\.prop|android-info|"
+                  r"payload|scatter|\\.img$|\\.dat$|\\.mbn$|\\.bin$)",
+                  re.I,
+              )
+              metadata_ext = (".prop", ".txt", ".cfg", ".ini", ".xml", ".json", ".rc", ".sh", ".mf", ".list")
+              build_props = []
+              script_texts = []
+              boot_images = []
+              nested_archives = []
+              for info in infos:
+                  name = safe_name(info.filename)
+                  line = f"{name} | compressed={info.compress_size} | expanded={info.file_size}"
+                  inventory.append(line)
+                  low = name.lower()
+                  if low.endswith((".zip", ".jar", ".7z", ".tar", ".gz")):
+                      nested_archives.append((name, info.file_size))
+                  if low.endswith((".img", ".bin")) and info.file_size <= 512 * 1024 * 1024:
+                      try:
+                          with z.open(info) as f:
+                              head = f.read(4096)
+                          parsed = boot_header(head)
+                          if parsed:
+                              boot_images.append((name, parsed))
+                          elif head.startswith(b"AVB0"):
+                              boot_images.append((name, {"magic": "AVB0"}))
+                          elif head.startswith(b"CrAU"):
+                              boot_images.append((name, {"magic": "CrAU (payload)"}))
+                          elif head.startswith(b"ANDROID!"):
+                              boot_images.append((name, {"magic": "ANDROID!"}))
+                          elif head[:4] in (b"\x3a\xff\x26\xed", b"\x02\x21\x4c\x18"):
+                              boot_images.append((name, {"magic": head[:4].hex()}))
+                      except Exception as e:
+                          boot_images.append((name, {"read_error": str(e)}))
+                  if low.endswith(metadata_ext) or "build.prop" in low or "updater-script" in low:
+                      if info.file_size <= 2 * 1024 * 1024:
+                          try:
+                              with z.open(info) as f:
+                                  data = f.read(2 * 1024 * 1024).decode("utf-8", "replace")
+                              if "build.prop" in low or low.endswith(".prop"):
+                                  build_props.append((name, data))
+                              if "updater-script" in low or "android-info" in low or low.endswith("scatter.txt"):
+                                  script_texts.append((name, data))
+                          except Exception:
+                              pass
+
+              (work / "firmware-file-inventory.txt").write_text("\\n".join(inventory) + "\\n", encoding="utf-8")
+              report += [x for x in inventory if key_pattern.search(x)][:2500]
+              report += ["", "ANDROID BOOT IMAGE SIGNATURES / HEADERS:"]
+              for name, info in boot_images:
+                  report.append(f"{name}: {json.dumps(info, sort_keys=True)}")
+              report += ["", "BUILD / DEVICE PROPERTIES:"]
+              property_rx = re.compile(
+                  r"^(ro\\.(build|product|hardware|board|boot|arch|zygote|vendor)|"
+                  r"ro\\.build\\.(fingerprint|version\\.release|version\\.sdk|type|tags)|"
+                  r"ro\\.product\\.(device|model|name)|ro\\.hardware|"
+                  r"ro\\.product\\.cpu\\.abi|ro\\.kernel)",
+                  re.I,
+              )
+              for name, data in build_props:
+                  report.append(f"\\n===== {name} =====")
+                  hits = [line for line in data.splitlines() if property_rx.search(line)]
+                  report.extend(hits[:500] if hits else ["(file found; no selected property keys matched)"])
+              report += ["", "UPDATE / PLATFORM METADATA:"]
+              for name, data in script_texts:
+                  report.append(f"\\n===== {name} =====")
+                  report.append(data[:16000])
+              report += ["", "NESTED ARCHIVE CANDIDATES:"]
+              report.extend(f"{name} [{length} bytes]" for name, length in nested_archives[:500])
+              report += [
+                  "",
+                  "SAFETY / LIMITATIONS:",
+                  "- The original firmware archive was not modified.",
+                  "- No firmware image was flashed or executed.",
+                  "- The report identifies archive contents and readable metadata only.",
+                  "- Image compatibility and exact partition mapping still require device-specific confirmation.",
+              ]
+              (work / "stock-firmware-report.txt").write_text("\\n".join(report) + "\\n", encoding="utf-8")
+              print("\\n".join(report[:350]))
+          PY
+
+      - name: Upload stock firmware inspection report
+        uses: actions/upload-artifact@v4
+        with:
+          name: asus-z170cg-stock-firmware-inspection
+          path: firmware-inspection/
+          if-no-files-found: error
+          retention-days: 14
