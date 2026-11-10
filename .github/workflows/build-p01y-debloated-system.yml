@@ -164,11 +164,78 @@ jobs:
           sudo umount workspace/verify-mount
           trap - EXIT
 
-      - name: Upload modified system candidate and rollback data
+      - name: Split system image into verified-download chunks
+        run: |
+          set -euo pipefail
+          mkdir -p workspace/rom-output/chunks
+          split -b 400M -d -a 2 workspace/rom-output/system.img workspace/rom-output/chunks/system.img.part-
+          PARTS="$(find workspace/rom-output/chunks -maxdepth 1 -type f -name 'system.img.part-*' | wc -l)"
+          test "$PARTS" -eq 5
+          cat workspace/rom-output/chunks/system.img.part-* | sha256sum > workspace/rom-output/chunks/REASSEMBLED.sha256
+          sha256sum workspace/rom-output/system.img > workspace/rom-output/chunks/ORIGINAL.sha256
+          diff -u workspace/rom-output/chunks/ORIGINAL.sha256 workspace/rom-output/chunks/REASSEMBLED.sha256
+
+      - name: Upload system image part 00
         uses: actions/upload-artifact@v4
         with:
-          name: P01Y-WW-Wesal-debloated-system-candidate
-          path: workspace/rom-output/
+          name: P01Y-WW-system-img-part-00
+          path: workspace/rom-output/chunks/system.img.part-00
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload system image part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-part-01
+          path: workspace/rom-output/chunks/system.img.part-01
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload system image part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-part-02
+          path: workspace/rom-output/chunks/system.img.part-02
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload system image part 03
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-part-03
+          path: workspace/rom-output/chunks/system.img.part-03
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload system image part 04
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-part-04
+          path: workspace/rom-output/chunks/system.img.part-04
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload ROM reports, launcher and rollback archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-ROM-reports-and-rollback
+          path: |
+            workspace/rom-output/removed-system-apps.tar.gz
+            workspace/rom-output/original-configs/
+            workspace/rom-output/ROM-MODIFICATIONS.json
+            workspace/rom-output/CANDIDATE-VERIFICATION.json
+            workspace/rom-output/system.img.sha256
+            workspace/rom-output/system-image-size.txt
+            workspace/rom-output/FLASH-STATUS.txt
+            workspace/rom-output/README-FLASH-RESTRICTIONS.md
+            workspace/rom-output/WesalCarLauncher.apk
+            workspace/rom-output/config-changes.patch
+            workspace/rom-output/audit/
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
