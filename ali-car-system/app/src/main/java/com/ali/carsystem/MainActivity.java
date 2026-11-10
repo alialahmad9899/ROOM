@@ -95,6 +95,7 @@ public final class MainActivity extends Activity implements LocationListener {
         tileRow(right,new Tile("♫","الموسيقى",()->startActivity(new Intent(this,MusicActivity.class))),new Tile("☎","الهاتف",()->open(new Intent(Intent.ACTION_DIAL),"تطبيق الهاتف غير متوفر")));
         tileRow(right,new Tile("◉","Wi-Fi",()->open(new Intent(Settings.ACTION_WIFI_SETTINGS),"إعدادات Wi-Fi غير متاحة")),new Tile("ᛒ","Bluetooth",()->open(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS),"إعدادات Bluetooth غير متاحة")));
         tileRow(right,new Tile("▤","القراءة",()->openReader()),new Tile("⚙","إعدادات الجهاز",()->open(new Intent(Settings.ACTION_SETTINGS),"الإعدادات غير متاحة")));
+        tileRow(right,new Tile("▣","متجر Play",()->openPlayStore()),new Tile("▤","إدارة التطبيقات",()->open(new Intent(Settings.ACTION_APPLICATION_SETTINGS),"إعدادات التطبيقات غير متاحة")));
         LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1.06f);
         body.addView(right,rp);
         root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
@@ -140,6 +141,11 @@ public final class MainActivity extends Activity implements LocationListener {
         Intent i=new Intent(Intent.ACTION_VIEW,Uri.parse("google.navigation:q=&mode=d"));
         if(i.resolveActivity(getPackageManager())==null)i=new Intent(Intent.ACTION_VIEW,Uri.parse("geo:0,0?q="));
         open(i,"لم يتم العثور على تطبيق خرائط");
+    }
+    private void openPlayStore(){
+        Intent store=getPackageManager().getLaunchIntentForPackage("com.android.vending");
+        if(store==null){toast("متجر Play غير متوفر");return;}
+        open(store,"تعذّر فتح متجر Play");
     }
     private void openReader(){
         String[] pkgs={"com.amazon.kindle","com.zinio.mobile.android.reader","com.asus.supernote","com.google.android.apps.docs"};
