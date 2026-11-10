@@ -135,7 +135,7 @@ public final class MainActivity extends Activity implements LocationListener {
                 new Tile("⌖", "الملاحة", () -> openNavigation()),
                 new Tile("♫", "الموسيقى", () -> openMusic()));
         addTileRow(controls,
-                new Tile("◉", "راديو إنترنت", () -> openMusic()),
+                new Tile("◉", "راديو إنترنت", () -> openRadio()),
                 new Tile("☎", "الهاتف", () -> openIntent(
                         new Intent(Intent.ACTION_DIAL), "تطبيق الهاتف غير متوفر")));
         addTileRow(controls,
@@ -245,7 +245,19 @@ public final class MainActivity extends Activity implements LocationListener {
     private void openMusic() {
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.addCategory(Intent.CATEGORY_APP_MUSIC);
-        openIntent(intent, "لم يتم العثور على تطبيق موسيقى أو راديو");
+        openIntent(intent, "لم يتم العثور على تطبيق موسيقى");
+    }
+
+    private void openRadio() {
+        Intent radio = getPackageManager().getLaunchIntentForPackage(
+                "com.metalshard.projectwave");
+        if (radio == null) {
+            Toast.makeText(this,
+                    "راديو الإنترنت يحتاج تثبيت تطبيق Acoustic أولاً",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        openIntent(radio, "تعذّر تشغيل تطبيق راديو الإنترنت");
     }
 
     private void openIntent(Intent intent, String missingMessage) {
