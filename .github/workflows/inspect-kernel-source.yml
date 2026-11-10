@@ -16,141 +16,137 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Download, verify, and inspect nested kernel source archive
+      - name: Verify source and inspect exact board and Android build files
         env:
           DOWNLOAD_URL: https://github.com/alialahmad9899/ROOM/releases/download/kernel-source-v1/Z170_V12_26_4_69_Kernal.zip
           EXPECTED_SHA256: 1005cb54e93c9ffd49146c7d0add0054db633eb980b5cec9b4cd195a888b8c0a
           EXPECTED_SIZE: "129001094"
         run: |
           python3 - <<'PY'
-          import hashlib, json, os, pathlib, re, tarfile, zipfile
+          import hashlib, os, pathlib, re, tarfile, urllib.request, zipfile
 
           out = pathlib.Path("inspection")
           out.mkdir(exist_ok=True)
-          archive = pathlib.Path("kernel-source.zip")
-          nested = pathlib.Path("kernel-source.tar.gz")
-
-          request = __import__("urllib.request").request.Request(
-              os.environ["DOWNLOAD_URL"],
-              headers={"User-Agent": "ASUS-Z170CG-kernel-inspector"},
-          )
+          archive = pathlib.Path("source.zip")
+          nested = pathlib.Path("source.tar.gz")
+          req = urllib.request.Request(os.environ["DOWNLOAD_URL"], headers={"User-Agent": "ROOM-Z170CG-inspector"})
           digest = hashlib.sha256()
           size = 0
-          with __import__("urllib.request").request.urlopen(request, timeout=240) as response, archive.open("wb") as target:
-              while True:
-                  chunk = response.read(1024 * 1024)
-                  if not chunk:
-                      break
+          with urllib.request.urlopen(req, timeout=240) as response, archive.open("wb") as target:
+              while chunk := response.read(1024 * 1024):
                   target.write(chunk)
                   digest.update(chunk)
                   size += len(chunk)
-
-          sha256 = digest.hexdigest()
           expected_size = int(os.environ["EXPECTED_SIZE"])
           expected_hash = os.environ["EXPECTED_SHA256"]
-          lines = [
-              "ASUS Z170CG / P01Y nested kernel source inspection",
-              f"Downloaded ZIP bytes: {size}",
-              f"Expected ZIP bytes: {expected_size}",
-              f"SHA-256: {sha256}",
-              f"Expected SHA-256: {expected_hash}",
-              f"Size matches: {size == expected_size}",
-              f"SHA-256 matches: {sha256 == expected_hash}",
-              "",
-          ]
-          if size != expected_size or sha256 != expected_hash:
-              raise SystemExit("\\n".join(lines) + "\\nArchive integrity verification failed.")
-
+          if size != expected_size or digest.hexdigest() != expected_hash:
+              raise SystemExit(f"Source archive verification failed: bytes={size}, sha256={digest.hexdigest()}")
           with zipfile.ZipFile(archive) as z:
               bad = z.testzip()
               if bad:
-                  raise SystemExit(f"ZIP CRC test failed: {bad}")
-              files = [i for i in z.infolist() if not i.is_dir()]
-              if len(files) != 1:
-                  raise SystemExit(f"Expected one nested source archive, found {len(files)}")
-              nested_info = files[0]
-              lines += [
-                  f"Outer ZIP CRC: passed",
-                  f"Nested archive path: {nested_info.filename}",
-                  f"Nested archive uncompressed size: {nested_info.file_size}",
-              ]
-              with z.open(nested_info) as src, nested.open("wb") as dst:
-                  while True:
-                      chunk = src.read(1024 * 1024)
-                      if not chunk:
-                          break
+                  raise SystemExit(f"ZIP CRC failed: {bad}")
+              regular = [x for x in z.infolist() if not x.is_dir()]
+              if len(regular) != 1:
+                  raise SystemExit(f"Expected one nested source file, found {len(regular)}")
+              with z.open(regular[0]) as src, nested.open("wb") as dst:
+                  while chunk := src.read(1024 * 1024):
                       dst.write(chunk)
 
-          with tarfile.open(nested, mode="r:gz") as tf:
-              members = tf.getmembers()
-              regular = [m for m in members if m.isfile()]
-              names = [m.name.lstrip("./") for m in regular]
-              normalized = [(m, m.name.lstrip("./")) for m in regular]
-              tops = sorted({n.split("/", 1)[0] for n in names if n})
+          lines = [
+              "ASUS Z170CG / P01Y focused source inspection",
+              f"ZIP bytes: {size}",
+              f"SHA-256: {digest.hexdigest()}",
+              "ZIP CRC: passed",
+              f"Nested source: {regular[0].filename}",
+              "",
+          ]
+          path_lines = []
+          board_lines = []
+          with tarfile.open(nested, "r:gz") as tf:
+              members = [m for m in tf.getmembers() if m.isfile()]
+              by_name = {m.name.lstrip("./"): m for m in members}
               lines += [
+                  f"Tar members: {len(tf.getmembers())}",
+                  f"Regular source files: {len(members)}",
+                  f"Uncompressed regular-file bytes: {sum(m.size for m in members)}",
                   "",
-                  "INNER TAR.GZ:",
-                  "Read test: passed",
-                  f"Total members: {len(members)}",
-                  f"Regular files: {len(regular)}",
-                  f"Uncompressed regular-file bytes: {sum(m.size for m in regular)}",
-                  "Top-level entries:",
+                  "ROOT / KERNEL METADATA:",
               ]
-              lines.extend(f"  - {n}" for n in tops[:120])
 
-              relevant = []
-              for m, n in normalized:
-                  base = n.rsplit("/", 1)[-1]
-                  depth = n.count("/")
-                  low = n.lower()
-                  if (
-                      (base == "Makefile" and depth <= 3)
-                      or base.lower().startswith("readme")
-                      or base.endswith("defconfig")
-                      or base in {"Kconfig", "Kconfig.cpu", "build.sh", "build_kernel.sh", "Android.mk", "BoardConfig.mk"}
-                      or any(k in low for k in ("z170", "p01y", "sofia", "3230", "atom", "intel_mid"))
-                  ):
-                      relevant.append((m, n))
-              lines += ["", f"Relevant source paths ({len(relevant)} found; first 800):"]
-              lines.extend(f"  - {n} [{m.size} bytes]" for m, n in relevant[:800])
-
-              candidates = []
-              for m, n in normalized:
-                  base = n.rsplit("/", 1)[-1]
-                  low = n.lower()
-                  if (
-                      base == "Makefile" and n.count("/") <= 3
-                      or base.lower().startswith("readme") and m.size <= 200000
-                      or base.endswith("defconfig") and m.size <= 500000
-                      or n.endswith(("arch/x86/Kconfig", "arch/x86/Kconfig.cpu", "include/linux/version.h", "include/generated/utsrelease.h"))
-                      or any(k in low for k in ("z170", "p01y", "sofia", "3230", "intel_mid"))
-                  ):
-                      candidates.append((m, n))
-              candidates = candidates[:120]
-              lines += ["", "SELECTED FILE CONTENTS (bounded):"]
-              for m, n in candidates:
-                  if m.size > 500000:
+              exact = [
+                  "linux-3.10/Makefile",
+                  "linux-3.10/README",
+                  "linux-3.10/arch/x86/Kconfig",
+                  "linux-3.10/arch/x86/platform/asustek/Z170CG/boardinfo.c",
+                  "linux-3.10/arch/x86/platform/asustek/Z170CG/boardinfo.h",
+              ]
+              for name in exact:
+                  m = by_name.get(name)
+                  if not m:
+                      lines.append(f"NOT FOUND: {name}")
                       continue
-                  try:
-                      fh = tf.extractfile(m)
-                      data = fh.read(500000).decode("utf-8", "replace") if fh else ""
-                  except Exception as e:
-                      lines.append(f"\n===== {n} (read error: {e}) =====")
-                      continue
-                  if not data.strip():
-                      continue
-                  lines.append(f"\n===== {n} ({m.size} bytes; showing up to 500KB) =====")
+                  fh = tf.extractfile(m)
+                  data = fh.read(40000).decode("utf-8", "replace") if fh else ""
+                  lines.append(f"\n===== {name} ({m.size} bytes) =====")
                   lines.append(data[:12000])
 
-              (out / "kernel-inspection.txt").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
-              (out / "relevant-source-paths.txt").write_text("\\n".join(f"{n} [{m.size}]" for m, n in relevant) + "\\n", encoding="utf-8")
-              print("\\n".join(lines[:220]))
+              prefixes = (
+                  "linux-3.10/arch/x86/configs/",
+                  "linux-3.10/arch/x86/boot/dts/xgold/sofia_3gr",
+                  "linux-3.10/arch/x86/boot/dts/xgold/sofia_3g",
+                  "linux-3.10/arch/x86/platform/asustek/Z170CG/",
+                  "mydroid/device/",
+                  "mydroid/vendor/",
+                  "mydroid/bootable/",
+                  "mydroid/build/target/board/",
+              )
+              for name, m in sorted(by_name.items()):
+                  if name.startswith(prefixes):
+                      path_lines.append(f"{name} [{m.size}]")
+
+              lines += ["", "ANDROID / BOARD DIRECTORY INVENTORY:"]
+              lines.extend(path_lines[:1800])
+
+              config_candidates = []
+              for name, m in by_name.items():
+                  low = name.lower()
+                  base = name.rsplit("/", 1)[-1]
+                  if (
+                      name.startswith(("mydroid/device/", "mydroid/vendor/"))
+                      and (
+                          base in {"BoardConfig.mk", "AndroidProducts.mk", "device.mk", "vendorsetup.sh"}
+                          or base.endswith(".mk") and any(k in low for k in ("product", "board", "device", "asus", "p01y", "z170", "sofia", "3gr"))
+                          or base.endswith(".rc") and any(k in low for k in ("init", "uevent", "fstab", "charger"))
+                      )
+                  ):
+                      config_candidates.append((name, m))
+              lines += ["", f"ANDROID DEVICE CONFIG CANDIDATES ({len(config_candidates)} found):"]
+              lines.extend(f"  - {n} [{m.size} bytes]" for n, m in config_candidates[:1000])
+
+              terms = re.compile(r"Z170CG|P01Y|SF_3GR|sofia_3gr|TARGET_PRODUCT|PRODUCT_DEVICE|TARGET_ARCH|BOARD_KERNEL|BOARD_BOOTIMAGE|BOARD_SYSTEMIMAGE|BOARD_RECOVERY", re.I)
+              matched_contents = 0
+              for name, m in config_candidates[:250]:
+                  if m.size > 300000:
+                      continue
+                  fh = tf.extractfile(m)
+                  data = fh.read().decode("utf-8", "replace") if fh else ""
+                  hits = [f"{i+1}: {line[:350]}" for i, line in enumerate(data.splitlines()) if terms.search(line)]
+                  if hits:
+                      matched_contents += 1
+                      board_lines.append(f"\n===== {name} =====")
+                      board_lines.extend(hits[:100])
+              lines += ["", f"DEVICE IDENTIFIER MATCHES ({matched_contents} files):"]
+              lines.extend(board_lines[:1500])
+
+              (out / "kernel-and-board-report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+              (out / "android-board-paths.txt").write_text("\n".join(path_lines) + "\n", encoding="utf-8")
+              print("\n".join(lines[:180]))
           PY
 
-      - name: Upload inspection report
+      - name: Upload focused inspection
         uses: actions/upload-artifact@v4
         with:
-          name: asus-z170cg-kernel-deep-inspection
+          name: asus-z170cg-board-build-inspection
           path: inspection/
           if-no-files-found: error
           retention-days: 14
