@@ -121,18 +121,7 @@ jobs:
           test "$FS_BYTES" -le 2415919104
           cp workspace/system.img workspace/rom-output/system.img
           sha256sum workspace/rom-output/system.img > workspace/rom-output/system.img.sha256
-          python3 - <<'PY'
-import hashlib, json, pathlib
-root = pathlib.Path("workspace/rom-output")
-report_path = root / "ROM-MODIFICATIONS.json"
-report = json.loads(report_path.read_text(encoding="utf-8"))
-image = root / "system.img"
-report["final_system_image_sha256"] = hashlib.sha256(image.read_bytes()).hexdigest()
-report["final_system_image_bytes"] = image.stat().st_size
-report["filesystem_check"] = "e2fsck -f -n passed after resize2fs -M"
-report["flash_ready"] = False
-report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-PY
+          python3 tools/rom/finalize_system_candidate.py --output-dir workspace/rom-output
           stat --printf='system_image_bytes=%s\n' workspace/rom-output/system.img > workspace/rom-output/system-image-size.txt
           {
             echo "P01Y WW candidate only"
