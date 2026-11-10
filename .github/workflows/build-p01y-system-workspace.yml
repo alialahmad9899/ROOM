@@ -1,0 +1,71 @@
+name: Build P01Y stock system workspace and inventory
+
+on:
+  push:
+    branches: ["rom/**"]
+    paths:
+      - ".github/workflows/build-p01y-system-workspace.yml"
+      - "tools/rom/**"
+      - "docs/ROM-BUILD-STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconstruct-and-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out ROM tools
+        uses: actions/checkout@v4
+
+      - name: Install ext4 tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y e2fsprogs
+
+      - name: Set up Android build tools for APK manifest inspection
+        uses: android-actions/setup-android@v3
+        with:
+          packages: build-tools;35.0.0
+
+      - name: Download and reconstruct the verified ASUS system partition
+        env:
+          OTA_URL: https://github.com/alialahmad9899/ROOM/releases/download/stock-firmware-v1/UL-P01Y-WW-12.26.4.69-user_2.zip
+        run: |
+          set -euo pipefail
+          mkdir -p workspace
+          curl --fail --location --retry 3 --retry-delay 2 "$OTA_URL" -o workspace/stock-ota-original.zip
+          python3 tools/rom/reconstruct_system.py \
+            --archive workspace/stock-ota-original.zip \
+            --output workspace/system-original.img
+
+      - name: Mount read-only and inventory stock Android packages
+        run: |
+          set -euo pipefail
+          mkdir -p workspace/system-mount workspace/inventory
+          sudo mount -t ext4 -o loop,ro,noload workspace/system-original.img workspace/system-mount
+          cleanup() {
+            sudo umount workspace/system-mount || true
+          }
+          trap cleanup EXIT
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          test -n "$AAPT"
+          python3 tools/rom/inventory_system.py \
+            --system-root workspace/system-mount \
+            --aapt "$AAPT" \
+            --output-dir workspace/inventory
+          sudo umount workspace/system-mount
+          trap - EXIT
+          sha256sum workspace/system-original.img > workspace/inventory/system-original.img.sha256
+          stat --printf='system_image_bytes=%s\n' workspace/system-original.img > workspace/inventory/system-image-size.txt
+          rm -f workspace/system-original.img workspace/stock-ota-original.zip
+
+      - name: Upload stock system inventory (no flash image yet)
+        uses: actions/upload-artifact@v4
+        with:
+          name: p01y-ww-stock-system-inventory
+          path: workspace/inventory/
+          if-no-files-found: error
+          retention-days: 14
