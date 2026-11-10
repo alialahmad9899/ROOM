@@ -102,7 +102,12 @@ The matching package name reported by third-party firmware archives is:
 
 `WW_Z170CG_V12.26.4.69-user-201704101658-rawdata.zip`
 
-Those listings describe it as approximately 2.00 GB. This is a lead to locate the full factory package, not a verified download or an ASUS-hosted link. Confirm the exact P01Y / Z170CG / WW variant and verify its checksum before using it.
+Candidate listings:
+
+- [HalabTech file listing](https://support.halabtech.com/index.php?a=downloads&b=file&id=350604) — lists the matching RAWDATA archive at 2.00 GB.
+- [RomDevelopers file listing](https://romdevelopers.com/index.php?a=downloads&b=file&id=43686) — lists the same archive at 2.20 GB and displays a purchase-download prompt.
+
+These are third-party listings, not ASUS-hosted links, and neither download was verified. Confirm exact P01Y / Z170CG / WW identity and verify the archive checksum before use. Do not substitute a Z170C (P01Z) or Z170MG (MediaTek) RAW package.
 
 ## 7. Safety
 
