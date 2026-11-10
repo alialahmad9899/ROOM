@@ -15,22 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Download and verify original stock firmware
+      - name: Download, verify, and inspect OTA image metadata
         env:
           DOWNLOAD_URL: https://github.com/alialahmad9899/ROOM/releases/download/stock-firmware-v1/UL-P01Y-WW-12.26.4.69-user_2.zip
           EXPECTED_SHA256: a3cff1f6703cb68cbe189fc029ab0a94fd7a3ab85297cfdd271fe3e7ff16a6a2
           EXPECTED_SIZE: "1121160179"
         run: |
           python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, re, struct, urllib.request, zipfile
+          import collections, hashlib, os, pathlib, re, struct, subprocess, urllib.request, zipfile
 
-          work = pathlib.Path("firmware-inspection")
-          work.mkdir(exist_ok=True)
+          out = pathlib.Path("firmware-inspection")
+          out.mkdir(exist_ok=True)
           archive = pathlib.Path("stock-firmware-original.zip")
-          request = urllib.request.Request(
-              os.environ["DOWNLOAD_URL"],
-              headers={"User-Agent": "ROOM-Z170CG-stock-firmware-inspector"},
-          )
+          request = urllib.request.Request(os.environ["DOWNLOAD_URL"], headers={"User-Agent":"ROOM-Z170CG-OTA-inspector"})
           digest = hashlib.sha256()
           size = 0
           with urllib.request.urlopen(request, timeout=600) as response, archive.open("wb") as target:
@@ -41,14 +38,12 @@ jobs:
                   target.write(chunk)
                   digest.update(chunk)
                   size += len(chunk)
-                  print(f"Downloaded {size:,} bytes", flush=True)
 
           expected_size = int(os.environ["EXPECTED_SIZE"])
           actual_hash = digest.hexdigest()
           expected_hash = os.environ["EXPECTED_SHA256"]
-          report = [
-              "ASUS Z170CG / P01Y STOCK FIRMWARE INSPECTION",
-              f"File: {archive.name}",
+          lines = [
+              "ASUS Z170CG / P01Y OTA PACKAGE ANALYSIS",
               f"Downloaded bytes: {size}",
               f"Expected bytes: {expected_size}",
               f"SHA-256: {actual_hash}",
@@ -58,124 +53,141 @@ jobs:
               "",
           ]
           if size != expected_size or actual_hash != expected_hash:
-              (work / "integrity-failure.txt").write_text("\\n".join(report), encoding="utf-8")
-              raise SystemExit("Original firmware integrity verification failed; analysis stopped.")
-
-          def safe_name(name):
-              return name.replace("\\\\", "/").lstrip("./")
-
-          def boot_header(data):
-              if len(data) < 48 or data[:8] != b"ANDROID!":
-                  return None
-              vals = struct.unpack_from("<10I", data, 8)
-              return {
-                  "kernel_size": vals[0], "kernel_addr": hex(vals[1]),
-                  "ramdisk_size": vals[2], "ramdisk_addr": hex(vals[3]),
-                  "second_size": vals[4], "second_addr": hex(vals[5]),
-                  "tags_addr": hex(vals[6]), "page_size": vals[7],
-                  "header_version_or_dt_size": vals[8], "os_version": hex(vals[9]),
-              }
+              raise SystemExit("Original firmware archive integrity verification failed.")
 
           with zipfile.ZipFile(archive) as z:
               bad = z.testzip()
               if bad:
-                  raise SystemExit(f"ZIP CRC verification failed at entry: {bad}")
+                  raise SystemExit(f"Outer ZIP CRC test failed: {bad}")
               infos = [i for i in z.infolist() if not i.is_dir()]
-              report += [
-                  "Outer ZIP CRC test: passed",
-                  f"File entries: {len(infos)}",
-                  f"Total uncompressed bytes: {sum(i.file_size for i in infos)}",
-                  "",
-                  "FIRMWARE FILE INVENTORY:",
-              ]
-              inventory = []
-              key_pattern = re.compile(
-                  r"(boot|recovery|system|vendor|product|userdata|cache|partition|"
-                  r"fastboot|droidboot|ifwi|dnx|fw|firmware|modem|radio|"
-                  r"updater|update-script|build\\.prop|android-info|"
-                  r"payload|scatter|\\.img$|\\.dat$|\\.mbn$|\\.bin$)",
-                  re.I,
-              )
-              metadata_ext = (".prop", ".txt", ".cfg", ".ini", ".xml", ".json", ".rc", ".sh", ".mf", ".list")
-              build_props = []
-              script_texts = []
-              boot_images = []
-              nested_archives = []
-              for info in infos:
-                  name = safe_name(info.filename)
-                  line = f"{name} | compressed={info.compress_size} | expanded={info.file_size}"
-                  inventory.append(line)
-                  low = name.lower()
-                  if low.endswith((".zip", ".jar", ".7z", ".tar", ".gz")):
-                      nested_archives.append((name, info.file_size))
-                  if low.endswith((".img", ".bin")) and info.file_size <= 512 * 1024 * 1024:
-                      try:
-                          with z.open(info) as f:
-                              head = f.read(4096)
-                          parsed = boot_header(head)
-                          if parsed:
-                              boot_images.append((name, parsed))
-                          elif head.startswith(b"AVB0"):
-                              boot_images.append((name, {"magic": "AVB0"}))
-                          elif head.startswith(b"CrAU"):
-                              boot_images.append((name, {"magic": "CrAU (payload)"}))
-                          elif head.startswith(b"ANDROID!"):
-                              boot_images.append((name, {"magic": "ANDROID!"}))
-                          elif head[:4] in (b"\x3a\xff\x26\xed", b"\x02\x21\x4c\x18"):
-                              boot_images.append((name, {"magic": head[:4].hex()}))
-                      except Exception as e:
-                          boot_images.append((name, {"read_error": str(e)}))
-                  if low.endswith(metadata_ext) or "build.prop" in low or "updater-script" in low:
-                      if info.file_size <= 2 * 1024 * 1024:
-                          try:
-                              with z.open(info) as f:
-                                  data = f.read(2 * 1024 * 1024).decode("utf-8", "replace")
-                              if "build.prop" in low or low.endswith(".prop"):
-                                  build_props.append((name, data))
-                              if "updater-script" in low or "android-info" in low or low.endswith("scatter.txt"):
-                                  script_texts.append((name, data))
-                          except Exception:
-                              pass
+              inventory = [f"{i.filename} | compressed={i.compress_size} | expanded={i.file_size}" for i in infos]
+              lines += ["OUTER ZIP CRC: passed", "OUTER ZIP CONTENTS:"] + inventory
 
-              (work / "firmware-file-inventory.txt").write_text("\\n".join(inventory) + "\\n", encoding="utf-8")
-              report += [x for x in inventory if key_pattern.search(x)][:2500]
-              report += ["", "ANDROID BOOT IMAGE SIGNATURES / HEADERS:"]
-              for name, info in boot_images:
-                  report.append(f"{name}: {json.dumps(info, sort_keys=True)}")
-              report += ["", "BUILD / DEVICE PROPERTIES:"]
-              property_rx = re.compile(
-                  r"^(ro\\.(build|product|hardware|board|boot|arch|zygote|vendor)|"
-                  r"ro\\.build\\.(fingerprint|version\\.release|version\\.sdk|type|tags)|"
-                  r"ro\\.product\\.(device|model|name)|ro\\.hardware|"
-                  r"ro\\.product\\.cpu\\.abi|ro\\.kernel)",
-                  re.I,
-              )
-              for name, data in build_props:
-                  report.append(f"\\n===== {name} =====")
-                  hits = [line for line in data.splitlines() if property_rx.search(line)]
-                  report.extend(hits[:500] if hits else ["(file found; no selected property keys matched)"])
-              report += ["", "UPDATE / PLATFORM METADATA:"]
-              for name, data in script_texts:
-                  report.append(f"\\n===== {name} =====")
-                  report.append(data[:16000])
-              report += ["", "NESTED ARCHIVE CANDIDATES:"]
-              report.extend(f"{name} [{length} bytes]" for name, length in nested_archives[:500])
-              report += [
+              def read_small(name, limit=2*1024*1024):
+                  try:
+                      info = z.getinfo(name)
+                  except KeyError:
+                      return None
+                  if info.file_size > limit:
+                      return None
+                  with z.open(info) as f:
+                      return f.read(limit)
+
+              script = read_small("META-INF/com/google/android/updater-script")
+              if script:
+                  lines += ["", "OTA UPDATER SCRIPT:", script.decode("utf-8","replace")]
+
+              transfer = read_small("system.transfer.list")
+              new_info = z.getinfo("system.new.dat")
+              fwu_info = z.getinfo("fwu_image.bin")
+              lines += [
                   "",
-                  "SAFETY / LIMITATIONS:",
-                  "- The original firmware archive was not modified.",
-                  "- No firmware image was flashed or executed.",
-                  "- The report identifies archive contents and readable metadata only.",
-                  "- Image compatibility and exact partition mapping still require device-specific confirmation.",
+                  "SYSTEM DATA:",
+                  f"system.new.dat uncompressed-in-outer-zip bytes: {new_info.file_size}",
+                  f"system.new.dat compressed-in-outer-zip bytes: {new_info.compress_size}",
+                  f"system.new.dat first 64 bytes: {z.open(new_info).read(64).hex(' ')}",
+                  "",
+                  "FWU IMAGE:",
+                  f"fwu_image.bin bytes: {fwu_info.file_size}",
+                  f"fwu_image.bin first 256 bytes: {z.open(fwu_info).read(256).hex(' ')}",
               ]
-              (work / "stock-firmware-report.txt").write_text("\\n".join(report) + "\\n", encoding="utf-8")
-              print("\\n".join(report[:350]))
+
+              if transfer:
+                  text = transfer.decode("utf-8","replace")
+                  (out/"system.transfer.list").write_text(text,encoding="utf-8")
+                  rows = text.splitlines()
+                  lines += ["", "SYSTEM TRANSFER LIST (complete):", text]
+                  try:
+                      version = int(rows[0].strip())
+                      total_blocks = int(rows[1].strip())
+                      cursor = 2
+                      stash_entries = int(rows[cursor].strip()) if version >= 2 else 0
+                      cursor += 1 if version >= 2 else 0
+                      max_stash = int(rows[cursor].strip()) if version >= 3 else 0
+                      cursor += 1 if version >= 3 else 0
+                      commands = rows[cursor:]
+                      counts = collections.Counter(row.split(" ",1)[0] for row in commands if row.strip())
+                      lines += [
+                          "",
+                          "TRANSFER LIST SUMMARY:",
+                          f"Version: {version}",
+                          f"Target blocks: {total_blocks}",
+                          f"Target bytes at 4096 bytes/block: {total_blocks*4096}",
+                          f"Stash entries: {stash_entries}",
+                          f"Maximum stash entries: {max_stash}",
+                          f"Command counts: {dict(counts)}",
+                      ]
+
+                      supported = {"new","zero","erase"}
+                      if counts and set(counts).issubset(supported) and version <= 4:
+                          image = pathlib.Path("system-reconstructed.img")
+                          data_pos = 0
+                          written_blocks = 0
+                          with z.open(new_info) as dat, image.open("wb") as img:
+                              img.truncate(total_blocks*4096)
+                              for row in commands:
+                                  if not row.strip():
+                                      continue
+                                  command, *args = row.split(" ",1)
+                                  if command != "new":
+                                      continue
+                                  ranges = [int(x) for x in args[0].split(",")]
+                                  pair_count = ranges[0]
+                                  if len(ranges) != 1 + pair_count*2:
+                                      raise SystemExit(f"Malformed transfer range: {row}")
+                                  for idx in range(pair_count):
+                                      start = ranges[1+idx*2]
+                                      end = ranges[2+idx*2]
+                                      if end < start or end > total_blocks:
+                                          raise SystemExit(f"Invalid block range in transfer list: {row}")
+                                      byte_count = (end-start)*4096
+                                      img.seek(start*4096)
+                                      remaining = byte_count
+                                      while remaining:
+                                          chunk = dat.read(min(4*1024*1024,remaining))
+                                          if not chunk:
+                                              raise SystemExit("system.new.dat ended before transfer-list ranges were fulfilled")
+                                          img.write(chunk)
+                                          remaining -= len(chunk)
+                                      data_pos += byte_count
+                                      written_blocks += (end-start)
+                          lines += [
+                              "",
+                              "SYSTEM IMAGE RECONSTRUCTION:",
+                              "Status: completed from new/zero/erase-only transfer commands",
+                              f"Reconstructed file bytes: {image.stat().st_size}",
+                              f"New data bytes consumed: {data_pos}",
+                              f"New blocks written: {written_blocks}",
+                              f"Ext4 superblock magic at offset 1080: {image.open('rb').read()[1080:1082].hex()}",
+                          ]
+                          if shutil_which := __import__("shutil").which("debugfs"):
+                              for target in ("/build.prop","/system/build.prop"):
+                                  p = subprocess.run([shutil_which,"-R",f"cat {target}",str(image)],capture_output=True,text=True,timeout=60)
+                                  if p.returncode == 0 and p.stdout.strip():
+                                      (out/"system-build.prop").write_text(p.stdout,encoding="utf-8")
+                                      selected = [x for x in p.stdout.splitlines() if re.match(r"^(ro\\.build\\.|ro\\.product\\.|ro\\.hardware|ro\\.product\\.cpu\\.abi|ro\\.build\\.version\\.)",x,re.I)]
+                                      lines += ["",f"BUILD.PROP READ FROM {target}:"]+selected[:500]
+                                      break
+                              else:
+                                  lines += ["", "BUILD.PROP: not found at root candidates through debugfs"]
+                      else:
+                          lines += [
+                              "",
+                              "SYSTEM IMAGE RECONSTRUCTION:",
+                              "Status: skipped; transfer list uses commands requiring original source blocks or patch/stash processing, or unsupported version.",
+                              f"Observed command names: {sorted(counts)}",
+                          ]
+                  except Exception as e:
+                      lines += ["", "TRANSFER LIST PARSE / RECONSTRUCTION ERROR:", repr(e)]
+
+              (out/"stock-firmware-analysis.txt").write_text("\n".join(lines)+"\n",encoding="utf-8")
+              print("\n".join(lines[:300]))
           PY
 
-      - name: Upload stock firmware inspection report
+      - name: Upload detailed firmware analysis
         uses: actions/upload-artifact@v4
         with:
-          name: asus-z170cg-stock-firmware-inspection
+          name: asus-z170cg-stock-firmware-detailed-analysis
           path: firmware-inspection/
           if-no-files-found: error
           retention-days: 14
