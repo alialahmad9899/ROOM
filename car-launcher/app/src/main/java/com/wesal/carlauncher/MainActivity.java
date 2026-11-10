@@ -304,9 +304,9 @@ public final class MainActivity extends Activity implements LocationListener {
     public void onLocationChanged(Location location) {
         if (location == null) return;
         lastGpsUpdate = SystemClock.elapsedRealtime();
-        float next = location.hasSpeed() ? location.getSpeed() * 3.6f : displayedSpeed;
+        float next = location.hasSpeed() ? location.getSpeed() * 3.6f : 0f;
         if (next < 0f || Float.isNaN(next) || Float.isInfinite(next)) next = 0f;
-        if (next > 240f) next = 240f;
+        if (next > 200f) next = 200f;
         displayedSpeed = displayedSpeed == 0f ? next : (displayedSpeed * 0.65f) + (next * 0.35f);
         speedometer.setSpeed(displayedSpeed);
         speedometer.setGpsAvailable(true);
@@ -354,7 +354,7 @@ public final class MainActivity extends Activity implements LocationListener {
         }
 
         void setSpeed(float value) {
-            speed = Math.max(0f, Math.min(240f, value));
+            speed = Math.max(0f, Math.min(200f, value));
             invalidate();
         }
 
@@ -378,12 +378,12 @@ public final class MainActivity extends Activity implements LocationListener {
             paint.setColor(0xFF2C3C48);
             canvas.drawArc(arcBounds, 135f, 270f, false, paint);
 
-            float activeSweep = Math.min(270f, (speed / 180f) * 270f);
+            float activeSweep = Math.min(270f, (speed / 200f) * 270f);
             paint.setColor(gpsAvailable ? ACCENT : 0xFF607381);
             canvas.drawArc(arcBounds, 135f, activeSweep, false, paint);
 
-            for (int value = 0; value <= 180; value += 10) {
-                float angle = (float) Math.toRadians(135f + (value / 180f) * 270f);
+            for (int value = 0; value <= 200; value += 10) {
+                float angle = (float) Math.toRadians(135f + (value / 200f) * 270f);
                 boolean major = value % 20 == 0;
                 float outer = radius * 0.86f;
                 float inner = radius * (major ? 0.72f : 0.78f);
@@ -406,7 +406,7 @@ public final class MainActivity extends Activity implements LocationListener {
                 }
             }
 
-            float needleAngle = (float) Math.toRadians(135f + (Math.min(speed, 180f) / 180f) * 270f);
+            float needleAngle = (float) Math.toRadians(135f + (Math.min(speed, 200f) / 200f) * 270f);
             float needleLength = radius * 0.59f;
             paint.setColor(AMBER);
             paint.setStrokeWidth(dp(3));
