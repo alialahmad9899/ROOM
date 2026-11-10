@@ -1,0 +1,135 @@
+name: Distribute verified P01Y system candidate in download-sized parts
+
+on:
+  push:
+    branches: ["rom/**"]
+    paths:
+      - ".github/workflows/distribute-p01y-system-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  split-successful-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Download the already verified successful ROM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: P01Y-WW-Wesal-debloated-system-candidate
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 42739752908
+          path: workspace/input
+
+      - name: Verify full system image before splitting
+        run: |
+          set -euo pipefail
+          test -s workspace/input/system.img
+          cd workspace/input
+          sha256sum -c system.img.sha256
+          python3 - <<'PY'
+          import json, pathlib
+          report = json.loads(pathlib.Path("ROM-MODIFICATIONS.json").read_text())
+          verification = json.loads(pathlib.Path("CANDIDATE-VERIFICATION.json").read_text())
+          assert verification.get("passed") is True, verification
+          assert report.get("removed_package_count") == 34, report.get("removed_package_count")
+          assert report.get("final_system_image_bytes") == pathlib.Path("system.img").stat().st_size
+          assert report.get("flash_ready") is False
+          print("Verified system image metadata and static content checks.")
+          PY
+          cd ../..
+
+      - name: Split system image into 400 MiB chunks and verify reassembly
+        run: |
+          set -euo pipefail
+          mkdir -p workspace/chunks workspace/reports
+          split -b 400M -d -a 2 workspace/input/system.img workspace/chunks/system.img.part-
+          PARTS="$(find workspace/chunks -maxdepth 1 -type f -name 'system.img.part-*' | wc -l)"
+          test "$PARTS" -eq 5
+          ORIGINAL_HASH="$(sha256sum workspace/input/system.img | awk '{print $1}')"
+          CHUNKS_HASH="$(cat workspace/chunks/system.img.part-* | sha256sum | awk '{print $1}')"
+          test "$ORIGINAL_HASH" = "$CHUNKS_HASH"
+          printf '%s  system.img\n' "$ORIGINAL_HASH" > workspace/chunks/SHA256SUM.txt
+          stat --printf='system_image_bytes=%s\n' workspace/input/system.img > workspace/chunks/SIZE.txt
+          cp workspace/input/system.img.sha256 workspace/chunks/
+          cp workspace/input/ROM-MODIFICATIONS.json workspace/reports/
+          cp workspace/input/CANDIDATE-VERIFICATION.json workspace/reports/
+          cp workspace/input/removed-system-apps.tar.gz workspace/reports/
+          cp workspace/input/WesalCarLauncher.apk workspace/reports/
+          cp workspace/input/FLASH-STATUS.txt workspace/reports/
+          cp workspace/input/README-FLASH-RESTRICTIONS.md workspace/reports/
+          cp workspace/input/config-changes.patch workspace/reports/
+          cp -r workspace/input/original-configs workspace/reports/
+          cp -r workspace/input/audit workspace/reports/
+          cp workspace/input/system.img.sha256 workspace/reports/
+          cp workspace/input/system-image-size.txt workspace/reports/
+          echo "original_sha256=$ORIGINAL_HASH"
+          echo "chunks_sha256=$CHUNKS_HASH"
+          echo "chunk_count=$PARTS"
+
+      - name: Upload system image part 00
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-part-00
+          path: workspace/chunks/system.img.part-00
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload system image part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-part-01
+          path: workspace/chunks/system.img.part-01
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload system image part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-part-02
+          path: workspace/chunks/system.img.part-02
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload system image part 03
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-part-03
+          path: workspace/chunks/system.img.part-03
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload system image part 04
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-part-04
+          path: workspace/chunks/system.img.part-04
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload ROM reports and rollback archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-ROM-reports-and-rollback
+          path: workspace/reports/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload chunk integrity manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-system-img-integrity
+          path: workspace/chunks/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
