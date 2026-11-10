@@ -47,6 +47,10 @@ public final class MainActivity extends Activity implements LocationListener {
             boolean fresh = lastGpsUpdate > 0L
                     && SystemClock.elapsedRealtime() - lastGpsUpdate <= 6000L;
             speedometer.setGpsAvailable(fresh);
+            if (!fresh) {
+                displayedSpeed = 0f;
+                speedometer.setSpeed(0f);
+            }
             if (!fresh && locationManager != null
                     && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 setGpsLabel("بانتظار إشارة GPS", false);
@@ -289,6 +293,9 @@ public final class MainActivity extends Activity implements LocationListener {
         handler.post(gpsWatchdog);
         if (checkCallingOrSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
+            displayedSpeed = 0f;
+            speedometer.setSpeed(0f);
+            speedometer.setGpsAvailable(false);
             setGpsLabel("صلاحية الموقع غير مفعّلة", false);
             return;
         }
@@ -310,6 +317,8 @@ public final class MainActivity extends Activity implements LocationListener {
     private void stopGpsUpdates() {
         handler.removeCallbacks(gpsWatchdog);
         lastGpsUpdate = 0L;
+        displayedSpeed = 0f;
+        speedometer.setSpeed(0f);
         speedometer.setGpsAvailable(false);
         if (locationManager != null) {
             try {
@@ -346,6 +355,8 @@ public final class MainActivity extends Activity implements LocationListener {
     @Override public void onProviderDisabled(String provider) {
         if (LocationManager.GPS_PROVIDER.equals(provider)) {
             lastGpsUpdate = 0L;
+            displayedSpeed = 0f;
+            speedometer.setSpeed(0f);
             speedometer.setGpsAvailable(false);
             setGpsLabel("تم إيقاف GPS", false);
         }
