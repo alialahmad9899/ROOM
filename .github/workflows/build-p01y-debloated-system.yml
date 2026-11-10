@@ -139,7 +139,7 @@ jobs:
           test "$FS_BYTES" -le 2415919104
           cp workspace/system.img workspace/rom-output/system.img
           sha256sum workspace/rom-output/system.img > workspace/rom-output/system.img.sha256
-          python3 tools/rom/finalize_system_candidate.py --output-dir workspace/rom-output
+          sudo python3 tools/rom/finalize_system_candidate.py --output-dir workspace/rom-output
           stat --printf='system_image_bytes=%s\n' workspace/rom-output/system.img > workspace/rom-output/system-image-size.txt
           {
             echo "P01Y WW candidate only"
