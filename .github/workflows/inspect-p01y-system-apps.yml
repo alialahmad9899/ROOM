@@ -6,6 +6,10 @@ on:
     paths:
       - '.github/workflows/inspect-p01y-system-apps.yml'
       - 'tools/rom/inspect_p01y_system.py'
+  pull_request:
+    paths:
+      - '.github/workflows/inspect-p01y-system-apps.yml'
+      - 'tools/rom/inspect_p01y_system.py'
   workflow_dispatch:
 
 permissions:
