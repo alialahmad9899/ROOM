@@ -1,0 +1,136 @@
+name: Inspect ASUS Z170CG Kernel Source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/inspect-kernel-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  inspect-kernel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Inspect public release archive safely
+        env:
+          RELEASE_API: https://api.github.com/repos/alialahmad9899/ROOM/releases/tags/kernel-source-v1
+          EXPECTED_SHA256: 1005cb54e93c9ffd49146c7d0add0054db633eb980b5cec9b4cd195a888b8c0a
+          EXPECTED_SIZE: "129001094"
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, urllib.request, zipfile
+
+          out = pathlib.Path("inspection")
+          out.mkdir(exist_ok=True)
+          headers = {"Accept": "application/vnd.github+json", "User-Agent": "ASUS-Z170CG-kernel-inspector"}
+          req = urllib.request.Request(os.environ["RELEASE_API"], headers=headers)
+          with urllib.request.urlopen(req, timeout=60) as r:
+              release = json.load(r)
+
+          asset = next((a for a in release.get("assets", []) if a.get("name") == "Z170_V12_26_4_69_Kernal.zip"), None)
+          if not asset:
+              raise SystemExit("Required release asset was not found.")
+
+          url = asset["browser_download_url"]
+          archive = pathlib.Path("kernel-source.zip")
+          req = urllib.request.Request(url, headers={"User-Agent": "ASUS-Z170CG-kernel-inspector"})
+          with urllib.request.urlopen(req, timeout=180) as r, archive.open("wb") as f:
+              while True:
+                  chunk = r.read(1024 * 1024)
+                  if not chunk:
+                      break
+                  f.write(chunk)
+
+          size = archive.stat().st_size
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          expected_size = int(os.environ["EXPECTED_SIZE"])
+          expected_hash = os.environ["EXPECTED_SHA256"]
+
+          lines = [
+              "ASUS Z170CG / P01Y Kernel Source Inspection",
+              f"Release: {release.get('html_url')}",
+              f"Asset: {asset.get('name')}",
+              f"Downloaded size: {size}",
+              f"GitHub asset size: {asset.get('size')}",
+              f"Expected size: {expected_size}",
+              f"SHA-256: {digest}",
+              f"Expected SHA-256: {expected_hash}",
+              f"Size matches: {size == expected_size == int(asset.get('size', -1))}",
+              f"SHA-256 matches: {digest == expected_hash}",
+              "",
+          ]
+
+          if size != expected_size or digest != expected_hash:
+              raise SystemExit("\n".join(lines) + "\nArchive integrity verification failed.")
+
+          with zipfile.ZipFile(archive) as z:
+              bad = z.testzip()
+              if bad:
+                  raise SystemExit(f"ZIP CRC check failed at: {bad}")
+              infos = z.infolist()
+              names = [i.filename for i in infos if not i.is_dir()]
+              total_uncompressed = sum(i.file_size for i in infos)
+              lines += [
+                  f"ZIP CRC test: passed",
+                  f"File entries: {len(names)}",
+                  f"Uncompressed bytes: {total_uncompressed}",
+                  "",
+                  "Top-level entries:",
+              ]
+              tops = sorted({n.split("/", 1)[0] for n in names})
+              lines.extend(f"  - {x}" for x in tops[:100])
+
+              candidate_paths = [
+                  n for n in names
+                  if n.endswith("/Makefile") or n == "Makefile"
+                  or n.endswith("/include/linux/version.h")
+                  or n.endswith("/include/generated/utsrelease.h")
+                  or n.endswith("/README") or n.endswith("/README.md")
+                  or n.endswith("/README.txt")
+              ]
+              lines += ["", "Kernel metadata candidates:"]
+              lines.extend(f"  - {x}" for x in candidate_paths[:100])
+
+              version_hits = []
+              for name in candidate_paths:
+                  if name.endswith("Makefile") and (name.count("/") <= 2):
+                      try:
+                          data = z.read(name)[:200000].decode("utf-8", "replace")
+                      except Exception:
+                          continue
+                      vals = {}
+                      for key in ("VERSION", "PATCHLEVEL", "SUBLEVEL", "EXTRAVERSION"):
+                          m = re.search(r"(?m)^\s*" + key + r"\s*=\s*(.*?)\s*$", data)
+                          if m:
+                              vals[key] = m.group(1)
+                      if vals:
+                          version_hits.append({"path": name, "fields": vals})
+              lines += ["", "Version fields found:", json.dumps(version_hits, indent=2)]
+
+              indicators = {
+                  "arch/x86": sum(1 for n in names if n.startswith("arch/x86/")),
+                  "arch/arm": sum(1 for n in names if n.startswith("arch/arm/")),
+                  "drivers/gpu": sum(1 for n in names if n.startswith("drivers/gpu/")),
+                  "drivers/input": sum(1 for n in names if n.startswith("drivers/input/")),
+                  "drivers/bluetooth": sum(1 for n in names if n.startswith("drivers/bluetooth/")),
+                  "drivers/media": sum(1 for n in names if n.startswith("drivers/media/")),
+              }
+              lines += ["", "Path indicators (counts):", json.dumps(indicators, indent=2)]
+
+          (out / "kernel-inspection.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          (out / "archive-manifest.txt").write_text("\n".join(names) + "\n", encoding="utf-8")
+          print("\n".join(lines))
+          PY
+
+      - name: Upload inspection report
+        uses: actions/upload-artifact@v4
+        with:
+          name: asus-z170cg-kernel-inspection
+          path: inspection/
+          if-no-files-found: error
+          retention-days: 14
