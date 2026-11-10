@@ -134,3 +134,5 @@ jobs:
           path: inspection/
           if-no-files-found: error
           retention-days: 14
+
+# Trigger workflow after the initial workflow file creation.
