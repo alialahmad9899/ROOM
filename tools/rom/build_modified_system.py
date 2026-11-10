@@ -135,19 +135,43 @@ def main() -> None:
         if audit_row.get("persistent") in ("true", "1", "True"):
             raise RuntimeError(f"Refusing to remove persistent package: {package}")
 
-        apk_relative = pathlib.PurePosixPath(row["partition_path"].lstrip("/"))
-        if len(apk_relative.parts) < 3 or apk_relative.parts[0] != "system":
-            raise RuntimeError(f"Unexpected package path for {package}: {apk_relative}")
-        if apk_relative.parts[1] not in ("app", "priv-app"):
-            raise RuntimeError(f"Refusing to remove package outside app directories: {package}")
-        package_dir_relative = pathlib.PurePosixPath(*apk_relative.parts[1:-1])
-        package_dir = system_root.joinpath(*package_dir_relative.parts)
-        apk_path = system_root.joinpath(*apk_relative.parts[1:])
-        if not apk_path.is_file() or not package_dir.is_dir():
-            raise RuntimeError(f"APK or app folder does not exist for {package}: {apk_path}")
-        if system_root not in package_dir.resolve().parents:
-            raise RuntimeError(f"Package directory escapes system root: {package_dir}")
-
+        partition_path = pathlib.PurePosixPath(row["partition_path"])
+        try:
+            relative_apk = partition_path.relative_to("/system")
+        except ValueError as error:
+            raise RuntimeError(
+                f"Package path is not rooted in /system for {package}: {partition_path}"
+            ) from error
+        if len(relative_apk.parts) < 2 or relative_apk.parts[0] not in ("app", "priv-app"):
+            raise RuntimeError(
+                f"Refusing to remove package outside /system/app or /system/priv-app: "
+                f"{package} ({partition_path})"
+            )
+        apk_path = system_root.joinpath(*relative_apk.parts)
+        package_dir = apk_path.parent
+        try:
+            resolved_apk = apk_path.resolve(strict=True)
+            resolved_dir = package_dir.resolve(strict=True)
+        except FileNotFoundError as error:
+            raise RuntimeError(
+                f"Stock APK path missing for {package}: apk={apk_path}; "
+                f"app_dir={package_dir}; system_root={system_root}; "
+                f"root_exists={system_root.exists()}; app_root_exists="
+                f"{(system_root / 'app').is_dir()}; priv_app_root_exists="
+                f"{(system_root / 'priv-app').is_dir()}"
+            ) from error
+        if not resolved_apk.is_file() or not resolved_dir.is_dir():
+            raise RuntimeError(
+                f"Invalid APK or app directory for {package}: apk={resolved_apk}; "
+                f"app_dir={resolved_dir}"
+            )
+        if system_root not in resolved_apk.parents or system_root not in resolved_dir.parents:
+            raise RuntimeError(
+                f"Package path escapes system root: package={package}; apk={resolved_apk}"
+            )
+        package_dir_relative = pathlib.PurePosixPath(
+            *resolved_dir.relative_to(system_root).parts
+        )
         directory_key = package_dir_relative.as_posix()
         directories.setdefault(directory_key, []).append(package)
         rows_to_remove.append({
