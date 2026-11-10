@@ -84,7 +84,7 @@ def reconstruct(archive: pathlib.Path, output: pathlib.Path) -> dict:
         if target_bytes <= 0:
             raise RuntimeError("Transfer list produced an empty system image")
 
-        zero_chunk = b"\\0" * (8 * 1024 * 1024)
+        zero_chunk = b"\0" * (8 * 1024 * 1024)
         consumed = 0
         with package.open("system.new.dat", "r") as data, output.open("w+b") as image:
             image.truncate(target_bytes)
