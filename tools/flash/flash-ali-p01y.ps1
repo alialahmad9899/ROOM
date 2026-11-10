@@ -236,7 +236,7 @@ try {
     }
 
     Write-Host "[6/6] Writing system partition..." -ForegroundColor Cyan
-    $flash = Invoke-Native -Executable $script:Fastboot -Arguments @("-S", "256M", "-s", $fastbootSerial, "flash", "system", $image.FullName)
+    $flash = Invoke-Native -Executable $script:Fastboot -Arguments @("-S", "64M", "-s", $fastbootSerial, "flash", "system", $image.FullName)
     Write-Host $flash.Text
     if ($flash.ExitCode -ne 0 -or $flash.Text -match "(?i)\bFAILED\b") {
         Stop-Flash "Fastboot reported a flash failure. Do not disconnect or try random commands. The tablet was left in Fastboot for recovery."
