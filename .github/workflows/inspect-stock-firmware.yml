@@ -97,13 +97,13 @@ jobs:
               ]
 
               if transfer:
-                  text = transfer.decode("utf-8","replace")
-                  (out/"system.transfer.list").write_text(text,encoding="utf-8")
-                  rows = text.splitlines()
-                  lines += ["", "SYSTEM TRANSFER LIST (complete):", text]
+                  transfer_text = transfer.decode("utf-8","replace")
+                  (out/"system.transfer.list").write_text(transfer_text,encoding="utf-8")
+                  rows = transfer_text.splitlines()
+                  lines += ["", "SYSTEM TRANSFER LIST (complete):", transfer_text]
                   try:
                       version = int(rows[0].strip())
-                      total_blocks = int(rows[1].strip())
+                      declared_new_blocks = int(rows[1].strip())
                       cursor = 2
                       stash_entries = int(rows[cursor].strip()) if version >= 2 else 0
                       cursor += 1 if version >= 2 else 0
@@ -115,49 +115,94 @@ jobs:
                           "",
                           "TRANSFER LIST SUMMARY:",
                           f"Version: {version}",
-                          f"Target blocks: {total_blocks}",
-                          f"Target bytes at 4096 bytes/block: {total_blocks*4096}",
+                          f"Declared new-data blocks: {declared_new_blocks}",
+                          f"Declared new-data bytes: {declared_new_blocks*4096}",
+                          f"system.new.dat bytes: {new_info.file_size}",
                           f"Stash entries: {stash_entries}",
                           f"Maximum stash entries: {max_stash}",
                           f"Command counts: {dict(counts)}",
                       ]
 
                       supported = {"new","zero","erase"}
-                      if counts and set(counts).issubset(supported) and version <= 4:
+                      new_ranges = []
+                      new_blocks_from_ranges = 0
+                      max_target_block = 0
+                      parse_error = None
+                      for row in commands:
+                          if not row.strip():
+                              continue
+                          command, *args = row.split(" ",1)
+                          if command not in supported:
+                              continue
+                          if command != "new":
+                              continue
+                          if not args:
+                              parse_error = f"Missing range data: {row}"
+                              break
+                          ranges = [int(x) for x in args[0].split(",")]
+                          value_count = ranges[0]
+                          if value_count % 2 or len(ranges) != 1 + value_count:
+                              parse_error = f"Malformed transfer range: {row}"
+                              break
+                          for idx in range(value_count//2):
+                              start = ranges[1+idx*2]
+                              end = ranges[2+idx*2]
+                              if start < 0 or end < start:
+                                  parse_error = f"Invalid range endpoints: {row}"
+                                  break
+                              new_ranges.append((start,end))
+                              new_blocks_from_ranges += end-start
+                              max_target_block = max(max_target_block,end)
+                          if parse_error:
+                              break
+
+                      lines += [
+                          f"Summed blocks in new ranges: {new_blocks_from_ranges}",
+                          f"Highest exclusive target block: {max_target_block}",
+                          f"Computed target image bytes: {max_target_block*4096}",
+                      ]
+
+                      if parse_error:
+                          lines += ["", "SYSTEM IMAGE RECONSTRUCTION: skipped", parse_error]
+                      elif not counts or not set(counts).issubset(supported) or version > 4:
+                          lines += [
+                              "",
+                              "SYSTEM IMAGE RECONSTRUCTION: skipped",
+                              "Transfer list includes commands requiring original source blocks, patch/stash processing, or an unsupported version.",
+                              f"Observed command names: {sorted(counts)}",
+                          ]
+                      elif new_blocks_from_ranges != declared_new_blocks:
+                          lines += [
+                              "",
+                              "SYSTEM IMAGE RECONSTRUCTION: skipped",
+                              "The sum of new ranges does not match the transfer-list header.",
+                          ]
+                      elif new_info.file_size != declared_new_blocks*4096:
+                          lines += [
+                              "",
+                              "SYSTEM IMAGE RECONSTRUCTION: skipped",
+                              "system.new.dat byte count does not match the number of declared new blocks.",
+                          ]
+                      else:
                           image = pathlib.Path("system-reconstructed.img")
                           data_pos = 0
                           written_blocks = 0
                           with z.open(new_info) as dat, image.open("wb") as img:
-                              img.truncate(total_blocks*4096)
-                              for row in commands:
-                                  if not row.strip():
-                                      continue
-                                  command, *args = row.split(" ",1)
-                                  if command != "new":
-                                      continue
-                                  if not args:
-                                      raise SystemExit(f"Missing range data: {row}")
-                                  ranges = [int(x) for x in args[0].split(",")]
-                                  range_value_count = ranges[0]
-                                  if range_value_count % 2 or len(ranges) != 1 + range_value_count:
-                                      raise SystemExit(f"Malformed transfer range: {row}")
-                                  pair_count = range_value_count // 2
-                                  for idx in range(pair_count):
-                                      start = ranges[1+idx*2]
-                                      end = ranges[2+idx*2]
-                                      if end < start or end > total_blocks:
-                                          raise SystemExit(f"Invalid block range in transfer list: {row}")
-                                      byte_count = (end-start)*4096
-                                      img.seek(start*4096)
-                                      remaining = byte_count
-                                      while remaining:
-                                          chunk = dat.read(min(4*1024*1024,remaining))
-                                          if not chunk:
-                                              raise SystemExit("system.new.dat ended before transfer-list ranges were fulfilled")
-                                          img.write(chunk)
-                                          remaining -= len(chunk)
-                                      data_pos += byte_count
-                                      written_blocks += (end-start)
+                              img.truncate(max_target_block*4096)
+                              for start,end in new_ranges:
+                                  byte_count = (end-start)*4096
+                                  img.seek(start*4096)
+                                  remaining = byte_count
+                                  while remaining:
+                                      chunk = dat.read(min(4*1024*1024,remaining))
+                                      if not chunk:
+                                          raise SystemExit("system.new.dat ended before transfer-list ranges were fulfilled")
+                                      img.write(chunk)
+                                      remaining -= len(chunk)
+                                  data_pos += byte_count
+                                  written_blocks += (end-start)
+                              if dat.read(1):
+                                  raise SystemExit("Unexpected trailing bytes remain in system.new.dat after all new ranges")
                           with image.open("rb") as img:
                               img.seek(1080)
                               ext4_magic = img.read(2).hex()
@@ -168,7 +213,6 @@ jobs:
                               f"Reconstructed file bytes: {image.stat().st_size}",
                               f"New data bytes consumed: {data_pos}",
                               f"New blocks written: {written_blocks}",
-                              f"Unconsumed system.new.dat bytes: {new_info.file_size-data_pos}",
                               f"Ext4 superblock magic at offset 1080: {ext4_magic}",
                           ]
                           if ext4_magic == "53ef":
@@ -189,13 +233,6 @@ jobs:
                                   lines += ["", "DEBUGFS: not installed; skipped reading build.prop"]
                           else:
                               lines += ["", "EXT4 CHECK: expected ext4 superblock magic 53ef was not found; build.prop extraction skipped"]
-                      else:
-                          lines += [
-                              "",
-                              "SYSTEM IMAGE RECONSTRUCTION:",
-                              "Status: skipped; transfer list uses commands requiring original source blocks or patch/stash processing, or unsupported version.",
-                              f"Observed command names: {sorted(counts)}",
-                          ]
                   except Exception as e:
                       lines += ["", "TRANSFER LIST PARSE / RECONSTRUCTION ERROR:", repr(e)]
 
