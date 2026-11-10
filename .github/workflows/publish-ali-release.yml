@@ -15,6 +15,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
+      - name: Checkout release tools and documentation
+        uses: actions/checkout@v4
+
+      - name: Validate Windows flash script syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile("tools/flash/flash-ali-p01y.ps1", [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | Format-List
+            exit 1
+          }
+          if (!(Test-Path "tools/flash/flash-ali-p01y.bat")) { throw "Windows BAT launcher missing" }
+          if (!(Test-Path "docs/ADB-FASTBOOT-FLASH-GUIDE.md")) { throw "Flash guide missing" }
+          Write-Host "PowerShell parser passed; flash utility and guide are present."
+
       - name: Download verified system image chunks
         uses: actions/download-artifact@v4
         with:
@@ -52,8 +69,11 @@ jobs:
           assert report.get("flash_ready") is False, report
           assert report.get("launcher", {}).get("package") == "com.ali.carsystem", report
           assert report.get("final_system_image_bytes") == image.stat().st_size, report
+          assert image.stat().st_size == 2052186112
           assert (root / "ALICarSystem.apk").is_file()
           assert (root / "bootanimation.zip").is_file()
+          assert pathlib.Path("tools/flash/flash-ali-p01y.ps1").is_file()
+          assert pathlib.Path("tools/flash/flash-ali-p01y.bat").is_file()
           print("ALI release payload passed hash, package, image-size and static verification.")
           PY
           tar -czf workspace/release/original-configs.tar.gz -C workspace/reports original-configs
@@ -82,6 +102,9 @@ jobs:
             workspace/reports/config-changes.patch
             workspace/reports/system-image-size.txt
             workspace/reports/audit/*.csv
+            tools/flash/flash-ali-p01y.ps1
+            tools/flash/flash-ali-p01y.bat
+            docs/ADB-FASTBOOT-FLASH-GUIDE.md
           body: |
             ALI Car System candidate for ASUS ZenPad C 7.0 Z170CG / P01Y, SKU WW.
 
@@ -89,6 +112,8 @@ jobs:
 
             Includes the Arabic ALI dashboard, GPS speedometer, YouTube Lite official-mobile-site wrapper, local MediaStore music player, Play Store shortcut, Wi-Fi/Bluetooth/phone/Maps/reader/settings shortcuts, ALI boot animation and English TTS greeting. The original 34-package debloat manifest and rollback archive are included.
 
-            Static read-only system verification passed. This is still a **system.img candidate only**, not a complete factory firmware or ASUS-signed OTA. It does not replace boot.img, recovery.img, kernel, modem or bootloader. It is **NOT FLASH-READY** until exact partition mapping/capacity, bootloader write method, verified-boot/dm-verity behavior and a tested stock recovery path are confirmed.
+            A guarded Windows ADB-to-Fastboot utility is included. It verifies the exact image hash, P01Y/WW build identity, live /system mount source, Fastboot product, unlocked state, ext4 type and reported system capacity. It writes only the system partition and never unlocks the bootloader or wipes userdata/cache.
+
+            Static read-only system verification and flash-tool syntax validation passed. This remains a system.img candidate, not a complete factory firmware or ASUS-signed OTA. It does not replace boot.img, recovery.img, kernel, modem or bootloader. Physical boot and recovery testing are still pending; stop if the utility reports an unexpected mount source, device identity, bootloader state or partition size.
 
             Android 5 WebView may not support the current YouTube mobile site. Music pauses when the display turns off; actual suspend-to-RAM power behavior depends on the stock kernel and power HAL and has not been measured on the physical tablet.
