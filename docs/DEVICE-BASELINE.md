@@ -60,15 +60,21 @@ No Z170CG-specific Android `BoardConfig.mk`, `AndroidProducts.mk`, or `device.mk
 
 Conclusion: this release gives us the vendor kernel source and a small set of Android external components. It does **not** provide the complete Android framework, device configuration, proprietary vendor blobs, or a ready-to-build full ROM.
 
-## 5. Required next input
+## 5. Stock firmware package received
 
-Add the **original complete stock firmware package** for the matching WW SKU and exact build to a new GitHub Release asset. The expected package identifier is:
+A stock firmware package has now been attached to the public GitHub Release:
 
-`UL-P01Y-WW-12.26.4.69-user`
+[stock-firmware-v1](https://github.com/alialahmad9899/ROOM/releases/tag/stock-firmware-v1)
 
-Upload the original compressed firmware package as-is; do not expand it and commit its extracted contents to Git. Keep the original untouched.
+Asset: `UL-P01Y-WW-12.26.4.69-user_2.zip`  
+Size: 1,121,160,179 bytes  
+GitHub asset digest: `sha256:a3cff1f6703cb68cbe189fc029ab0a94fd7a3ab85297cfdd271fe3e7ff16a6a2`
 
-After it is available, inspect it to identify:
+The asset metadata digest matches the SHA-256 supplied by the user. An automated workflow is downloading the original package, independently hashing it, and reading its internal archive metadata. Its inspection report has not yet been reviewed.
+
+The original compressed package remains unchanged. It is stored as a Release asset, not expanded into Git history.
+
+The inspection is intended to identify:
 
 1. Actual boot/recovery/system image formats and contents.
 2. Build fingerprint, Android version, ABI/bitness, and kernel version from the installed firmware.
