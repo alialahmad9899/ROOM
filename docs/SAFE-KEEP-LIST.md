@@ -12,7 +12,7 @@
 | الهاتف والشريحة | Telephony وRadio Interface Layer وPhone وTelephony Provider وSMS/MMS عند الحاجة |
 | الاتصال | Wi-Fi وBluetooth وUSB وDHCP وNetwork Location |
 | الملاحة والسرعة | GPS/Location Provider ومكونات الموقع، مع تطبيق خرائط متوافق |
-| خدمات Google | Google Play services وGoogle Services Framework وPlay Store إذا كانت نسخة الخرائط أو تطبيقات الملاحة المثبتة تعتمد عليها |
+| خدمات Google | لا نعطّل Google Play services وGoogle Services Framework وPlay Store قبل اختبار تطبيق الخرائط المثبت. لكن Android 5 خارج دعم إصدارات Google Play services الحالية؛ نحتفظ بالنسخة الموجودة مؤقتاً ونختبرها، ولا نفرض تحديثاً حديثاً عليها |
 | الطاقة | Battery/Power Management وUSB/Charger وThermal ومراقبة الطاقة |
 | النظام والملفات | Settings وPermissions وDownload Manager وStorage وMedia Scanner ومكونات الحسابات الضرورية |
 
