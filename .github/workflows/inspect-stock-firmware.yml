@@ -22,7 +22,7 @@ jobs:
           EXPECTED_SIZE: "1121160179"
         run: |
           python3 - <<'PY'
-          import collections, hashlib, os, pathlib, re, struct, subprocess, urllib.request, zipfile
+          import collections, hashlib, os, pathlib, re, subprocess, urllib.request, zipfile
 
           out = pathlib.Path("firmware-inspection")
           out.mkdir(exist_ok=True)
@@ -80,16 +80,20 @@ jobs:
               transfer = read_small("system.transfer.list")
               new_info = z.getinfo("system.new.dat")
               fwu_info = z.getinfo("fwu_image.bin")
+              with z.open(new_info) as f:
+                  new_header = f.read(64)
+              with z.open(fwu_info) as f:
+                  fwu_header = f.read(256)
               lines += [
                   "",
                   "SYSTEM DATA:",
                   f"system.new.dat uncompressed-in-outer-zip bytes: {new_info.file_size}",
                   f"system.new.dat compressed-in-outer-zip bytes: {new_info.compress_size}",
-                  f"system.new.dat first 64 bytes: {z.open(new_info).read(64).hex(' ')}",
+                  f"system.new.dat first 64 bytes: {new_header.hex(' ')}",
                   "",
                   "FWU IMAGE:",
                   f"fwu_image.bin bytes: {fwu_info.file_size}",
-                  f"fwu_image.bin first 256 bytes: {z.open(fwu_info).read(256).hex(' ')}",
+                  f"fwu_image.bin first 256 bytes: {fwu_header.hex(' ')}",
               ]
 
               if transfer:
@@ -131,10 +135,13 @@ jobs:
                                   command, *args = row.split(" ",1)
                                   if command != "new":
                                       continue
+                                  if not args:
+                                      raise SystemExit(f"Missing range data: {row}")
                                   ranges = [int(x) for x in args[0].split(",")]
-                                  pair_count = ranges[0]
-                                  if len(ranges) != 1 + pair_count*2:
+                                  range_value_count = ranges[0]
+                                  if range_value_count % 2 or len(ranges) != 1 + range_value_count:
                                       raise SystemExit(f"Malformed transfer range: {row}")
+                                  pair_count = range_value_count // 2
                                   for idx in range(pair_count):
                                       start = ranges[1+idx*2]
                                       end = ranges[2+idx*2]
@@ -151,6 +158,9 @@ jobs:
                                           remaining -= len(chunk)
                                       data_pos += byte_count
                                       written_blocks += (end-start)
+                          with image.open("rb") as img:
+                              img.seek(1080)
+                              ext4_magic = img.read(2).hex()
                           lines += [
                               "",
                               "SYSTEM IMAGE RECONSTRUCTION:",
@@ -158,18 +168,27 @@ jobs:
                               f"Reconstructed file bytes: {image.stat().st_size}",
                               f"New data bytes consumed: {data_pos}",
                               f"New blocks written: {written_blocks}",
-                              f"Ext4 superblock magic at offset 1080: {image.open('rb').read()[1080:1082].hex()}",
+                              f"Unconsumed system.new.dat bytes: {new_info.file_size-data_pos}",
+                              f"Ext4 superblock magic at offset 1080: {ext4_magic}",
                           ]
-                          if shutil_which := __import__("shutil").which("debugfs"):
-                              for target in ("/build.prop","/system/build.prop"):
-                                  p = subprocess.run([shutil_which,"-R",f"cat {target}",str(image)],capture_output=True,text=True,timeout=60)
-                                  if p.returncode == 0 and p.stdout.strip():
-                                      (out/"system-build.prop").write_text(p.stdout,encoding="utf-8")
-                                      selected = [x for x in p.stdout.splitlines() if re.match(r"^(ro\\.build\\.|ro\\.product\\.|ro\\.hardware|ro\\.product\\.cpu\\.abi|ro\\.build\\.version\\.)",x,re.I)]
-                                      lines += ["",f"BUILD.PROP READ FROM {target}:"]+selected[:500]
-                                      break
+                          if ext4_magic == "53ef":
+                              debugfs = __import__("shutil").which("debugfs")
+                              if debugfs:
+                                  found_prop = False
+                                  for target in ("/build.prop","/system/build.prop"):
+                                      p = subprocess.run([debugfs,"-R",f"cat {target}",str(image)],capture_output=True,text=True,timeout=60)
+                                      if p.returncode == 0 and p.stdout.strip():
+                                          (out/"system-build.prop").write_text(p.stdout,encoding="utf-8")
+                                          selected = [x for x in p.stdout.splitlines() if re.match(r"^(ro\\.build\\.|ro\\.product\\.|ro\\.hardware|ro\\.product\\.cpu\\.abi|ro\\.build\\.version\\.)",x,re.I)]
+                                          lines += ["",f"BUILD.PROP READ FROM {target}:"]+selected[:500]
+                                          found_prop = True
+                                          break
+                                  if not found_prop:
+                                      lines += ["", "BUILD.PROP: not found at /build.prop or /system/build.prop"]
                               else:
-                                  lines += ["", "BUILD.PROP: not found at root candidates through debugfs"]
+                                  lines += ["", "DEBUGFS: not installed; skipped reading build.prop"]
+                          else:
+                              lines += ["", "EXT4 CHECK: expected ext4 superblock magic 53ef was not found; build.prop extraction skipped"]
                       else:
                           lines += [
                               "",
