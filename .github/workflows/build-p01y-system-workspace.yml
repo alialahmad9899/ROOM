@@ -30,6 +30,9 @@ jobs:
         with:
           packages: build-tools;35.0.0
 
+      - name: Validate ROM tooling syntax
+        run: python3 -m py_compile tools/rom/reconstruct_system.py tools/rom/inventory_system.py tools/rom/audit_candidate_manifests.py
+
       - name: Download and reconstruct the verified ASUS system partition
         env:
           OTA_URL: https://github.com/alialahmad9899/ROOM/releases/download/stock-firmware-v1/UL-P01Y-WW-12.26.4.69-user_2.zip
@@ -56,7 +59,7 @@ jobs:
             --system-root workspace/system-mount \
             --aapt "$AAPT" \
             --output-dir workspace/inventory
-          python3 tools/rom/audit_candidate_manifests.py \\
+          python3 tools/rom/audit_candidate_manifests.py \
             --system-root workspace/system-mount \\
             --inventory workspace/inventory/system-package-inventory.json \\
             --candidate-list tools/rom/candidates/potential-removals.txt \\
