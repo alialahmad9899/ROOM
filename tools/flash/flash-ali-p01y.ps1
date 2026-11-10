@@ -20,8 +20,20 @@ function Invoke-Native {
         [Parameter(Mandatory = $true)][string[]]$Arguments
     )
 
-    $raw = @(& $Executable @Arguments 2>&1)
-    $exitCode = $LASTEXITCODE
+    # Intel's legacy fastboot writes normal getvar responses to STDERR.
+    # With the script-wide ErrorActionPreference='Stop', PowerShell 5.1 can
+    # turn the first (bootloader) line into a terminating error before the
+    # remaining variables are collected. Temporarily use Continue while
+    # invoking native ADB/Fastboot, while still preserving the real exit code.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $raw = @(& $Executable @Arguments 2>&1)
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     $text = ($raw | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
 
     return [pscustomobject]@{
