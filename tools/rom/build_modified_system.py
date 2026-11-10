@@ -177,7 +177,7 @@ def main() -> None:
         rows_to_remove.append({
             "package": package,
             "label": row.get("label", ""),
-            "apk_path": "/" + apk_relative.as_posix(),
+            "apk_path": partition_path.as_posix(),
             "directory": "/" + directory_key,
             "apk_bytes": int(row.get("apk_bytes", 0)),
             "reason": entry.get("reason", ""),
