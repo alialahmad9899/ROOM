@@ -125,6 +125,16 @@ jobs:
           test -n "$BLOCK_SIZE"
           FS_BYTES="$((BLOCKS * BLOCK_SIZE))"
           truncate -s "$FS_BYTES" workspace/system.img
+          # Minimum resize can leave the ext4 resize inode needing one metadata correction.
+          # Repair it explicitly, then require a clean read-only check before packaging.
+          set +e
+          sudo e2fsck -f -y workspace/system.img
+          FINAL_REPAIR_RC=$?
+          set -e
+          if [ "$FINAL_REPAIR_RC" -gt 1 ]; then
+            echo "Post-resize e2fsck repair failed with exit code $FINAL_REPAIR_RC"
+            exit "$FINAL_REPAIR_RC"
+          fi
           sudo e2fsck -f -n workspace/system.img
           test "$FS_BYTES" -le 2415919104
           cp workspace/system.img workspace/rom-output/system.img
