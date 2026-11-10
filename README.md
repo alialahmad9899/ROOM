@@ -1,23 +1,20 @@
-# ASUS ZenPad C 7.0 (Z170CG / P01Y) — Car Tablet ROM Project
+# ASUS ZenPad C 7.0 (Z170CG / P01Y) — ALI Car System ROM
 
-This repository tracks the verified device baseline and the work needed to create a safer, car-oriented Android setup.
+The repository builds a device-specific, lightweight Arabic car interface and modified Android 5.0.2 system candidate for the ASUS ZenPad C 7.0 P01Y / WW.
 
-## Current status
+## Active work
+- Project identity: **ALI Car System** (not Wesal).
+- Android base: stock ASUS WW 12.26.4.69, Android 5.0.2 / API 21 / x86.
+- ALI dashboard: Arabic RTL, landscape 1024×600, GPS speedometer, navigation, YouTube Lite web wrapper, local music, phone, Wi-Fi, Bluetooth, reader and settings.
+- Boot experience: ALI / AL-AHMAD / VAO boot animation and English TTS greeting “Welcome Ali. Developed by Ali Ahmad.” with a short two-tone chime.
+- Power: no permanent launcher service or CPU wakelock; GPS stops when UI leaves foreground; music pauses on screen-off so Linux suspend can engage. No forced process freeze.
+- Debloat: 34 explicitly audited applications removed with original app directories archived; essential connectivity, telephony, Google, ASUS hardware and audio services remain protected.
 
-- Original ASUS kernel-source archive is stored as a GitHub Release asset, not expanded into Git history.
-- The uploaded archive passed SHA-256 and ZIP CRC verification.
-- Kernel and board-source inspection is complete for the available source package.
-- The original stock firmware package has been added as a Release asset and its SHA-256 matches the GitHub-published asset digest.
-- No custom ROM has been built and no flashing has been attempted.
+## Build and evidence
+See [docs/DEVICE-BASELINE.md](docs/DEVICE-BASELINE.md) and [docs/P01Y-WW-ROM-CANDIDATE.md](docs/P01Y-WW-ROM-CANDIDATE.md). The build workflow reconstructs the exact stock OTA, builds ALI, generates a matching boot animation, embeds both into the system image, applies the removal manifest, shrinks/checks ext4 and performs read-only content verification.
 
-## Confirmed device baseline
-
-See [docs/DEVICE-BASELINE.md](docs/DEVICE-BASELINE.md) for the evidence-backed inventory and the next required input.
-
-## Original kernel source release
-
-[ASUS Z170CG Kernel Source 12.26.4.69](https://github.com/alialahmad9899/ROOM/releases/tag/kernel-source-v1)
-
-## Safety rule
-
-Do not flash a boot, recovery, system, or firmware image until the exact device/SKU, partition layout, boot image format, bootloader state, and a verified recovery path have been confirmed.
+## Important limitations
+- Android 8 is deferred; this release targets the known-good Android 5 stock hardware platform.
+- Current YouTube website compatibility on the legacy Android 5 WebView is not guaranteed.
+- Actual suspend-to-RAM behavior, English TTS voice availability, dual-SIM and AUX must be validated on the physical tablet.
+- This is a system image candidate, not a complete flashable factory firmware package. Do not flash until partition mapping/capacity, bootloader and recovery path are verified.
