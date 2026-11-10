@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "device": "ASUS ZenPad C 7.0 Z170CG / P01Y",
+  "sku": "WW",
+  "base_firmware": "WW_ZenPad-12.26.4.69-20170410",
+  "android": "5.0.2 / API 21 / x86",
+  "strategy": "Remove selected user-facing bloatware only; keep Google navigation foundations, phone, Bluetooth, audio, ASUS hardware services and a fallback launcher.",
+  "protected_packages": [
+    "com.google.android.gms",
+    "com.google.android.gsf",
+    "com.google.android.gsf.login",
+    "com.google.android.apps.maps",
+    "com.google.android.tts",
+    "com.google.android.webview",
+    "com.asus.webview",
+    "com.android.vending",
+    "com.android.location.fused",
+    "com.android.phone",
+    "com.android.server.telecom",
+    "com.android.providers.telephony",
+    "com.intel.internal.telephony.OemTelephonyApp",
+    "com.android.bluetooth",
+    "com.asus.music",
+    "com.android.settings",
+    "com.android.systemui",
+    "com.asus.sensorapi.service",
+    "com.asus.inputdevices",
+    "com.asus.powersaver",
+    "com.asus.mobilemanagerservice",
+    "com.asus.server.azs",
+    "com.asus.launcher",
+    "com.asus.filemanager",
+    "com.asus.supernote",
+    "com.amazon.kindle",
+    "com.zinio.mobile.android.reader",
+    "com.asus.gallery",
+    "com.asus.contacts",
+    "com.asus.message"
+  ],
+  "remove": [
+    {
+      "package": "com.bbbler.actorsforomlet",
+      "reason": "Third-party promotional social component; unrelated to navigation, reading, audio or telephony."
+    },
+    {
+      "package": "com.cleanmaster.mguard",
+      "reason": "Preloaded cleaner stub; not required by Android memory management."
+    },
+    {
+      "package": "com.cmcm.skey",
+      "reason": "Companion component of the removed Clean Master app."
+    },
+    {
+      "package": "com.ezding.app",
+      "reason": "Regional shopping/service app not used by the vehicle setup."
+    },
+    {
+      "package": "com.gameloft.android.GloftPZOO",
+      "reason": "Preloaded game."
+    },
+    {
+      "package": "com.tripadvisor.tripadvisor",
+      "reason": "Preloaded travel/reviews app; navigation is retained through Google Maps."
+    },
+    {
+      "package": "com.emusic.android",
+      "reason": "Preloaded third-party music storefront; ASUS Music remains as local music player."
+    },
+    {
+      "package": "com.yahoo.mobile.client.android.ecauction",
+      "reason": "Regional Yahoo shopping app."
+    },
+    {
+      "package": "com.yahoo.mobile.client.android.ecshopping",
+      "reason": "Regional Yahoo shopping app."
+    },
+    {
+      "package": "com.yahoo.mobile.client.android.ecstore",
+      "reason": "Regional Yahoo shopping app."
+    },
+    {
+      "package": "mobisocial.omlet",
+      "reason": "Preloaded social/chat stub."
+    },
+    {
+      "package": "com.google.android.androidforwork",
+      "reason": "Android for Work is not used in the dedicated vehicle setup."
+    },
+    {
+      "package": "com.google.android.feedback",
+      "reason": "Google market feedback uploader; not required for Maps or Google Play services."
+    },
+    {
+      "package": "com.google.android.gm",
+      "reason": "Gmail UI and its background sync components are not required; Google account, GMS and Maps packages remain."
+    },
+    {
+      "package": "com.google.android.apps.photos",
+      "reason": "Google Photos is not part of the selected vehicle app set; file manager and ASUS Gallery remain."
+    },
+    {
+      "package": "com.google.android.videos",
+      "reason": "Google Play Movies storefront/player is not part of the selected app set."
+    },
+    {
+      "package": "com.google.android.talk",
+      "reason": "Legacy Hangouts messaging app is not required for phone or Bluetooth."
+    },
+    {
+      "package": "com.google.android.music",
+      "reason": "Google Play Music is redundant; ASUS Music remains."
+    },
+    {
+      "package": "com.asus.drawres",
+      "reason": "Graffiti Board handwriting app is not required."
+    },
+    {
+      "package": "com.asus.mirror",
+      "reason": "Screen mirroring UI is not required in the vehicle profile."
+    },
+    {
+      "package": "com.asus.DLNA",
+      "reason": "DLNA media-server services are not required; local music playback remains."
+    },
+    {
+      "package": "com.asus.ia.asusapp",
+      "reason": "MyASUS customer app is not required for core device hardware services."
+    },
+    {
+      "package": "com.asus.userfeedback",
+      "reason": "ASUS support/feedback app is not required for daily vehicle use."
+    },
+    {
+      "package": "com.asus.zencircle",
+      "reason": "ASUS social/photo-sharing app."
+    },
+    {
+      "package": "com.asus.collage",
+      "reason": "Photo collage editor; camera/gallery remain available."
+    },
+    {
+      "package": "com.asus.microfilm",
+      "reason": "MiniMovie editor is not required."
+    },
+    {
+      "package": "com.asus.quicksearch",
+      "reason": "ASUS quick-search helper is not required; Google navigation foundations remain."
+    },
+    {
+      "package": "com.asus.quicksearchwidget",
+      "reason": "ASUS search widget is not required."
+    },
+    {
+      "package": "com.asus.weathertime",
+      "reason": "Weather widget/service is not part of the required vehicle feature set."
+    },
+    {
+      "package": "com.asus.playto",
+      "reason": "PlayTo streaming service is not required; Bluetooth audio remains."
+    },
+    {
+      "package": "com.asus.easylauncher",
+      "reason": "Alternative Easy Mode launcher is not required; ASUS launcher fallback is retained."
+    },
+    {
+      "package": "com.asus.kidslauncher",
+      "reason": "Kids Mode launcher is not required."
+    },
+    {
+      "package": "com.asus.calendar",
+      "reason": "ASUS Calendar UI is not part of the selected vehicle app set; calendar storage framework remains."
+    },
+    {
+      "package": "tw.com.allsdk.asus.gamecenter",
+      "reason": "Preloaded regional game-center app."
+    }
+  ],
+  "leave_for_later_review": [
+    "com.asus.task",
+    "com.asus.email",
+    "com.asus.livedemoservice",
+    "com.asus.quickmemoservice",
+    "com.asus.loguploader",
+    "com.asus.powerstatistics",
+    "com.asus.atd.smmitest",
+    "com.android.chrome",
+    "com.google.android.googlequicksearchbox",
+    "com.google.android.apps.docs",
+    "com.asus.camera",
+    "com.asus.gallery"
+  ]
+}

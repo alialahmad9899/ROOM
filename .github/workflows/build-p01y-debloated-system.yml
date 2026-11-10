@@ -1,0 +1,132 @@
+name: Build P01Y WW debloated system candidate
+
+on:
+  push:
+    branches: ["rom/**"]
+    paths:
+      - ".github/workflows/build-p01y-debloated-system.yml"
+      - "tools/rom/build_modified_system.py"
+      - "tools/rom/debloat/**"
+      - "docs/P01Y-WW-ROM-CANDIDATE.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-system-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout ROM tools
+        uses: actions/checkout@v4
+
+      - name: Install filesystem and archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y e2fsprogs zip attr
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android platform and build tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Checkout car launcher source
+        uses: actions/checkout@v4
+        with:
+          ref: work/car-launcher-lightweight-plan
+          path: launcher-source
+
+      - name: Validate ROM tooling syntax
+        run: python3 -m py_compile tools/rom/reconstruct_system.py tools/rom/inventory_system.py tools/rom/audit_candidate_manifests.py tools/rom/build_modified_system.py
+
+      - name: Build Wesal Car Launcher for Android 5
+        working-directory: launcher-source/car-launcher
+        run: gradle --no-daemon assembleDebug
+
+      - name: Verify launcher output
+        run: |
+          set -euo pipefail
+          APK="launcher-source/car-launcher/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.wesal.carlauncher'"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          mkdir -p workspace/rom-output
+          cp "$APK" workspace/rom-output/WesalCarLauncher.apk
+
+      - name: Download and reconstruct exact stock P01Y WW system
+        env:
+          OTA_URL: https://github.com/alialahmad9899/ROOM/releases/download/stock-firmware-v1/UL-P01Y-WW-12.26.4.69-user_2.zip
+        run: |
+          set -euo pipefail
+          mkdir -p workspace/system-mount workspace/inventory workspace/rom-output
+          curl --fail --location --retry 3 --retry-delay 2 "$OTA_URL" -o workspace/stock-ota-original.zip
+          python3 tools/rom/reconstruct_system.py --archive workspace/stock-ota-original.zip --output workspace/system.img
+          cp workspace/system.img.sha256 workspace/rom-output/stock-system.img.sha256
+
+      - name: Inventory stock packages and mount system read-write
+        run: |
+          set -euo pipefail
+          sudo mount -t ext4 -o loop,rw workspace/system.img workspace/system-mount
+          trap 'sudo umount workspace/system-mount || true' EXIT
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          python3 tools/rom/inventory_system.py --system-root workspace/system-mount --aapt "$AAPT" --output-dir workspace/inventory
+          python3 tools/rom/audit_candidate_manifests.py --system-root workspace/system-mount --inventory workspace/inventory/system-package-inventory.json --candidate-list tools/rom/candidates/potential-removals.txt --aapt "$AAPT" --output-dir workspace/inventory/candidate-audit
+
+      - name: Apply reviewed debloat manifest and install launcher
+        run: |
+          set -euo pipefail
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          sudo python3 tools/rom/build_modified_system.py             --system-root workspace/system-mount             --system-image workspace/system.img             --inventory workspace/inventory/system-package-inventory.json             --candidate-audit workspace/inventory/candidate-audit/candidate-manifest-audit.json             --manifest tools/rom/debloat/p01y-ww-removals.json             --launcher-apk workspace/rom-output/WesalCarLauncher.apk             --aapt "$AAPT"             --output-dir workspace/rom-output
+          sync
+          sudo umount workspace/system-mount
+          trap - EXIT
+
+      - name: Verify and shrink ext4 system image
+        run: |
+          set -euo pipefail
+          sudo e2fsck -f -y workspace/system.img
+          sudo resize2fs -M workspace/system.img
+          BLOCKS="$(sudo dumpe2fs -h workspace/system.img 2>/dev/null | awk '/^Block count:/ {print $3}')"
+          BLOCK_SIZE="$(sudo dumpe2fs -h workspace/system.img 2>/dev/null | awk '/^Block size:/ {print $3}')"
+          test -n "$BLOCKS"
+          test -n "$BLOCK_SIZE"
+          FS_BYTES="$((BLOCKS * BLOCK_SIZE))"
+          truncate -s "$FS_BYTES" workspace/system.img
+          sudo e2fsck -f -n workspace/system.img
+          test "$FS_BYTES" -le 2415919104
+          cp workspace/system.img workspace/rom-output/system.img
+          sha256sum workspace/rom-output/system.img > workspace/rom-output/system.img.sha256
+          stat --printf='system_image_bytes=%s\n' workspace/rom-output/system.img > workspace/rom-output/system-image-size.txt
+          {
+            echo "P01Y WW candidate only"
+            echo "Filesystem bytes: $FS_BYTES"
+            echo "Reference system partition ceiling: 2415919104 bytes (must still be checked on the actual tablet)"
+            echo "Bootloader / dm-verity: NOT YET VERIFIED"
+          } > workspace/rom-output/FLASH-STATUS.txt
+          cp docs/P01Y-WW-ROM-CANDIDATE.md workspace/rom-output/README-FLASH-RESTRICTIONS.md
+          rm -f workspace/system.img workspace/stock-ota-original.zip
+
+      - name: Upload modified system candidate and rollback data
+        uses: actions/upload-artifact@v4
+        with:
+          name: P01Y-WW-Wesal-debloated-system-candidate
+          path: workspace/rom-output/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
