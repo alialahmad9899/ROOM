@@ -1,0 +1,81 @@
+name: Publish P01Y WW system candidate download
+
+on:
+  push:
+    branches: ["rom/**"]
+    paths:
+      - ".github/workflows/publish-p01y-system-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-prerelease:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Download the verified candidate from successful build
+        uses: actions/download-artifact@v4
+        with:
+          name: P01Y-WW-Wesal-debloated-system-candidate
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 42739752908
+          path: workspace/input
+
+      - name: Verify system image, verification report and image size
+        run: |
+          set -euo pipefail
+          cd workspace/input
+          sha256sum -c system.img.sha256
+          test -s system.img
+          test "$(stat -c %s system.img)" -eq 2055122944
+          python3 - <<'PY'
+          import json, pathlib
+          report = json.loads(pathlib.Path("ROM-MODIFICATIONS.json").read_text())
+          verification = json.loads(pathlib.Path("CANDIDATE-VERIFICATION.json").read_text())
+          assert verification.get("passed") is True
+          assert report.get("removed_package_count") == 34
+          assert report.get("final_system_image_sha256") == pathlib.Path("system.img.sha256").read_text().split()[0]
+          assert report.get("final_system_image_bytes") == pathlib.Path("system.img").stat().st_size
+          assert report.get("flash_ready") is False
+          print("Image SHA, size and read-only candidate verification passed.")
+          PY
+
+      - name: Package supplementary recovery and audit files
+        run: |
+          set -euo pipefail
+          cd workspace/input
+          tar -czf supplementary-rom-files.tar.gz original-configs audit config-changes.patch system-image-size.txt
+          cat > PUBLISH-NOTICE.txt <<'EOF'
+          This is an experimental P01Y / Z170CG WW system-partition candidate.
+          It is NOT yet authorized for flashing.
+          The OTA used to build it did not include boot.img or recovery.img.
+          Bootloader unlock state, exact system partition size and dm-verity / verified-boot behavior have not been verified on the target tablet.
+          Do not flash until those checks and a known-good restore route are complete.
+          Never flash fwu_image.bin as part of this debloat package.
+          EOF
+
+      - name: Create clearly marked GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd workspace/input
+          gh release create p01y-ww-system-candidate-2026-11-10 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target rom/p01y-system-modification \
+            --title "P01Y WW — Wesal system candidate (NOT FLASH-READY)" \
+            --prerelease \
+            --notes-file README-FLASH-RESTRICTIONS.md \
+            system.img \
+            system.img.sha256 \
+            removed-system-apps.tar.gz \
+            ROM-MODIFICATIONS.json \
+            CANDIDATE-VERIFICATION.json \
+            WesalCarLauncher.apk \
+            FLASH-STATUS.txt \
+            PUBLISH-NOTICE.txt \
+            supplementary-rom-files.tar.gz
