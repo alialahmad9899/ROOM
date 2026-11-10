@@ -6,7 +6,6 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
@@ -24,7 +23,6 @@ import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -366,7 +364,6 @@ public final class MainActivity extends Activity implements LocationListener {
 
         SpeedometerView(Activity context) {
             super(context);
-            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
 
         void setSpeed(float value) {
