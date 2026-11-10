@@ -14,27 +14,29 @@ permissions:
 jobs:
   inspect-kernel:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      - name: Download and inspect public release archive safely
+      - name: Download, verify, and inspect nested kernel source archive
         env:
           DOWNLOAD_URL: https://github.com/alialahmad9899/ROOM/releases/download/kernel-source-v1/Z170_V12_26_4_69_Kernal.zip
           EXPECTED_SHA256: 1005cb54e93c9ffd49146c7d0add0054db633eb980b5cec9b4cd195a888b8c0a
           EXPECTED_SIZE: "129001094"
         run: |
           python3 - <<'PY'
-          import hashlib, json, os, pathlib, re, urllib.request, zipfile
+          import hashlib, json, os, pathlib, re, tarfile, zipfile
 
           out = pathlib.Path("inspection")
           out.mkdir(exist_ok=True)
           archive = pathlib.Path("kernel-source.zip")
-          request = urllib.request.Request(
+          nested = pathlib.Path("kernel-source.tar.gz")
+
+          request = __import__("urllib.request").request.Request(
               os.environ["DOWNLOAD_URL"],
               headers={"User-Agent": "ASUS-Z170CG-kernel-inspector"},
           )
           digest = hashlib.sha256()
           size = 0
-          with urllib.request.urlopen(request, timeout=180) as response, archive.open("wb") as target:
+          with __import__("urllib.request").request.urlopen(request, timeout=240) as response, archive.open("wb") as target:
               while True:
                   chunk = response.read(1024 * 1024)
                   if not chunk:
@@ -47,10 +49,9 @@ jobs:
           expected_size = int(os.environ["EXPECTED_SIZE"])
           expected_hash = os.environ["EXPECTED_SHA256"]
           lines = [
-              "ASUS Z170CG / P01Y Kernel Source Inspection",
-              f"Asset: {archive.name}",
-              f"Downloaded size: {size}",
-              f"Expected size: {expected_size}",
+              "ASUS Z170CG / P01Y nested kernel source inspection",
+              f"Downloaded ZIP bytes: {size}",
+              f"Expected ZIP bytes: {expected_size}",
               f"SHA-256: {sha256}",
               f"Expected SHA-256: {expected_hash}",
               f"Size matches: {size == expected_size}",
@@ -58,77 +59,98 @@ jobs:
               "",
           ]
           if size != expected_size or sha256 != expected_hash:
-              raise SystemExit("\n".join(lines) + "\nArchive integrity verification failed.")
+              raise SystemExit("\\n".join(lines) + "\\nArchive integrity verification failed.")
 
           with zipfile.ZipFile(archive) as z:
               bad = z.testzip()
               if bad:
-                  raise SystemExit(f"ZIP CRC check failed at: {bad}")
-              infos = z.infolist()
-              names = [i.filename for i in infos if not i.is_dir()]
-              total_uncompressed = sum(i.file_size for i in infos)
+                  raise SystemExit(f"ZIP CRC test failed: {bad}")
+              files = [i for i in z.infolist() if not i.is_dir()]
+              if len(files) != 1:
+                  raise SystemExit(f"Expected one nested source archive, found {len(files)}")
+              nested_info = files[0]
               lines += [
-                  "ZIP CRC test: passed",
-                  f"File entries: {len(names)}",
-                  f"Uncompressed bytes: {total_uncompressed}",
+                  f"Outer ZIP CRC: passed",
+                  f"Nested archive path: {nested_info.filename}",
+                  f"Nested archive uncompressed size: {nested_info.file_size}",
+              ]
+              with z.open(nested_info) as src, nested.open("wb") as dst:
+                  while True:
+                      chunk = src.read(1024 * 1024)
+                      if not chunk:
+                          break
+                      dst.write(chunk)
+
+          with tarfile.open(nested, mode="r:gz") as tf:
+              members = tf.getmembers()
+              regular = [m for m in members if m.isfile()]
+              names = [m.name.lstrip("./") for m in regular]
+              normalized = [(m, m.name.lstrip("./")) for m in regular]
+              tops = sorted({n.split("/", 1)[0] for n in names if n})
+              lines += [
                   "",
+                  "INNER TAR.GZ:",
+                  "Read test: passed",
+                  f"Total members: {len(members)}",
+                  f"Regular files: {len(regular)}",
+                  f"Uncompressed regular-file bytes: {sum(m.size for m in regular)}",
                   "Top-level entries:",
               ]
-              tops = sorted({n.split("/", 1)[0] for n in names})
-              lines.extend(f"  - {x}" for x in tops[:100])
+              lines.extend(f"  - {n}" for n in tops[:120])
 
-              candidates = [
-                  n for n in names
-                  if n == "Makefile" or n.endswith("/Makefile")
-                  or n.endswith("/include/linux/version.h")
-                  or n.endswith("/include/generated/utsrelease.h")
-                  or n.endswith("/README") or n.endswith("/README.md")
-                  or n.endswith("/README.txt")
-              ]
-              lines += ["", "Kernel metadata candidates:"]
-              lines.extend(f"  - {x}" for x in candidates[:150])
+              relevant = []
+              for m, n in normalized:
+                  base = n.rsplit("/", 1)[-1]
+                  depth = n.count("/")
+                  low = n.lower()
+                  if (
+                      (base == "Makefile" and depth <= 3)
+                      or base.lower().startswith("readme")
+                      or base.endswith("defconfig")
+                      or base in {"Kconfig", "Kconfig.cpu", "build.sh", "build_kernel.sh", "Android.mk", "BoardConfig.mk"}
+                      or any(k in low for k in ("z170", "p01y", "sofia", "3230", "atom", "intel_mid"))
+                  ):
+                      relevant.append((m, n))
+              lines += ["", f"Relevant source paths ({len(relevant)} found; first 800):"]
+              lines.extend(f"  - {n} [{m.size} bytes]" for m, n in relevant[:800])
 
-              versions = []
-              for name in candidates:
-                  if name.endswith("Makefile") and name.count("/") <= 2:
-                      try:
-                          data = z.read(name)[:200000].decode("utf-8", "replace")
-                      except Exception:
-                          continue
-                      fields = {}
-                      for key in ("VERSION", "PATCHLEVEL", "SUBLEVEL", "EXTRAVERSION"):
-                          match = re.search(r"(?m)^\s*" + key + r"\s*=\s*(.*?)\s*$", data)
-                          if match:
-                              fields[key] = match.group(1)
-                      if fields:
-                          versions.append({"path": name, "fields": fields})
+              candidates = []
+              for m, n in normalized:
+                  base = n.rsplit("/", 1)[-1]
+                  low = n.lower()
+                  if (
+                      base == "Makefile" and n.count("/") <= 3
+                      or base.lower().startswith("readme") and m.size <= 200000
+                      or base.endswith("defconfig") and m.size <= 500000
+                      or n.endswith(("arch/x86/Kconfig", "arch/x86/Kconfig.cpu", "include/linux/version.h", "include/generated/utsrelease.h"))
+                      or any(k in low for k in ("z170", "p01y", "sofia", "3230", "intel_mid"))
+                  ):
+                      candidates.append((m, n))
+              candidates = candidates[:120]
+              lines += ["", "SELECTED FILE CONTENTS (bounded):"]
+              for m, n in candidates:
+                  if m.size > 500000:
+                      continue
+                  try:
+                      fh = tf.extractfile(m)
+                      data = fh.read(500000).decode("utf-8", "replace") if fh else ""
+                  except Exception as e:
+                      lines.append(f"\n===== {n} (read error: {e}) =====")
+                      continue
+                  if not data.strip():
+                      continue
+                  lines.append(f"\n===== {n} ({m.size} bytes; showing up to 500KB) =====")
+                  lines.append(data[:12000])
 
-              indicators = {
-                  "arch/x86": sum(n.startswith("arch/x86/") for n in names),
-                  "arch/arm": sum(n.startswith("arch/arm/") for n in names),
-                  "drivers/gpu": sum(n.startswith("drivers/gpu/") for n in names),
-                  "drivers/input": sum(n.startswith("drivers/input/") for n in names),
-                  "drivers/bluetooth": sum(n.startswith("drivers/bluetooth/") for n in names),
-                  "drivers/media": sum(n.startswith("drivers/media/") for n in names),
-              }
-              lines += [
-                  "",
-                  "Version fields found:",
-                  json.dumps(versions, indent=2),
-                  "",
-                  "Path indicators (counts):",
-                  json.dumps(indicators, indent=2),
-              ]
-
-          (out / "kernel-inspection.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
-          (out / "archive-manifest.txt").write_text("\n".join(names) + "\n", encoding="utf-8")
-          print("\n".join(lines))
+              (out / "kernel-inspection.txt").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+              (out / "relevant-source-paths.txt").write_text("\\n".join(f"{n} [{m.size}]" for m, n in relevant) + "\\n", encoding="utf-8")
+              print("\\n".join(lines[:220]))
           PY
 
       - name: Upload inspection report
         uses: actions/upload-artifact@v4
         with:
-          name: asus-z170cg-kernel-inspection
+          name: asus-z170cg-kernel-deep-inspection
           path: inspection/
           if-no-files-found: error
           retention-days: 14
