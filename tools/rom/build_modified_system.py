@@ -95,6 +95,11 @@ def main() -> None:
     image = args.system_image.resolve()
     out = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
+    image_hash_sidecar = image.with_suffix(image.suffix + ".sha256")
+    if image_hash_sidecar.is_file():
+        original_image_sha256 = image_hash_sidecar.read_text(encoding="ascii").split()[0]
+    else:
+        original_image_sha256 = sha256_file(image)
 
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     inventory = json.loads(args.inventory.read_text(encoding="utf-8"))
@@ -267,7 +272,7 @@ def main() -> None:
         "sku": manifest["sku"],
         "base_firmware": manifest["base_firmware"],
         "android": manifest["android"],
-        "original_system_image_sha256": sha256_file(image),
+        "original_system_image_sha256": original_image_sha256,
         "removed_package_count": len(rows_to_remove),
         "removed_apk_bytes": total_apk_bytes,
         "removed_apk_mib": round(total_apk_bytes / 1048576, 2),
