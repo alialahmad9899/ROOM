@@ -137,18 +137,21 @@ public final class MainActivity extends Activity implements LocationListener {
 
         addTileRow(controls,
                 new Tile("⌖", "الملاحة", () -> openNavigation()),
-                new Tile("♫", "الموسيقى", () -> openMusic()));
+                new Tile("▤", "القراءة", () -> openReading()));
         addTileRow(controls,
-                new Tile("◉", "راديو إنترنت", () -> openRadio()),
+                new Tile("♫", "الموسيقى", () -> openMusic()),
+                new Tile("◉", "راديو إنترنت", () -> openRadio()));
+        addTileRow(controls,
                 new Tile("☎", "الهاتف", () -> openIntent(
-                        new Intent(Intent.ACTION_DIAL), "تطبيق الهاتف غير متوفر")));
-        addTileRow(controls,
+                        new Intent(Intent.ACTION_DIAL), "تطبيق الهاتف غير متوفر")),
                 new Tile("ᛒ", "البلوتوث", () -> openIntent(
                         new Intent(Settings.ACTION_BLUETOOTH_SETTINGS),
-                        "إعدادات البلوتوث غير متاحة")),
+                        "إعدادات البلوتوث غير متاحة")));
+        addTileRow(controls,
                 new Tile("⚙", "الإعدادات", () -> openIntent(
                         new Intent(Settings.ACTION_SETTINGS),
-                        "إعدادات الجهاز غير متاحة")));
+                        "إعدادات الجهاز غير متاحة")),
+                null);
 
         content.addView(controls, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.MATCH_PARENT, 1.08f));
@@ -250,6 +253,23 @@ public final class MainActivity extends Activity implements LocationListener {
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.addCategory(Intent.CATEGORY_APP_MUSIC);
         openIntent(intent, "لم يتم العثور على تطبيق موسيقى");
+    }
+
+    private void openReading() {
+        String[] readerPackages = {
+                "com.amazon.kindle",
+                "com.zinio.mobile.android.reader",
+                "com.asus.supernote",
+                "com.google.android.apps.docs"
+        };
+        for (String packageName : readerPackages) {
+            Intent intent = getPackageManager().getLaunchIntentForPackage(packageName);
+            if (intent != null) {
+                openIntent(intent, "تعذّر فتح تطبيق القراءة");
+                return;
+            }
+        }
+        Toast.makeText(this, "لم يتم العثور على تطبيق قراءة مثبت", Toast.LENGTH_SHORT).show();
     }
 
     private void openRadio() {
