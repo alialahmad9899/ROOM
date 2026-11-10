@@ -125,86 +125,86 @@ def main() -> None:
         image = workdir / "system-reconstructed.img"
         reconstruct(archive, image, report)
 
-    build_prop = outdir / "system-build.prop"
-    if extract_file(image, "/build.prop", build_prop) or extract_file(image, "/system/build.prop", build_prop):
-        report += ["", "BUILD PROPERTIES (selected):"]
-        selected = []
-        for line in build_prop.read_text(errors="replace").splitlines():
-            if re.match(r"^(ro\.build\.|ro\.product\.|ro\.hardware|ro\.board\.platform|ro\.product\.cpu\.abi)", line):
-                selected.append(line)
-        report += selected
-    else:
-        report.append("build.prop extraction failed")
+        build_prop = outdir / "system-build.prop"
+        if extract_file(image, "/build.prop", build_prop) or extract_file(image, "/system/build.prop", build_prop):
+            report += ["", "BUILD PROPERTIES (selected):"]
+            selected = []
+            for line in build_prop.read_text(errors="replace").splitlines():
+                if re.match(r"^(ro\.build\.|ro\.product\.|ro\.hardware|ro\.board\.platform|ro\.product\.cpu\.abi)", line):
+                    selected.append(line)
+            report += selected
+        else:
+            report.append("build.prop extraction failed")
 
-    root_listing = debugfs(image, "ls -l /", check=False)
-    (outdir / "system-root-listing.txt").write_text(root_listing, encoding="utf-8")
-    report += ["", "SYSTEM ROOT LISTING:", root_listing]
+        root_listing = debugfs(image, "ls -l /", check=False)
+        (outdir / "system-root-listing.txt").write_text(root_listing, encoding="utf-8")
+        report += ["", "SYSTEM ROOT LISTING:", root_listing]
 
-    extracted = workdir / "apk-tree"
-    extracted.mkdir(exist_ok=True)
-    candidate_dirs = ["/app", "/priv-app", "/vendor/app", "/vendor/priv-app", "/system/app", "/system/priv-app"]
-    found_dirs = []
-    for source in candidate_dirs:
-        if dir_exists(image, source):
-            found_dirs.append(source)
-            dest = extracted / source.strip("/").replace("/", "__")
-            dest.mkdir(parents=True, exist_ok=True)
-            p = run(["debugfs", "-R", f"rdump {source} {dest}", str(image)], timeout=600, check=False)
-            report.append(f"rdump {source}: exit={p.returncode}; {p.stdout[-800:].strip()}")
-    report.append("apk_directories_found=" + ",".join(found_dirs))
+        extracted = workdir / "apk-tree"
+        extracted.mkdir(exist_ok=True)
+        candidate_dirs = ["/app", "/priv-app", "/vendor/app", "/vendor/priv-app", "/system/app", "/system/priv-app"]
+        found_dirs = []
+        for source in candidate_dirs:
+            if dir_exists(image, source):
+                found_dirs.append(source)
+                dest = extracted / source.strip("/").replace("/", "__")
+                dest.mkdir(parents=True, exist_ok=True)
+                p = run(["debugfs", "-R", f"rdump {source} {dest}", str(image)], timeout=600, check=False)
+                report.append(f"rdump {source}: exit={p.returncode}; {p.stdout[-800:].strip()}")
+        report.append("apk_directories_found=" + ",".join(found_dirs))
 
-    aapt = shutil.which("aapt")
-    rows = []
-    apk_files = sorted(extracted.rglob("*.apk"))
-    for apk in apk_files:
-        package = label = version_name = version_code = min_sdk = target_sdk = native_code = ""
-        if aapt:
-            p = run([aapt, "dump", "badging", str(apk)], timeout=90, check=False)
-            if p.returncode == 0:
-                for line in p.stdout.splitlines():
-                    if line.startswith("package:"):
-                        for key, value in re.findall(r"(\w+)='([^']*)'", line):
-                            if key == "name": package = value
-                            elif key == "versionName": version_name = value
-                            elif key == "versionCode": version_code = value
-                    elif line.startswith("application-label:"):
-                        label = line.partition("'")[2].rsplit("'", 1)[0]
-                    elif line.startswith("sdkVersion:"):
-                        min_sdk = line.partition("'")[2].rsplit("'", 1)[0]
-                    elif line.startswith("targetSdkVersion:"):
-                        target_sdk = line.partition("'")[2].rsplit("'", 1)[0]
-                    elif line.startswith("native-code:"):
-                        native_code = line.partition("'")[2].rsplit("'", 1)[0]
-        rows.append({
-            "partition_path": "/" + str(apk.relative_to(extracted)).replace(os.sep, "/"),
-            "file_name": apk.name,
-            "bytes": apk.stat().st_size,
-            "package_name": package,
-            "application_label": label,
-            "version_name": version_name,
-            "version_code": version_code,
-            "min_sdk": min_sdk,
-            "target_sdk": target_sdk,
-            "native_code": native_code,
-        })
+        aapt = shutil.which("aapt")
+        rows = []
+        apk_files = sorted(extracted.rglob("*.apk"))
+        for apk in apk_files:
+            package = label = version_name = version_code = min_sdk = target_sdk = native_code = ""
+            if aapt:
+                p = run([aapt, "dump", "badging", str(apk)], timeout=90, check=False)
+                if p.returncode == 0:
+                    for line in p.stdout.splitlines():
+                        if line.startswith("package:"):
+                            for key, value in re.findall(r"(\w+)='([^']*)'", line):
+                                if key == "name": package = value
+                                elif key == "versionName": version_name = value
+                                elif key == "versionCode": version_code = value
+                        elif line.startswith("application-label:"):
+                            label = line.partition("'")[2].rsplit("'", 1)[0]
+                        elif line.startswith("sdkVersion:"):
+                            min_sdk = line.partition("'")[2].rsplit("'", 1)[0]
+                        elif line.startswith("targetSdkVersion:"):
+                            target_sdk = line.partition("'")[2].rsplit("'", 1)[0]
+                        elif line.startswith("native-code:"):
+                            native_code = line.partition("'")[2].rsplit("'", 1)[0]
+            rows.append({
+                "partition_path": "/" + str(apk.relative_to(extracted)).replace(os.sep, "/"),
+                "file_name": apk.name,
+                "bytes": apk.stat().st_size,
+                "package_name": package,
+                "application_label": label,
+                "version_name": version_name,
+                "version_code": version_code,
+                "min_sdk": min_sdk,
+                "target_sdk": target_sdk,
+                "native_code": native_code,
+            })
 
-    csv_path = outdir / "system-apk-inventory.csv"
-    with csv_path.open("w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()) if rows else [
-            "partition_path","file_name","bytes","package_name","application_label",
-            "version_name","version_code","min_sdk","target_sdk","native_code"
-        ])
-        writer.writeheader()
-        writer.writerows(rows)
-    report += [
-        "",
-        f"apk_count={len(rows)}",
-        f"aapt_available={bool(aapt)}",
-        "APK INVENTORY CSV: system-apk-inventory.csv",
-    ]
-    (outdir / "system-inventory-report.txt").write_text("\n".join(report) + "\n", encoding="utf-8")
-    print("\n".join(report[-40:]))
-    print(f"Inventory rows: {len(rows)}")
+        csv_path = outdir / "system-apk-inventory.csv"
+        with csv_path.open("w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()) if rows else [
+                "partition_path","file_name","bytes","package_name","application_label",
+                "version_name","version_code","min_sdk","target_sdk","native_code"
+            ])
+            writer.writeheader()
+            writer.writerows(rows)
+        report += [
+            "",
+            f"apk_count={len(rows)}",
+            f"aapt_available={bool(aapt)}",
+            "APK INVENTORY CSV: system-apk-inventory.csv",
+        ]
+        (outdir / "system-inventory-report.txt").write_text("\n".join(report) + "\n", encoding="utf-8")
+        print("\n".join(report[-40:]))
+        print(f"Inventory rows: {len(rows)}")
 
 if __name__ == "__main__":
     main()
