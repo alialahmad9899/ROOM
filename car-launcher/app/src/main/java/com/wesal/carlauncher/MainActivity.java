@@ -137,15 +137,13 @@ public final class MainActivity extends Activity implements LocationListener {
                 new Tile("⌖", "الملاحة", () -> openNavigation()),
                 new Tile("♫", "الموسيقى", () -> openMusic()));
         addTileRow(controls,
-                new Tile("◉", "الراديو", () -> openMusic()));
-        addTileRow(controls,
+                new Tile("◉", "راديو إنترنت", () -> openMusic()),
                 new Tile("☎", "الهاتف", () -> openIntent(
                         new Intent(Intent.ACTION_DIAL), "تطبيق الهاتف غير متوفر")));
         addTileRow(controls,
                 new Tile("ᛒ", "البلوتوث", () -> openIntent(
                         new Intent(Settings.ACTION_BLUETOOTH_SETTINGS),
-                        "إعدادات البلوتوث غير متاحة")));
-        addTileRow(controls,
+                        "إعدادات البلوتوث غير متاحة")),
                 new Tile("⚙", "الإعدادات", () -> openIntent(
                         new Intent(Settings.ACTION_SETTINGS),
                         "إعدادات الجهاز غير متاحة")));
@@ -285,6 +283,8 @@ public final class MainActivity extends Activity implements LocationListener {
 
     private void stopGpsUpdates() {
         handler.removeCallbacks(gpsWatchdog);
+        lastGpsUpdate = 0L;
+        speedometer.setGpsAvailable(false);
         if (locationManager != null) {
             try {
                 locationManager.removeUpdates(this);
@@ -319,6 +319,7 @@ public final class MainActivity extends Activity implements LocationListener {
 
     @Override public void onProviderDisabled(String provider) {
         if (LocationManager.GPS_PROVIDER.equals(provider)) {
+            lastGpsUpdate = 0L;
             speedometer.setGpsAvailable(false);
             setGpsLabel("تم إيقاف GPS", false);
         }
