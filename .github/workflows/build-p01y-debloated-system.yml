@@ -170,9 +170,11 @@ jobs:
           split -b 400M -d -a 2 workspace/rom-output/system.img workspace/rom-output/chunks/system.img.part-
           PARTS="$(find workspace/rom-output/chunks -maxdepth 1 -type f -name 'system.img.part-*' | wc -l)"
           test "$PARTS" -eq 5
-          cat workspace/rom-output/chunks/system.img.part-* | sha256sum > workspace/rom-output/chunks/REASSEMBLED.sha256
-          sha256sum workspace/rom-output/system.img > workspace/rom-output/chunks/ORIGINAL.sha256
-          diff -u workspace/rom-output/chunks/ORIGINAL.sha256 workspace/rom-output/chunks/REASSEMBLED.sha256
+          ORIGINAL_HASH="$(sha256sum workspace/rom-output/system.img | awk '{print $1}')"
+          CHUNKS_HASH="$(cat workspace/rom-output/chunks/system.img.part-* | sha256sum | awk '{print $1}')"
+          printf '%s  system.img\n' "$ORIGINAL_HASH" > workspace/rom-output/chunks/ORIGINAL.sha256
+          printf '%s  reassembled\n' "$CHUNKS_HASH" > workspace/rom-output/chunks/REASSEMBLED.sha256
+          test "$ORIGINAL_HASH" = "$CHUNKS_HASH"
 
       - name: Upload system image part 00
         uses: actions/upload-artifact@v4
