@@ -184,21 +184,37 @@ public final class MainActivity extends Activity implements LocationListener {
     }
 
     private void addTile(LinearLayout row, Tile tile) {
-        Button button = new Button(this);
-        button.setText(tile.icon + "\n" + tile.label);
-        button.setTextColor(WHITE);
-        button.setTextSize(16);
-        button.setGravity(Gravity.CENTER);
-        button.setAllCaps(false);
-        button.setPadding(dp(5), dp(2), dp(5), dp(2));
-        button.setMinHeight(0);
-        button.setBackground(tileBackground());
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER);
+        card.setClickable(true);
+        card.setFocusable(true);
+        card.setBackground(tileBackground());
+
+        TextView symbol = new TextView(this);
+        symbol.setText(tile.icon);
+        symbol.setTextColor(ACCENT);
+        symbol.setTextSize(29);
+        symbol.setGravity(Gravity.CENTER);
+        symbol.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        card.addView(symbol, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(39)));
+
+        TextView label = new TextView(this);
+        label.setText(tile.label);
+        label.setTextColor(WHITE);
+        label.setTextSize(15);
+        label.setGravity(Gravity.CENTER);
+        label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        card.addView(label, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(28)));
+
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.MATCH_PARENT, 1f);
         params.leftMargin = dp(4);
         params.rightMargin = dp(4);
-        row.addView(button, params);
-        button.setOnClickListener(v -> tile.action.run());
+        row.addView(card, params);
+        card.setOnClickListener(v -> tile.action.run());
     }
 
     private GradientDrawable panelBackground() {
