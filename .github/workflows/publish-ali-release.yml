@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/publish-ali-release.yml"
       - "tools/flash/**"
+      - "docs/ADB-FASTBOOT-FLASH-GUIDE.md"
 
 permissions:
   actions: read
