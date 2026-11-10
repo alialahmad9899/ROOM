@@ -56,6 +56,12 @@ jobs:
             --system-root workspace/system-mount \
             --aapt "$AAPT" \
             --output-dir workspace/inventory
+          python3 tools/rom/audit_candidate_manifests.py \\
+            --system-root workspace/system-mount \\
+            --inventory workspace/inventory/system-package-inventory.json \\
+            --candidate-list tools/rom/candidates/potential-removals.txt \\
+            --aapt "$AAPT" \\
+            --output-dir workspace/inventory/candidate-audit
           sudo umount workspace/system-mount
           trap - EXIT
           sha256sum workspace/system-original.img > workspace/inventory/system-original.img.sha256
