@@ -19,20 +19,32 @@ jobs:
       - name: Checkout release tools and documentation
         uses: actions/checkout@v4
 
-      - name: Validate Windows flash script syntax
+      - name: Validate Windows flash and recovery script syntax
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile("tools/flash/flash-ali-p01y.ps1", [ref]$tokens, [ref]$errors)
-          if ($errors.Count -gt 0) {
-            $errors | Format-List
-            exit 1
+          $scripts = @(
+            "tools/flash/flash-ali-p01y.ps1",
+            "tools/flash/recover-ali-p01y.ps1"
+          )
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              Write-Error "PowerShell syntax errors in $script"
+              $errors | Format-List
+              exit 1
+            }
           }
-          if (!(Test-Path "tools/flash/flash-ali-p01y.bat")) { throw "Windows BAT launcher missing" }
-          if (!(Test-Path "docs/ADB-FASTBOOT-FLASH-GUIDE.md")) { throw "Flash guide missing" }
-          Write-Host "PowerShell parser passed; flash utility and guide are present."
-
+          $required = @(
+            "tools/flash/flash-ali-p01y.bat",
+            "tools/flash/recover-ali-p01y.bat",
+            "docs/ADB-FASTBOOT-FLASH-GUIDE.md"
+          )
+          foreach ($path in $required) {
+            if (!(Test-Path $path)) { throw "Required flash asset missing: $path" }
+          }
+          Write-Host "PowerShell parser passed for both utilities; BAT launchers and guide are present."
       - name: Download verified system image chunks
         uses: actions/download-artifact@v4
         with:
@@ -75,6 +87,8 @@ jobs:
           assert (root / "bootanimation.zip").is_file()
           assert pathlib.Path("tools/flash/flash-ali-p01y.ps1").is_file()
           assert pathlib.Path("tools/flash/flash-ali-p01y.bat").is_file()
+          assert pathlib.Path("tools/flash/recover-ali-p01y.ps1").is_file()
+          assert pathlib.Path("tools/flash/recover-ali-p01y.bat").is_file()
           print("ALI release payload passed hash, package, image-size and static verification.")
           PY
           tar -czf workspace/release/original-configs.tar.gz -C workspace/reports original-configs
@@ -105,6 +119,8 @@ jobs:
             workspace/reports/audit/*.csv
             tools/flash/flash-ali-p01y.ps1
             tools/flash/flash-ali-p01y.bat
+            tools/flash/recover-ali-p01y.ps1
+            tools/flash/recover-ali-p01y.bat
             docs/ADB-FASTBOOT-FLASH-GUIDE.md
           body: |
             ALI Car System candidate for ASUS ZenPad C 7.0 Z170CG / P01Y, SKU WW.
@@ -113,7 +129,7 @@ jobs:
 
             Includes the Arabic ALI dashboard, GPS speedometer, YouTube Lite official-mobile-site wrapper, local MediaStore music player, Play Store shortcut, Wi-Fi/Bluetooth/phone/Maps/reader/settings shortcuts, ALI boot animation and English TTS greeting. The original 34-package debloat manifest and rollback archive are included.
 
-            A guarded Windows ADB-to-Fastboot utility is included. It verifies the exact image hash, P01Y/WW build identity, live /system mount source, Fastboot product, unlocked state, ext4 type and reported system capacity. It writes only the system partition and never unlocks the bootloader or wipes userdata/cache.
+            Guarded Windows ADB-to-Fastboot and Fastboot-only recovery utilities are included. Both verify the exact image hash, and the recovery utility independently verifies Fastboot product, unlocked state, ext4 type and reported system capacity. Transfer chunks are set to 64 MiB to reduce individual USB transfer size. The utilities write only the system partition and never unlock the bootloader or wipe userdata/cache. A recovery helper is provided for a prior interrupted system transfer; it does not make this candidate physically tested or flash-ready.
 
             Static read-only system verification and flash-tool syntax validation passed. This remains a system.img candidate, not a complete factory firmware or ASUS-signed OTA. It does not replace boot.img, recovery.img, kernel, modem or bootloader. Physical boot and recovery testing are still pending; stop if the utility reports an unexpected mount source, device identity, bootloader state or partition size.
 
