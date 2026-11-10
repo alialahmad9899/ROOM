@@ -48,7 +48,7 @@ jobs:
       - name: Checkout car launcher source
         uses: actions/checkout@v4
         with:
-          ref: work/car-launcher-lightweight-plan
+          ref: 9d61fe819b700638a58cd549f7f04f6568935b03
           path: launcher-source
 
       - name: Validate ROM tooling syntax
@@ -109,7 +109,15 @@ jobs:
       - name: Verify and shrink ext4 system image
         run: |
           set -euo pipefail
+          set +e
           sudo e2fsck -f -y workspace/system.img
+          FSCK_REPAIR_RC=$?
+          set -e
+          if [ "$FSCK_REPAIR_RC" -gt 1 ]; then
+            echo "e2fsck repair failed with exit code $FSCK_REPAIR_RC"
+            exit "$FSCK_REPAIR_RC"
+          fi
+          sudo e2fsck -f -n workspace/system.img
           sudo resize2fs -M workspace/system.img
           BLOCKS="$(sudo dumpe2fs -h workspace/system.img 2>/dev/null | awk '/^Block count:/ {print $3}')"
           BLOCK_SIZE="$(sudo dumpe2fs -h workspace/system.img 2>/dev/null | awk '/^Block size:/ {print $3}')"
@@ -131,6 +139,20 @@ jobs:
           } > workspace/rom-output/FLASH-STATUS.txt
           cp docs/P01Y-WW-ROM-CANDIDATE.md workspace/rom-output/README-FLASH-RESTRICTIONS.md
           rm -f workspace/system.img workspace/stock-ota-original.zip
+
+      - name: Verify modified system contents read-only
+        run: |
+          set -euo pipefail
+          mkdir -p workspace/verify-mount
+          sudo mount -t ext4 -o loop,ro,noload workspace/rom-output/system.img workspace/verify-mount
+          cleanup() {
+            sudo umount workspace/verify-mount || true
+          }
+          trap cleanup EXIT
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          python3 tools/rom/verify_system_candidate.py --system-root workspace/verify-mount --inventory workspace/inventory/system-package-inventory.json --manifest tools/rom/debloat/p01y-ww-removals.json --report workspace/rom-output/ROM-MODIFICATIONS.json --backup-archive workspace/rom-output/removed-system-apps.tar.gz --aapt "$AAPT" --output workspace/rom-output/CANDIDATE-VERIFICATION.json
+          sudo umount workspace/verify-mount
+          trap - EXIT
 
       - name: Upload modified system candidate and rollback data
         uses: actions/upload-artifact@v4
