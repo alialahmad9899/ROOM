@@ -60,11 +60,11 @@ main_activity = next(
 )
 home_actions = {
     node.get(f"{{{NS['a']}}}name")
-    for intent in main_activity.findall("intent-filter/action")
+    for node in main_activity.findall("intent-filter/action")
 }
 home_categories = {
     node.get(f"{{{NS['a']}}}name")
-    for intent in main_activity.findall("intent-filter/category")
+    for node in main_activity.findall("intent-filter/category")
 }
 require("android.intent.action.MAIN" in home_actions, "HOME activity lacks MAIN action")
 require("android.intent.category.HOME" in home_categories, "MainActivity is not a HOME launcher")
