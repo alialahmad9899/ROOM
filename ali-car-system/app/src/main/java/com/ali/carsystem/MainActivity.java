@@ -30,7 +30,8 @@ public final class MainActivity extends Activity implements LocationListener {
     private LocationManager locationManager;
     private WifiManager wifi;
     private TextView clock, date, speed, gps, wifiState, btState;
-    private View idleOverlay;\n    private android.speech.tts.TextToSpeech tts;
+    private View idleOverlay;
+    private android.speech.tts.TextToSpeech tts;
     private long lastGps;
     private final Runnable ticker=new Runnable(){ public void run(){
         Date now=new Date();
