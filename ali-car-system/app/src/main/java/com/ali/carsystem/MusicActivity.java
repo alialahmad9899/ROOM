@@ -45,8 +45,9 @@ public final class MusicActivity extends Activity {
         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_LAYOUT_STABLE);}
     @Override protected void onCreate(Bundle b){super.onCreate(b);immersive();loadSongs();build();
         String action=getIntent().getStringExtra("ali.music.action");
+        current=getPreferences(0).getInt("current_index",-1);
         if("previous".equals(action))select(Math.max(0,current-1));
-        else if("next".equals(action))select(Math.min(songs.size()-1,current+1));
+        else if("next".equals(action))select(current<0?0:Math.min(songs.size()-1,current+1));
         else if("play".equals(action))select(current<0?0:current);
     }
     private void loadSongs(){
@@ -81,7 +82,6 @@ public final class MusicActivity extends Activity {
         RecyclerView recycler=new RecyclerView(this);
         recycler.setLayoutManager(new LinearLayoutManager(this));
         recycler.setAdapter(new SongAdapter());
-        if(songs.isEmpty()){TextView empty=label("لا توجد ملفات موسيقى في الذاكرة أو بطاقة SD.",14,0xFFB3C8D8,false);recycler.setAdapter(new SongAdapter());}
         root.addView(recycler,new LinearLayout.LayoutParams(-1,0,1));
         TextView back=button("العودة إلى ALI CAR");back.setOnClickListener(v->finish());root.addView(back,new LinearLayout.LayoutParams(-1,dp(42)));
         prev.setOnClickListener(v->select(Math.max(0,current-1)));next.setOnClickListener(v->select(Math.min(songs.size()-1,current+1)));
@@ -102,10 +102,11 @@ public final class MusicActivity extends Activity {
             return new Holder(row,title,artist);
         }
         @Override public void onBindViewHolder(Holder holder,int position){
+            if(songs.isEmpty()){holder.title.setText("لا توجد ملفات موسيقى في الذاكرة أو بطاقة SD.");holder.artist.setText("");holder.itemView.setOnClickListener(null);return;}
             Song song=songs.get(position);holder.title.setText(song.title);holder.artist.setText(song.artist);
-            holder.itemView.setOnClickListener(v->select(holder.getAdapterPosition()));
+            holder.itemView.setOnClickListener(v->{int p=holder.getAdapterPosition();if(p>=0)select(p);});
         }
-        @Override public int getItemCount(){return songs.size();}
+        @Override public int getItemCount(){return Math.max(1,songs.size());}
         final class Holder extends RecyclerView.ViewHolder{
             final TextView title,artist;
             Holder(View v,TextView t,TextView a){super(v);title=t;artist=a;}
