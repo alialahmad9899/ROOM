@@ -47,7 +47,7 @@ public final class MainActivity extends Activity implements LocationListener {
     private final Runnable idle=new Runnable(){public void run(){showAmbient();}};
 
     @Override public void onCreate(Bundle b){
-        super.onCreate(b); immersive();
+        super.onCreate(b); immersive();getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         locations=(LocationManager)getSystemService(LOCATION_SERVICE);
         wifi=(WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);
         build(); scheduleIdle(); greet();
@@ -208,7 +208,7 @@ public final class MainActivity extends Activity implements LocationListener {
     }
     @Override protected void onResume(){super.onResume();immersive();startGps();h.removeCallbacks(tick);h.post(tick);scheduleIdle();}
     @Override protected void onPause(){h.removeCallbacks(tick);h.removeCallbacks(idle);removeAmbient();stopGps();super.onPause();}
-    @Override protected void onDestroy(){h.removeCallbacksAndMessages(null);stopGps();if(tts!=null){try{tts.stop();tts.shutdown();}catch(Exception ignored){}}super.onDestroy();}
+    @Override protected void onDestroy(){h.removeCallbacksAndMessages(null);stopGps();getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);if(tts!=null){try{tts.stop();tts.shutdown();}catch(Exception ignored){}}super.onDestroy();}
 
     private final class SpeedView extends View{
         private final Paint p=new Paint(3);private final RectF a=new RectF();private float value;private boolean hasGps;
