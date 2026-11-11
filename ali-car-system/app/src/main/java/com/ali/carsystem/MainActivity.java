@@ -61,6 +61,7 @@ public final class MainActivity extends Activity implements LocationListener {
     private float speed = 0f;
     private boolean gpsRegistered = false;
     private View ambientOverlay;
+    private long lastBatteryRefresh = 0L;
     private final Runnable ambientRunnable = new Runnable() { public void run() { showAmbientClock(); } };
 
     private final Runnable clockTicker = new Runnable() {
@@ -432,7 +433,8 @@ public final class MainActivity extends Activity implements LocationListener {
             clockText.setText(new SimpleDateFormat("hh:mm a", Locale.US).format(now));
             dateText.setText(new SimpleDateFormat("EEE  •  dd MMM", Locale.US).format(now));
         }
-        if (batteryText != null) {
+        if (batteryText != null && SystemClock.elapsedRealtime() - lastBatteryRefresh >= 30000L) {
+            lastBatteryRefresh = SystemClock.elapsedRealtime();
             try {
                 Intent battery = registerReceiver(null,
                     new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
