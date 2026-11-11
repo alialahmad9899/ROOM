@@ -2,40 +2,35 @@
 
 ## Correct project scope
 
-The project goal is to modify the stock ROM/system image for the ASUS ZenPad C 7.0 Z170CG / P01Y (WW), then provide a verifiable installation package for the user to flash. A standalone launcher APK is not the ROM deliverable.
+The active deliverable is a modified system image for the ASUS ZenPad C 7.0 Z170CG / P01Y (WW), including the ALI Car System interface. A standalone launcher APK is not the ROM deliverable.
 
-The earlier work/car-launcher-lightweight-plan branch and PR #1 were only a launcher prototype and read-only inventory helper. They were superseded and closed so they cannot be mistaken for a modified ROM.
+Project identity is **ALI Car System**. The previous Wesal-branded launcher prototype is superseded; its code is not used in the ALI system image.
 
-Active work branch: rom/p01y-system-modification.
+Active implementation branch: `ali-car-system/android5-build` (based on the verified P01Y system-candidate branch).
 
 ## Verified starting point
+- ASUS OTA: `UL-P01Y-WW-12.26.4.69-user_2.zip`
+- SHA-256: `a3cff1f6703cb68cbe189fc029ab0a94fd7a3ab85297cfdd271fe3e7ff16a6a2`
+- Device: P01Y / WW; Android 5.0.2 / API 21 / x86 userspace.
+- Reconstructed stock `system` is ext4.
+- OTA does not include `boot.img` or `recovery.img`.
 
-The matching ASUS OTA release asset is UL-P01Y-WW-12.26.4.69-user_2.zip.
+## ALI system implementation
+1. Arabic RTL car dashboard for 1024×600 landscape with ALI / AL-AHMAD / VAO identity and GPS speedometer.
+2. YouTube Lite web wrapper using the official mobile website; legacy WebView compatibility remains a runtime limitation.
+3. Integrated local music player using MediaStore, including indexed removable-storage audio; playback pauses on screen-off and uses no CPU wakelock.
+4. Phone, Wi-Fi, Bluetooth, Maps, reader and device-settings shortcuts.
+5. Boot animation and English TTS welcome greeting with short two-tone chime.
+6. System app integration and BOOT_COMPLETED receiver; ASUS launcher is retained as fallback.
+7. 34 explicit audited removals, with original app directories and modified config files preserved for rollback.
+8. Read-only verification of protected packages, app removal, backup archive and boot animation.
 
-- SHA-256: a3cff1f6703cb68cbe189fc029ab0a94fd7a3ab85297cfdd271fe3e7ff16a6a2
-- Model/SKU: P01Y / WW
-- Android: 5.0.2, API 21, x86 userspace
-- The OTA contains a full ext4 system block payload that was reconstructed and verified during analysis.
-- The OTA does not contain boot.img or recovery.img.
+## Power management
+The app does not force-kill Android services or freeze kernel/system processes. It releases GPS updates and does not hold partial CPU wakelocks. Music pauses on screen-off, allowing the normal Linux suspend-to-RAM path to operate if the stock kernel and power HAL support it. Android 5 has no Doze mode. Actual suspend current and wake reliability require physical-device validation.
 
-## Active implementation sequence
-
-1. Reconstruct the stock ext4 system partition from the OTA with strict SHA-256, ZIP CRC, transfer-list, block-count, and ext4 checks.
-2. Mount the reconstructed image read-only and generate an APK/package inventory, including app path, package name, label, version, SDK, APK size, and privileged/system location.
-3. Audit package dependencies and identify only safe optional applications. Do not remove Google, telephony, Bluetooth, audio, input, storage, location, ASUS battery/touch/panel services, framework, or boot-critical components based on name alone.
-4. Add a reviewed, explicit removal manifest and build a modified ext4 system.img, preserving a copy of removed APK payloads and generating hashes and a change report.
-5. Verify filesystem integrity and compare the modified image against the exact stock image.
-6. Separately verify bootloader access, partition size/name, write method, OTA signature enforcement, and a working restore route before labeling any package flashable.
-
-## Non-negotiable safety constraints
-
-- Never flash the Intel fwu_image.bin from the OTA as part of debloating.
-- Never guess partition IDs, sizes, or fastboot syntax.
-- Never claim a standalone APK is a ROM.
-- Never publish an image as flashable unless its installation path and rollback have been validated for P01Y WW.
-- Preserve source image and original release asset unchanged.
-- Keep every modified file and every removed package in a machine-readable manifest.
-
-## Current run
-
-The first active workflow reconstructs the exact stock system image, inspects its APK manifests read-only, and uploads the inventory. It does not yet remove packages or publish a flash image. This is required for an evidence-based debloat pass rather than guessing package names.
+## Not included / not claimed
+- No Android 8 port; this work intentionally uses the matching stock Android 5 base.
+- No new kernel, boot image, recovery image, modem, Intel firmware, partition table or audio HAL.
+- No guarantee of modern YouTube compatibility on the original WebView.
+- No guarantee of zero power draw while screen is off.
+- No flash-ready status until bootloader, verified-boot behavior, exact system partition mapping/capacity and tested restoration route are confirmed.
