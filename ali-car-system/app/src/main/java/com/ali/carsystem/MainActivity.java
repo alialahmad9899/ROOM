@@ -154,6 +154,7 @@ public final class MainActivity extends Activity implements LocationListener {
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         header.setPadding(dp(4), 0, dp(4), 0);
 
         LinearLayout brand = new LinearLayout(this);
@@ -296,7 +297,12 @@ public final class MainActivity extends Activity implements LocationListener {
         card.setBackground(box(TILE, 17));
         card.setClickable(true);
         card.setFocusable(true);
-        TextView icon = label(tile.icon, 25, ACCENT, true);
+        int iconColor = tile.title.contains("الملاحة") ? 0xFF4DB6FF
+            : tile.title.contains("يوتيوب") ? 0xFFFF5D68
+            : tile.title.contains("الموسيقى") ? 0xFFC58BFF
+            : tile.title.contains("Wi-Fi") ? 0xFF40D9C8
+            : tile.title.contains("Bluetooth") ? 0xFF579BFF : 0xFFFFB65C;
+        TextView icon = label(tile.icon, 32, iconColor, true);
         icon.setGravity(Gravity.CENTER);
         TextView title = label(tile.title, 14, WHITE, true);
         title.setGravity(Gravity.CENTER);
