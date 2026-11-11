@@ -64,6 +64,7 @@ public final class MainActivity extends Activity implements LocationListener {
     private boolean bearingInitialized = false;
     private View ambientOverlay;
     private long lastBatteryRefresh = 0L;
+    private float brightnessBeforeAmbient = -1f;
     private final Runnable ambientRunnable = new Runnable() { public void run() { showAmbientClock(); } };
 
     private final Runnable clockTicker = new Runnable() {
@@ -114,6 +115,10 @@ public final class MainActivity extends Activity implements LocationListener {
         clock.setBackgroundColor(0xFF020304);
         clock.setAlpha(0.82f);
         ambientOverlay = clock;
+        brightnessBeforeAmbient = getWindow().getAttributes().screenBrightness;
+        WindowManager.LayoutParams ambientParams = getWindow().getAttributes();
+        ambientParams.screenBrightness = 0.07f;
+        getWindow().setAttributes(ambientParams);
         frame.addView(clock, new FrameLayout.LayoutParams(-1, -1));
         Runnable ticker = new Runnable() {
             @Override public void run() {
@@ -132,6 +137,10 @@ public final class MainActivity extends Activity implements LocationListener {
         if (ambientOverlay.getParent() instanceof FrameLayout)
             ((FrameLayout) ambientOverlay.getParent()).removeView(ambientOverlay);
         ambientOverlay = null;
+        WindowManager.LayoutParams restore = getWindow().getAttributes();
+        restore.screenBrightness = brightnessBeforeAmbient;
+        getWindow().setAttributes(restore);
+        brightnessBeforeAmbient = -1f;
     }
 
     private int dp(float value) {
