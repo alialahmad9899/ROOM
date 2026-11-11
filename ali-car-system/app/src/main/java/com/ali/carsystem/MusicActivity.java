@@ -13,6 +13,8 @@ import android.graphics.Typeface;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.view.Gravity;
 import android.view.View;
@@ -20,6 +22,7 @@ import android.widget.ImageView;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 import java.io.IOException;
@@ -34,6 +37,23 @@ public final class MusicActivity extends Activity {
     private TextView playButton;
     private ImageView albumArt;
     private TextView artFallback;
+    private TextView elapsedText;
+    private TextView durationText;
+    private SeekBar progressBar;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable progressTicker = new Runnable() {
+        @Override public void run() {
+            if (player != null && prepared) {
+                try {
+                    int position = player.getCurrentPosition();
+                    int duration = player.getDuration();
+                    if (progressBar != null && duration > 0) progressBar.setProgress(position * 1000 / duration);
+                    if (elapsedText != null) elapsedText.setText(formatTime(position));
+                } catch (RuntimeException ignored) { }
+            }
+            handler.postDelayed(this, 700L);
+        }
+    };
     private boolean receiverRegistered = false;
     private boolean screenOn = true;
 
@@ -56,6 +76,7 @@ public final class MusicActivity extends Activity {
         super.onCreate(state);
         getWindow().setStatusBarColor(0xFF080D13);
         getWindow().setNavigationBarColor(0xFF080D13);
+        applyImmersiveMode();
         loadSongs();
         build();
         IntentFilter screenFilter = new IntentFilter();
@@ -70,6 +91,7 @@ public final class MusicActivity extends Activity {
             try { unregisterReceiver(screenOff); } catch (RuntimeException ignored) { }
             receiverRegistered = false;
         }
+        handler.removeCallbacksAndMessages(null);
         release();
         if (albumArt != null && albumArt.getDrawable() != null) {
             albumArt.setImageDrawable(null);
@@ -164,6 +186,30 @@ public final class MusicActivity extends Activity {
         controls.addView(next, new LinearLayout.LayoutParams(0, dp(55), 1f));
         root.addView(controls, new LinearLayout.LayoutParams(-1, dp(65)));
 
+        LinearLayout progressRow = new LinearLayout(this);
+        progressRow.setGravity(Gravity.CENTER_VERTICAL);
+        elapsedText = text("00:00", 11, 0xFFFFC56E, true);
+        durationText = text("00:00", 11, 0xFF91A4B2, true);
+        progressBar = new SeekBar(this);
+        progressBar.setMax(1000);
+        if (android.os.Build.VERSION.SDK_INT >= 21) {
+            progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFF5D8F));
+            progressBar.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFFFC56E));
+        }
+        progressRow.addView(elapsedText, new LinearLayout.LayoutParams(dp(44), dp(36)));
+        progressRow.addView(progressBar, new LinearLayout.LayoutParams(0, dp(36), 1f));
+        progressRow.addView(durationText, new LinearLayout.LayoutParams(dp(44), dp(36)));
+        root.addView(progressRow, new LinearLayout.LayoutParams(-1, dp(38)));
+        progressBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                if (fromUser && player != null && prepared) {
+                    try { player.seekTo(player.getDuration() * value / 1000); } catch (RuntimeException ignored) { }
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) { }
+            @Override public void onStopTrackingTouch(SeekBar bar) { }
+        });
+
         previous.setOnClickListener(v -> playIndex(Math.max(0, current - 1)));
         next.setOnClickListener(v -> playIndex(Math.min(songs.size() - 1, current + 1)));
         playButton.setOnClickListener(v -> togglePlayback());
@@ -197,6 +243,30 @@ public final class MusicActivity extends Activity {
         back.setOnClickListener(v -> finish());
         root.addView(back, new LinearLayout.LayoutParams(-1, dp(45)));
         setContentView(root);
+    }
+
+    private void updateDuration() {
+        if (player == null) return;
+        try {
+            int duration = player.getDuration();
+            if (durationText != null) durationText.setText(formatTime(duration));
+        } catch (RuntimeException ignored) { }
+    }
+
+    private String formatTime(int millis) {
+        int total = Math.max(0, millis / 1000);
+        return String.format(java.util.Locale.US, "%02d:%02d", total / 60, total % 60);
+    }
+
+    private void applyImmersiveMode() {
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+
+    @Override public void onWindowFocusChanged(boolean focus) {
+        super.onWindowFocusChanged(focus);
+        if (focus) applyImmersiveMode();
     }
 
     private android.graphics.drawable.GradientDrawable background(int color, int radius) {
@@ -271,6 +341,9 @@ public final class MusicActivity extends Activity {
                 }
                 try {
                     mediaPlayer.start();
+                    updateDuration();
+                    handler.removeCallbacks(progressTicker);
+                    handler.post(progressTicker);
                     playButton.setText("Ⅱ إيقاف مؤقت");
                 } catch (IllegalStateException ignored) {
                     playButton.setText("▶ تشغيل");
@@ -350,6 +423,7 @@ public final class MusicActivity extends Activity {
     }
 
     private void release() {
+        handler.removeCallbacks(progressTicker);
         prepared = false;
         if (player != null) {
             try { player.setOnPreparedListener(null); } catch (RuntimeException ignored) { }
