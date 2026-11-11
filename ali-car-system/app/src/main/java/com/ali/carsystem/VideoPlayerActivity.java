@@ -19,7 +19,7 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
     private MediaPlayer player;
     private TextView status;
     private String title, id, backend, base;
-    private boolean surfaceReady;
+    private boolean surfaceReady, prepared;
     private AsyncTask<Void,Void,VideoApiClient.StreamInfo> task;
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     private void immersive(){getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -41,16 +41,17 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
         release();try{
             player=new MediaPlayer();player.setAudioStreamType(AudioManager.STREAM_MUSIC);
             if(surfaceReady)player.setDisplay(holder);
-            player.setOnPreparedListener(mp->{if(surfaceReady){status.setVisibility(View.GONE);mp.start();}});
+            player.setOnPreparedListener(mp->{prepared=true;startWhenReady();});
             player.setOnCompletionListener(mp->status.setText("انتهى الفيديو"));
             player.setOnErrorListener((mp,w,e)->{status.setVisibility(View.VISIBLE);status.setText("خطأ تشغيل الوسائط ("+w+"/"+e+")");release();return true;});
             player.setDataSource(url);player.prepareAsync();
         }catch(Exception e){status.setText("فشل بدء مشغل الفيديو: "+e.getMessage());release();}
     }
-    @Override public void surfaceCreated(SurfaceHolder h){surfaceReady=true;if(player!=null)try{player.setDisplay(h);if(player.isPlaying())status.setVisibility(View.GONE);}catch(Exception ignored){}}
+    @Override public void surfaceCreated(SurfaceHolder h){surfaceReady=true;startWhenReady();}
+    private void startWhenReady(){if(player==null||!surfaceReady||!prepared)return;try{player.setDisplay(holder);if(!player.isPlaying())player.start();status.setVisibility(View.GONE);}catch(Exception e){status.setVisibility(View.VISIBLE);status.setText("تعذر عرض الفيديو");}}
     @Override public void surfaceChanged(SurfaceHolder h,int f,int w,int ht){}
     @Override public void surfaceDestroyed(SurfaceHolder h){surfaceReady=false;if(player!=null)try{if(player.isPlaying())player.pause();player.setDisplay(null);}catch(Exception ignored){}}
-    private void release(){if(player!=null){try{player.reset();player.release();}catch(Exception ignored){}player=null;}}
+    private void release(){prepared=false;if(player!=null){try{player.reset();player.release();}catch(Exception ignored){}player=null;}}
     @Override protected void onPause(){if(player!=null)try{if(player.isPlaying())player.pause();}catch(Exception ignored){}super.onPause();}
     @Override protected void onDestroy(){if(task!=null)task.cancel(true);release();getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);super.onDestroy();}
     @Override protected void onResume(){super.onResume();immersive();}
