@@ -1,4 +1,4 @@
-name: Build ALI Car System APK
+name: Build ALI CAR Native Clean Launcher APK
 
 on:
   push:
@@ -59,14 +59,14 @@ jobs:
           grep -F "targetSdkVersion:'22'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           mkdir -p output
-          cp "$APK" output/ALI-Car-System-1.1.0-api21-debug.apk
-          sha256sum output/ALI-Car-System-1.1.0-api21-debug.apk > output/SHA256SUMS.txt
+          cp "$APK" output/ALI-Car-System-2.0.0-api21-debug.apk
+          sha256sum output/ALI-Car-System-2.0.0-api21-debug.apk > output/SHA256SUMS.txt
           {
             echo "Project: ALI Car System"
             echo "Package: com.ali.carsystem"
             echo "Minimum Android: 5.0 / API 21"
             echo "Target SDK: 22"
-            echo "Build type: Debug (automatically signed for installation/testing)"
+            echo "Build type: Debug (automatically signed for installation/testing)"\n            echo "Architecture: Native UI + RecyclerView + MediaPlayer/SurfaceView; no WebView"
             echo "Commit: $GITHUB_SHA"
             stat --printf='APK bytes: %s\n' output/ALI-Car-System-1.1.0-api21-debug.apk
             cat output/SHA256SUMS.txt
