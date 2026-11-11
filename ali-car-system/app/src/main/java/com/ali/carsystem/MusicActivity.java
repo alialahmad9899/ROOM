@@ -135,14 +135,13 @@ public final class MusicActivity extends Activity {
         nowPlayingPanel.setBackground(background(0xFF111C27, dp(18)));
 
         FrameLayout artFrame = new FrameLayout(this);
-        artFrame.setGravity(Gravity.CENTER);
         artFrame.setBackground(background(0xFF172633, dp(12)));
         albumArt = new ImageView(this);
         albumArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
         artFallback = text("♫", 42, 0xFF42D9D0, true);
         artFallback.setGravity(Gravity.CENTER);
-        artFrame.addView(albumArt, new LinearLayout.LayoutParams(-1, -1));
-        artFrame.addView(artFallback, new LinearLayout.LayoutParams(-1, -1));
+        artFrame.addView(albumArt, new FrameLayout.LayoutParams(-1, -1));
+        artFrame.addView(artFallback, new FrameLayout.LayoutParams(-1, -1));
         nowPlayingPanel.addView(artFrame, new LinearLayout.LayoutParams(dp(112), dp(112)));
 
         nowPlaying = text("اختر أغنية للبدء", 17, 0xFFF2F6F9, true);
