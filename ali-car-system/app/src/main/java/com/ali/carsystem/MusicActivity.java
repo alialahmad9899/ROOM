@@ -117,85 +117,93 @@ public final class MusicActivity extends Activity {
     }
 
     private void build() {
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(12), dp(18), dp(12));
-        root.setBackgroundColor(0xFF080D13);
+        root.setPadding(dp(18), dp(10), dp(18), dp(10));
+        root.setBackgroundColor(0xFF081426);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
-        TextView title = text("ALI MUSIC", 24, 0xFFF2F6F9, true);
-        root.addView(title, new LinearLayout.LayoutParams(-1, dp(42)));
-        TextView subtitle = text("مشغل الموسيقى المحلي", 13, 0xFF42D9D0, false);
-        root.addView(subtitle, new LinearLayout.LayoutParams(-1, dp(25)));
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = text("ALI MUSIC", 25, 0xFF67D9FF, true);
+        header.addView(title, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        TextView back = control("رجوع");
+        back.setOnClickListener(v -> finish());
+        header.addView(back, new LinearLayout.LayoutParams(dp(92), dp(40)));
+        root.addView(header);
 
-        LinearLayout nowPlayingPanel = new LinearLayout(this);
-        nowPlayingPanel.setOrientation(LinearLayout.HORIZONTAL);
-        nowPlayingPanel.setGravity(Gravity.CENTER_VERTICAL);
-        nowPlayingPanel.setPadding(dp(12), dp(8), dp(12), dp(8));
-        nowPlayingPanel.setBackground(background(0xFF111C27, dp(18)));
+        TextView subtitle = text("مشغل الموسيقى", 13, 0xFFB5C9E2, false);
+        root.addView(subtitle, new LinearLayout.LayoutParams(-1, dp(24)));
 
+        LinearLayout playerPanel = new LinearLayout(this);
+        playerPanel.setGravity(Gravity.CENTER_VERTICAL);
+        playerPanel.setPadding(dp(14), dp(12), dp(14), dp(12));
+        playerPanel.setBackground(background(0xFF172C4C, dp(22)));
         FrameLayout artFrame = new FrameLayout(this);
-        artFrame.setBackground(background(0xFF172633, dp(12)));
+        artFrame.setBackground(background(0xFF5B3BA8, dp(18)));
         albumArt = new ImageView(this);
         albumArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        artFallback = text("♫", 42, 0xFF42D9D0, true);
+        artFallback = text("♫", 48, 0xFFFFD66B, true);
         artFallback.setGravity(Gravity.CENTER);
         artFrame.addView(albumArt, new FrameLayout.LayoutParams(-1, -1));
         artFrame.addView(artFallback, new FrameLayout.LayoutParams(-1, -1));
-        nowPlayingPanel.addView(artFrame, new LinearLayout.LayoutParams(dp(112), dp(112)));
-
-        nowPlaying = text("اختر أغنية للبدء", 17, 0xFFF2F6F9, true);
+        playerPanel.addView(artFrame, new LinearLayout.LayoutParams(dp(124), dp(124)));
+        nowPlaying = text("اختر أغنية للبدء", 18, 0xFFFFFFFF, true);
         nowPlaying.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-        nowPlaying.setPadding(dp(14), 0, dp(8), 0);
-        nowPlayingPanel.addView(nowPlaying, new LinearLayout.LayoutParams(0, dp(105), 1f));
-        root.addView(nowPlayingPanel, new LinearLayout.LayoutParams(-1, dp(128)));
+        nowPlaying.setPadding(dp(16), 0, dp(8), 0);
+        playerPanel.addView(nowPlaying, new LinearLayout.LayoutParams(0, dp(116), 1f));
+        root.addView(playerPanel, new LinearLayout.LayoutParams(-1, dp(148)));
 
         LinearLayout controls = new LinearLayout(this);
         controls.setGravity(Gravity.CENTER);
-        controls.setPadding(0, dp(5), 0, dp(5));
-        TextView previous = control("السابق");
+        controls.setPadding(0, dp(7), 0, dp(7));
+        TextView previous = control("⏮ السابق");
         playButton = control("▶ تشغيل");
-        TextView next = control("التالي");
-        controls.addView(previous, new LinearLayout.LayoutParams(0, dp(55), 1f));
-        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(0, dp(55), 1.25f);
-        playParams.leftMargin = dp(6);
-        playParams.rightMargin = dp(6);
+        TextView next = control("التالي ⏭");
+        controls.addView(previous, new LinearLayout.LayoutParams(0, dp(56), 1f));
+        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(0, dp(56), 1.25f);
+        playParams.leftMargin = dp(8); playParams.rightMargin = dp(8);
         controls.addView(playButton, playParams);
-        controls.addView(next, new LinearLayout.LayoutParams(0, dp(55), 1f));
-        root.addView(controls, new LinearLayout.LayoutParams(-1, dp(65)));
-
+        controls.addView(next, new LinearLayout.LayoutParams(0, dp(56), 1f));
+        root.addView(controls);
         previous.setOnClickListener(v -> playIndex(Math.max(0, current - 1)));
         next.setOnClickListener(v -> playIndex(Math.min(songs.size() - 1, current + 1)));
         playButton.setOnClickListener(v -> togglePlayback());
 
-        TextView listTitle = text("قائمة الأغاني", 15, 0xFFF2F6F9, true);
-        root.addView(listTitle, new LinearLayout.LayoutParams(-1, dp(30)));
+        TextView listTitle = text("قائمة الأغاني", 17, 0xFFFFD66B, true);
+        root.addView(listTitle, new LinearLayout.LayoutParams(-1, dp(32)));
         ScrollView scroll = new ScrollView(this);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         if (songs.isEmpty()) {
-            TextView empty = text(
-                "لم يتم العثور على ملفات موسيقى. أضف ملفات MP3 أو AAC إلى الذاكرة أو بطاقة SD.",
-                14, 0xFF91A4B2, false);
-            empty.setPadding(dp(8), dp(18), dp(8), dp(18));
+            TextView empty = text("لم يتم العثور على ملفات موسيقى في الذاكرة أو بطاقة SD.", 14, 0xFFB5C9E2, false);
+            empty.setPadding(dp(10), dp(18), dp(10), dp(18));
             list.addView(empty);
         }
         for (int index = 0; index < songs.size(); index++) {
             final int selectedIndex = index;
             Song song = songs.get(index);
-            String rowText = (index + 1) + ".  " + song.title + "\n      " + song.artist;
-            TextView row = text(rowText, 14, 0xFFF2F6F9, false);
-            row.setPadding(dp(12), dp(7), dp(12), dp(7));
-            row.setBackgroundColor(index % 2 == 0 ? 0xFF111C27 : 0xFF172633);
-            list.addView(row, new LinearLayout.LayoutParams(-1, dp(58)));
-            row.setOnClickListener(v -> playIndex(selectedIndex));
+            LinearLayout item = new LinearLayout(this);
+            item.setGravity(Gravity.CENTER_VERTICAL);
+            item.setPadding(dp(12), dp(5), dp(12), dp(5));
+            item.setBackground(background(index % 2 == 0 ? 0xFF142844 : 0xFF1A3152, dp(12)));
+            TextView number = text(String.format(java.util.Locale.US, "%02d", index + 1), 15,
+                index % 2 == 0 ? 0xFF54D8C9 : 0xFFFFC66D, true);
+            item.addView(number, new LinearLayout.LayoutParams(dp(42), dp(52)));
+            TextView row = text(song.title + "\\n" + song.artist, 14, 0xFFF4F7FB, false);
+            row.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+            item.addView(row, new LinearLayout.LayoutParams(0, dp(52), 1f));
+            LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(-1, dp(60));
+            itemParams.bottomMargin = dp(5);
+            list.addView(item, itemParams);
+            item.setOnClickListener(v -> playIndex(selectedIndex));
         }
         scroll.addView(list);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-
-        TextView back = control("العودة إلى ALI CAR");
-        back.setOnClickListener(v -> finish());
-        root.addView(back, new LinearLayout.LayoutParams(-1, dp(45)));
         setContentView(root);
     }
 
@@ -220,10 +228,10 @@ public final class MusicActivity extends Activity {
     }
 
     private TextView control(String value) {
-        TextView view = text(value, 15, 0xFF42D9D0, true);
+        TextView view = text(value, 15, 0xFFFFFFFF, true);
         view.setGravity(Gravity.CENTER);
         view.setPadding(dp(10), dp(5), dp(10), dp(5));
-        view.setBackground(background(0xFF172633, dp(13)));
+        view.setBackground(background(0xFF176D83, dp(13)));
         view.setClickable(true);
         view.setFocusable(true);
         return view;
