@@ -1,0 +1,85 @@
+name: Build ALI Car System APK
+
+on:
+  push:
+    branches: ["ali-car-system/**"]
+    paths:
+      - "ali-car-system/**"
+      - ".github/workflows/build-car-app.yml"
+      - "tools/rom/test_car_launcher_contract.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Verify Android 5 project contracts
+        run: python3 tools/rom/test_car_launcher_contract.py
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android platform and build tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build APK
+        working-directory: ali-car-system
+        run: gradle --no-daemon clean assembleDebug
+
+      - name: Verify APK package, API levels and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="ali-car-system/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          "$AAPT" dump badging "$APK" | tee apk-badging.txt
+          grep -F "package: name='com.ali.carsystem'" apk-badging.txt
+          grep -F "sdkVersion:'21'" apk-badging.txt
+          grep -F "targetSdkVersion:'22'" apk-badging.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          mkdir -p output
+          cp "$APK" output/ALI-Car-System-1.1.0-api21-debug.apk
+          sha256sum output/ALI-Car-System-1.1.0-api21-debug.apk > output/SHA256SUMS.txt
+          {
+            echo "Project: ALI Car System"
+            echo "Package: com.ali.carsystem"
+            echo "Minimum Android: 5.0 / API 21"
+            echo "Target SDK: 22"
+            echo "Build type: Debug (automatically signed for installation/testing)"
+            echo "Commit: $GITHUB_SHA"
+            stat --printf='APK bytes: %s\n' output/ALI-Car-System-1.1.0-api21-debug.apk
+            cat output/SHA256SUMS.txt
+          } > output/BUILD-INFO.txt
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALI-CAR-SYSTEM-API21-APK
+          path: |
+            output/ALI-Car-System-1.1.0-api21-debug.apk
+            output/SHA256SUMS.txt
+            output/BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
