@@ -133,7 +133,10 @@ public final class MainActivity extends Activity implements LocationListener {
     private void removeAmbientClock() {
         if (ambientOverlay == null) return;
         Object ticker = ambientOverlay.getTag();
-        if (ticker instanceof Runnable) handler.removeCallbacks((Runnable) ticker);
+        if (ticker instanceof Runnable) {
+            handler.removeCallbacks((Runnable) ticker);
+            ambientOverlay.removeCallbacks((Runnable) ticker);
+        }
         if (ambientOverlay.getParent() instanceof FrameLayout)
             ((FrameLayout) ambientOverlay.getParent()).removeView(ambientOverlay);
         ambientOverlay = null;
