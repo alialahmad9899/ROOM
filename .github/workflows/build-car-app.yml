@@ -7,6 +7,12 @@ on:
       - "ali-car-system/**"
       - ".github/workflows/build-car-app.yml"
       - "tools/rom/test_car_launcher_contract.py"
+  pull_request:
+    branches: ["rom/p01y-system-modification"]
+    paths:
+      - "ali-car-system/**"
+      - ".github/workflows/build-car-app.yml"
+      - "tools/rom/test_car_launcher_contract.py"
   workflow_dispatch:
 
 permissions:
