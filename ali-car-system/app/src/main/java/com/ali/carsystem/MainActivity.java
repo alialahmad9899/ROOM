@@ -84,7 +84,7 @@ public final class MainActivity extends Activity implements LocationListener {
     private void build(){
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(18),dp(12),dp(18),dp(12));root.setBackgroundColor(BG);
-        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         TextView brand=txt("ALI CAR",25,0xFF42D7FF,true);brand.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(52),1);header.addView(brand,bp);
         LinearLayout center=new LinearLayout(this);center.setOrientation(LinearLayout.VERTICAL);center.setGravity(Gravity.CENTER);
