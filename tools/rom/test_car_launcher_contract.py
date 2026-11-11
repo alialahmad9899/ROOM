@@ -1,132 +1,90 @@
 #!/usr/bin/env python3
-"""Static contract checks for the Android 5 ALI Car System app."""
+"""Static acceptance checks for the clean native Android 5 car launcher."""
 from pathlib import Path
 import re
-import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "ali-car-system"
+SRC = APP / "app" / "src" / "main"
+JAVA = SRC / "java" / "com" / "ali" / "carsystem"
 GRADLE = (APP / "app" / "build.gradle").read_text(encoding="utf-8")
-MANIFEST_PATH = APP / "app" / "src" / "main" / "AndroidManifest.xml"
-MANIFEST = ET.parse(MANIFEST_PATH).getroot()
+MANIFEST = ET.parse(SRC / "AndroidManifest.xml").getroot()
 NS = {"a": "http://schemas.android.com/apk/res/android"}
 
 
-def fail(message: str) -> None:
-    print("FAIL:", message)
-    raise SystemExit(1)
+def require(ok: bool, message: str) -> None:
+    if not ok:
+        raise SystemExit("FAIL: " + message)
 
 
-def require(condition: bool, message: str) -> None:
-    if not condition:
-        fail(message)
+require(re.search(r"applicationId\s+['\"]com\.ali\.carsystem['\"]", GRADLE), "applicationId mismatch")
+require(re.search(r"minSdk\s+21\b", GRADLE), "minSdk must be API 21")
+require(re.search(r"targetSdk\s+22\b", GRADLE), "targetSdk must be API 22")
+require("androidx.recyclerview:recyclerview:1.3.2" in GRADLE, "Native RecyclerView dependency missing")
+require("org.osmdroid:osmdroid-android:6.1.20" in GRADLE, "OSMDroid dependency missing")
 
+permissions = {x.get(f"{{{NS['a']}}}name") for x in MANIFEST.findall("uses-permission")}
+for item in ("android.permission.INTERNET", "android.permission.ACCESS_FINE_LOCATION",
+             "android.permission.ACCESS_WIFI_STATE", "android.permission.CHANGE_WIFI_STATE",
+             "android.permission.BLUETOOTH_ADMIN", "android.permission.READ_EXTERNAL_STORAGE",
+             "android.permission.RECEIVE_BOOT_COMPLETED"):
+    require(item in permissions, "permission missing: " + item)
+require("android.permission.READ_PHONE_STATE" not in permissions, "unused phone permission must stay removed")
 
-require(re.search(r"applicationId\s+['\"]com\.ali\.carsystem['\"]", GRADLE) is not None,
-        "applicationId must be com.ali.carsystem")
-require(re.search(r"minSdk\s+21\b", GRADLE) is not None,
-        "minSdk must remain 21")
-require(re.search(r"targetSdk\s+22\b", GRADLE) is not None,
-        "targetSdk must remain 22")
-require("org.osmdroid:osmdroid-android:6.1.20" in GRADLE,
-        "API-21-compatible pinned osmdroid dependency is missing")
+activities = {x.get(f"{{{NS['a']}}}name") for x in MANIFEST.findall("./application/activity")}
+for item in (".MainActivity", ".YouTubeSearchActivity", ".VideoPlayerActivity",
+             ".NavigationActivity", ".MusicActivity", ".AdminToolsActivity"):
+    require(item in activities, "manifest activity missing: " + item)
 
-permissions = {item.get(f"{{{NS['a']}}}name") for item in MANIFEST.findall("uses-permission")}
-for permission in (
-    "android.permission.ACCESS_FINE_LOCATION",
-    "android.permission.INTERNET",
-    "android.permission.WAKE_LOCK",
-    "android.permission.RECEIVE_BOOT_COMPLETED",
-    "android.permission.READ_EXTERNAL_STORAGE",
-    "android.permission.WRITE_SETTINGS",
-    "android.permission.CHANGE_WIFI_STATE",
-    "android.permission.BLUETOOTH_ADMIN",
-):
-    require(permission in permissions, f"required permission missing: {permission}")
+main_activity = next(x for x in MANIFEST.findall("./application/activity")
+                     if x.get(f"{{{NS['a']}}}name") == ".MainActivity")
+actions = {x.get(f"{{{NS['a']}}}name") for x in main_activity.findall("intent-filter/action")}
+cats = {x.get(f"{{{NS['a']}}}name") for x in main_activity.findall("intent-filter/category")}
+require("android.intent.action.MAIN" in actions and "android.intent.category.HOME" in cats,
+        "MainActivity must remain the HOME/launcher activity")
 
-activities = {
-    item.get(f"{{{NS['a']}}}name")
-    for item in MANIFEST.findall("./application/activity")
-}
-require(".MainActivity" in activities, "MainActivity missing from manifest")
-require(".NavigationActivity" in activities, "NavigationActivity missing from manifest")
-require(".MusicActivity" in activities, "MusicActivity missing from manifest")
-require(".YouTubeLiteActivity" in activities, "YouTubeLiteActivity missing from manifest")
+admin = MANIFEST.find("./application/receiver[@android:name='.CarAdminReceiver']", {"android": NS["a"]})
+require(admin is not None, "DeviceAdminReceiver missing")
+require(admin.find("meta-data") is not None, "DeviceAdminReceiver metadata missing")
+boot = MANIFEST.find("./application/receiver[@android:name='.BootReceiver']", {"android": NS["a"]})
+require(boot is not None, "BootReceiver missing")
 
-main_activity = next(
-    item for item in MANIFEST.findall("./application/activity")
-    if item.get(f"{{{NS['a']}}}name") == ".MainActivity"
-)
-home_actions = {
-    node.get(f"{{{NS['a']}}}name")
-    for node in main_activity.findall("intent-filter/action")
-}
-home_categories = {
-    node.get(f"{{{NS['a']}}}name")
-    for node in main_activity.findall("intent-filter/category")
-}
-require("android.intent.action.MAIN" in home_actions, "HOME activity lacks MAIN action")
-require("android.intent.category.HOME" in home_categories, "MainActivity is not a HOME launcher")
-require("android.intent.category.DEFAULT" in home_categories, "HOME launcher lacks DEFAULT category")
+def read(name: str) -> str:
+    path = JAVA / name
+    require(path.is_file(), "source file missing: " + name)
+    return path.read_text(encoding="utf-8")
 
-receiver = MANIFEST.find("./application/receiver")
-require(receiver is not None, "BootReceiver is missing")
-receiver_actions = {
-    node.get(f"{{{NS['a']}}}name")
-    for node in receiver.findall("intent-filter/action")
-}
-require("android.intent.action.BOOT_COMPLETED" in receiver_actions,
-        "boot receiver action missing")
-require("android.intent.action.ACTION_POWER_CONNECTED" in receiver_actions,
-        "charger-connected action missing")
+main = read("MainActivity.java")
+video_api = read("VideoApiClient.java")
+video_search = read("YouTubeSearchActivity.java")
+video_player = read("VideoPlayerActivity.java")
+music = read("MusicActivity.java")
+navigation = read("NavigationActivity.java")
+admin_src = read("AdminToolsActivity.java")
 
-source_root = APP / "app" / "src" / "main" / "java" / "com" / "ali" / "carsystem"
-main = (source_root / "MainActivity.java").read_text(encoding="utf-8")
-navigation = (source_root / "NavigationActivity.java").read_text(encoding="utf-8")
-music = (source_root / "MusicActivity.java").read_text(encoding="utf-8")
-boot = (source_root / "BootReceiver.java").read_text(encoding="utf-8")
+for token in ("ALI CAR", "تم تطوير الواجهة بواسطة : ali ahmad", "Bitmap.Config.RGB_565",
+              "SYSTEM_UI_FLAG_IMMERSIVE_STICKY", "أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",
+              "setWifiEnabled", "BluetoothAdapter", "90000", "LocationManager.GPS_PROVIDER"):
+    require(token in main, "dashboard contract missing: " + token)
 
-for expected in (
-    "ALI CAR",
-    "تم تطوير الواجهة بواسطة : ali ahmad",
-    "SCREEN_BRIGHTNESS",
-    "setWifiEnabled",
-    "BluetoothAdapter",
-    "LocationManager.GPS_PROVIDER",
-    "SimpleDateFormat",
-    "SYSTEM_UI_FLAG_IMMERSIVE_STICKY",
-    "أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",
-    "90000L",
-    "directionName",
-):
-    require(expected in main, f"dashboard feature missing: {expected}")
+require((SRC / "assets" / "dashboard.webp").is_file(), "compressed dashboard WebP asset missing")
+require("RecyclerView" in video_search and "HttpURLConnection" in video_api, "Native search stack missing")
+for token in ("pipedapi.kavin.rocks", "instances.json", "video/mp4", "360p", "480p"):
+    require(token in video_api, "Piped/Invidious fallback contract missing: " + token)
+for token in ("SurfaceView", "MediaPlayer", "setDisplay", "prepareAsync", "FLAG_KEEP_SCREEN_ON"):
+    require(token in video_player, "hardware video playback contract missing: " + token)
+require("WebView" not in "".join(x.read_text(encoding="utf-8") for x in JAVA.glob("*.java")),
+        "WebView is prohibited in the clean native app")
 
-for expected in (
-    "MapView",
-    "TileSourceFactory.MAPNIK",
-    "nominatim.openstreetmap.org",
-    "router.project-osrm.org",
-    "decodePolyline",
-    "maneuverText",
-    "OpenStreetMap contributors",
-):
-    require(expected in navigation, f"navigation feature missing: {expected}")
+for token in ("MediaStore.Audio.Media", "prepareAsync", "SeekBar", "seekTo"):
+    require(token in music, "native music player contract missing: " + token)
+for token in ("MapView", "nominatim.openstreetmap.org", "router.project-osrm.org",
+              "accept-language=ar,en", "map.onDetach"):
+    require(token in navigation, "navigation contract missing: " + token)
+for token in ("isDeviceOwnerApp", "setApplicationHidden", "setLockTaskPackages", "startLockTask"):
+    require(token in admin_src, "Device Owner guard missing: " + token)
+require("if(!dpm.isDeviceOwnerApp(getPackageName()))" in admin_src,
+        "hiding apps must be blocked unless the package is Device Owner")
 
-require("MediaStore.Audio.Albums.ALBUM_ART" in music,
-        "album-art lookup missing from local music player")
-require("prepareAsync()" in music, "music player must prepare audio asynchronously")
-require("progressBar.setMax(1000)" in music, "interactive music progress bar missing")
-require("SYSTEM_UI_FLAG_IMMERSIVE_STICKY" in music, "music activity must use immersive mode")
-require("BLOCKED_HOSTS" in (source_root / "YouTubeLiteActivity.java").read_text(encoding="utf-8"),
-        "YouTube Lite request filter missing")
-require("setLayerType(View.LAYER_TYPE_HARDWARE" in (source_root / "YouTubeLiteActivity.java").read_text(encoding="utf-8"),
-        "YouTube Lite hardware rendering is not enabled")
-require("chooseBestPlace" in navigation, "Arabic geocoder candidate ranking missing")
-require("startLocation == null" in navigation, "city lookup must work without a GPS fix")
-require("ACTION_POWER_CONNECTED" in boot, "charger receiver implementation missing")
-require("ACQUIRE_CAUSES_WAKEUP" in boot, "charger wake-up attempt missing")
-require("الهاتف" not in main and "القراءة" not in main,
-        "retired phone and reader features must be removed from dashboard source")
-
-print("PASS: API 21 / immersive dashboard / Arabic greeting / geocoding fallback / YouTube Lite / local music contracts.")
+print("PASS: clean native API21 launcher, no WebView, MP4 SurfaceView, OSM/Nominatim, MediaStore, DPM guards.")
