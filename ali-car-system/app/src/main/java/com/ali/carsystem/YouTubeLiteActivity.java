@@ -1,27 +1,31 @@
 package com.ali.carsystem;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.view.Gravity;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.graphics.Typeface;
+import android.widget.Toast;
 
+/**
+ * Keep YouTube out of the launcher's process.
+ * Android 5 devices with 1 GB RAM struggle with an embedded modern YouTube WebView.
+ */
 public final class YouTubeLiteActivity extends Activity {
-    private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
-    @Override protected void onCreate(Bundle b){
-        super.onCreate(b);getWindow().setStatusBarColor(0xFF080D13);getWindow().setNavigationBarColor(0xFF080D13);
-        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(0xFF080D13);
-        TextView bar=new TextView(this);bar.setText("ALI  •  YOUTUBE LITE                         رجوع");bar.setTextColor(0xFFF2F6F9);bar.setTextSize(16);bar.setTypeface(Typeface.DEFAULT_BOLD);bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(dp(16),0,dp(16),0);
-        bar.setOnClickListener(v->finish());root.addView(bar,new LinearLayout.LayoutParams(-1,dp(48)));
-        WebView web=new WebView(this);WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);settings.setDatabaseEnabled(true);settings.setLoadsImagesAutomatically(true);settings.setMediaPlaybackRequiresUserGesture(true);settings.setSupportZoom(false);settings.setBuiltInZoomControls(false);
-        settings.setUserAgentString(settings.getUserAgentString()+" ALIYouTubeLite/1.0");
-        web.setWebViewClient(new WebViewClient());web.setWebChromeClient(new WebChromeClient());web.loadUrl("https://m.youtube.com/");
-        root.addView(web,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        try {
+            Intent app = getPackageManager().getLaunchIntentForPackage("com.google.android.youtube");
+            if (app != null) {
+                app.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(app);
+            } else {
+                Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse("https://m.youtube.com/"));
+                browser.addCategory(Intent.CATEGORY_BROWSABLE);
+                startActivity(browser);
+            }
+        } catch (Exception error) {
+            Toast.makeText(this, "تعذّر فتح YouTube أو المتصفح", Toast.LENGTH_LONG).show();
+        }
+        finish();
     }
-    @Override public void onBackPressed(){finish();}
 }
