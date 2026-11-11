@@ -11,7 +11,6 @@ import android.graphics.Typeface;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -20,7 +19,6 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
-import android.telephony.TelephonyManager;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -358,10 +356,6 @@ public final class MainActivity extends Activity implements LocationListener {
         }
     }
 
-    private void openDialer() {
-        openIntent(new Intent(Intent.ACTION_DIAL), "تطبيق الهاتف غير متوفر");
-    }
-
     private void openIntent(Intent intent, String errorMessage) {
         try {
             if (intent.resolveActivity(getPackageManager()) == null) {
@@ -372,22 +366,6 @@ public final class MainActivity extends Activity implements LocationListener {
         } catch (ActivityNotFoundException | SecurityException error) {
             toast(errorMessage);
         }
-    }
-
-    private void openReader() {
-        String[] packages = {
-            "com.amazon.kindle",
-            "com.asus.supernote",
-            "com.google.android.apps.docs"
-        };
-        for (String packageName : packages) {
-            Intent intent = getPackageManager().getLaunchIntentForPackage(packageName);
-            if (intent != null) {
-                startActivity(intent);
-                return;
-            }
-        }
-        toast("لا يوجد تطبيق قراءة مثبت");
     }
 
     private void toggleWifi() {
@@ -439,9 +417,6 @@ public final class MainActivity extends Activity implements LocationListener {
                 btText.setText(enabled ? "Bluetooth  •  يعمل" : "Bluetooth  •  متوقف");
                 btText.setTextColor(enabled ? ACCENT : MUTED);
             }
-        } catch (RuntimeException ignored) { }
-        try {
-            TelephonyManager telephony = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
         } catch (RuntimeException ignored) { }
         updateClockAndBattery();
     }
