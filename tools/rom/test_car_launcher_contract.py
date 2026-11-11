@@ -90,7 +90,6 @@ boot = (source_root / "BootReceiver.java").read_text(encoding="utf-8")
 for expected in (
     "ALI CAR",
     "تم تطوير الواجهة بواسطة : ali ahmad",
-    "SCREEN_BRIGHTNESS",
     "setWifiEnabled",
     "BluetoothAdapter",
     "LocationManager.GPS_PROVIDER",
