@@ -98,6 +98,7 @@ for expected in (
     "SYSTEM_UI_FLAG_IMMERSIVE_STICKY",
     "أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",
     "90000L",
+    "directionName",
 ):
     require(expected in main, f"dashboard feature missing: {expected}")
 
@@ -125,5 +126,7 @@ require("chooseBestPlace" in navigation, "Arabic geocoder candidate ranking miss
 require("startLocation == null" in navigation, "city lookup must work without a GPS fix")
 require("ACTION_POWER_CONNECTED" in boot, "charger receiver implementation missing")
 require("ACQUIRE_CAUSES_WAKEUP" in boot, "charger wake-up attempt missing")
+require("الهاتف" not in main and "القراءة" not in main,
+        "retired phone and reader features must be removed from dashboard source")
 
 print("PASS: API 21 / immersive dashboard / Arabic greeting / geocoding fallback / YouTube Lite / local music contracts.")
