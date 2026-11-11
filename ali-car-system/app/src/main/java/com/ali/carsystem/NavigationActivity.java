@@ -11,13 +11,14 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
+import android.content.Context;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.osmdroid.config.Configuration;
@@ -26,7 +27,6 @@ import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.Marker;
 import org.osmdroid.views.overlay.Polyline;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
@@ -38,526 +38,170 @@ import java.util.ArrayList;
 import java.util.Locale;
 
 public final class NavigationActivity extends Activity implements LocationListener {
-    private static final int BG = 0xFF080D13;
-    private static final int PANEL = 0xFF111C27;
-    private static final int WHITE = 0xFFF2F6F9;
-    private static final int MUTED = 0xFF91A4B2;
-    private static final int ACCENT = 0xFF42D9D0;
-
+    private static final int BG=0xFF081426, WHITE=0xFFF4F7FB, MUTED=0xFF9EB0C5;
     private MapView map;
-    private EditText destinationInput;
-    private TextView status;
-    private TextView instructions;
+    private EditText input;
+    private TextView status, directions;
     private LocationManager locationManager;
     private Location currentLocation;
-    private AsyncTask<String, Void, NavigationResult> activeTask;
-    private long lastGeocodeRequest = 0L;
-    private Marker currentMarker;
-    private Marker destinationMarker;
+    private Marker currentMarker, destinationMarker;
     private Polyline routeLine;
-
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
-    }
-
-    @Override protected void onCreate(Bundle state) {
-        super.onCreate(state);
-        getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(BG);
-        configureMapCache();
-        buildScreen();
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
-        loadLastKnownLocation();
-    }
-
-    private void configureMapCache() {
-        try {
-            Configuration.getInstance().load(
-                getApplicationContext(),
-                PreferenceManager.getDefaultSharedPreferences(getApplicationContext())
-            );
-            File base = new File(getFilesDir(), "osmdroid");
-            File tileCache = new File(base, "tiles");
-            if (!tileCache.exists()) tileCache.mkdirs();
+    private AsyncTask<String,Void,SearchResult> task;
+    private long lastSearch;
+    private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
+    @Override protected void onCreate(Bundle b){
+        super.onCreate(b);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        try{
+            Configuration.getInstance().load(getApplicationContext(),PreferenceManager.getDefaultSharedPreferences(this));
+            File base=new File(getFilesDir(),"osmdroid"), tiles=new File(base,"tiles");
+            if(!tiles.exists())tiles.mkdirs();
             Configuration.getInstance().setOsmdroidBasePath(base);
-            Configuration.getInstance().setOsmdroidTileCache(tileCache);
-            Configuration.getInstance().setUserAgentValue(
-                "ALI-Car-System/1.1 (com.ali.carsystem)"
-            );
-        } catch (RuntimeException ignored) {
-            // The map can still attempt to use osmdroid's default cache.
-        }
+            Configuration.getInstance().setOsmdroidTileCache(tiles);
+            Configuration.getInstance().setUserAgentValue("ALI-Car-System/1.2 (com.ali.carsystem)");
+        }catch(Exception ignored){}
+        locationManager=(LocationManager)getSystemService(LOCATION_SERVICE);
+        build();
+        loadLastLocation();
     }
-
-    private void buildScreen() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(BG);
-        root.setPadding(dp(10), dp(8), dp(10), dp(7));
-
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text("ALI CAR  •  الملاحة", 18, WHITE, true);
-        header.addView(title, new LinearLayout.LayoutParams(0, dp(38), 1f));
-        TextView back = text("رجوع", 13, ACCENT, true);
-        back.setGravity(Gravity.CENTER);
-        back.setPadding(dp(12), 0, dp(12), 0);
-        back.setOnClickListener(v -> finish());
-        header.addView(back, new LinearLayout.LayoutParams(dp(65), dp(38)));
-        root.addView(header, new LinearLayout.LayoutParams(-1, dp(40)));
-
-        LinearLayout searchRow = new LinearLayout(this);
-        searchRow.setGravity(Gravity.CENTER_VERTICAL);
-        destinationInput = new EditText(this);
-        destinationInput.setSingleLine(true);
-        destinationInput.setTextColor(WHITE);
-        destinationInput.setHintTextColor(MUTED);
-        destinationInput.setTextSize(14);
-        destinationInput.setHint("اكتب اسم المكان أو العنوان");
-        destinationInput.setPadding(dp(10), 0, dp(10), 0);
-        destinationInput.setBackgroundColor(PANEL);
-        searchRow.addView(destinationInput, new LinearLayout.LayoutParams(0, dp(44), 1f));
-
-        Button search = button("ابحث وارسم المسار");
-        search.setOnClickListener(v -> searchDestination());
-        LinearLayout.LayoutParams searchButtonParams = new LinearLayout.LayoutParams(dp(160), dp(44));
-        searchButtonParams.leftMargin = dp(7);
-        searchRow.addView(search, searchButtonParams);
-        root.addView(searchRow, new LinearLayout.LayoutParams(-1, dp(48)));
-
-        map = new MapView(this);
-        map.setTileSource(TileSourceFactory.MAPNIK);
-        map.setMultiTouchControls(true);
-        map.setBuiltInZoomControls(false);
-        map.getController().setZoom(13.0);
-        map.setBackgroundColor(0xFF101820);
-        LinearLayout.LayoutParams mapParams = new LinearLayout.LayoutParams(-1, 0, 1f);
-        mapParams.topMargin = dp(6);
-        mapParams.bottomMargin = dp(6);
-        root.addView(map, mapParams);
-
-        status = text("أدخل وجهتك ثم اضغط بحث. يلزم اتصال بالإنترنت.", 12, ACCENT, false);
-        status.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-        root.addView(status, new LinearLayout.LayoutParams(-1, dp(25)));
-
-        ScrollView instructionScroll = new ScrollView(this);
-        instructionScroll.setFillViewport(false);
-        instructions = text(
-            "بيانات الخريطة © OpenStreetMap contributors",
-            12, MUTED, false
-        );
-        instructions.setPadding(dp(10), dp(5), dp(10), dp(5));
-        instructions.setBackgroundColor(PANEL);
-        instructionScroll.addView(instructions);
-        root.addView(instructionScroll, new LinearLayout.LayoutParams(-1, dp(74)));
-
-        TextView attribution = text("© OpenStreetMap contributors  •  التوجيه التجريبي عبر OSRM",
-            9, MUTED, false);
-        attribution.setGravity(Gravity.CENTER);
-        root.addView(attribution, new LinearLayout.LayoutParams(-1, dp(16)));
-
+    private TextView label(String s,int size,int color,boolean bold){
+        TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);
+        t.setTypeface(android.graphics.Typeface.create("sans-serif",bold?1:0));t.setGravity(Gravity.CENTER_VERTICAL);return t;
+    }
+    private void build(){
+        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(10),dp(8),dp(10),dp(6));root.setBackgroundColor(BG);
+        LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title=label("ALI CAR  •  الملاحة",20,0xFF63D7FF,true);head.addView(title,new LinearLayout.LayoutParams(0,dp(40),1));
+        Button back=new Button(this);back.setText("رجوع");back.setAllCaps(false);back.setOnClickListener(v->finish());head.addView(back,new LinearLayout.LayoutParams(dp(82),dp(42)));root.addView(head);
+        LinearLayout search=new LinearLayout(this);search.setGravity(Gravity.CENTER_VERTICAL);
+        input=new EditText(this);input.setSingleLine(true);input.setTextSize(16);input.setHint("اكتب مدينة أو محافظة: دمشق، حلب...");
+        input.setHintTextColor(MUTED);input.setTextColor(WHITE);input.setSelectAllOnFocus(false);
+        search.addView(input,new LinearLayout.LayoutParams(0,dp(52),1));
+        Button go=new Button(this);go.setText("بحث");go.setAllCaps(false);go.setOnClickListener(v->search());search.addView(go,new LinearLayout.LayoutParams(dp(82),dp(52)));
+        root.addView(search);
+        status=label("اكتب اسم المدينة ثم اضغط بحث — لا يشترط GPS لعرض المدينة",13,0xFF64D7C7,false);
+        root.addView(status,new LinearLayout.LayoutParams(-1,dp(34)));
+        map=new MapView(this);map.setTileSource(TileSourceFactory.MAPNIK);map.setMultiTouchControls(true);
+        map.getController().setZoom(6.0);map.getController().setCenter(new GeoPoint(34.8,38.9));
+        root.addView(map,new LinearLayout.LayoutParams(-1,0,1));
+        directions=label("الخريطة © OpenStreetMap contributors",12,MUTED,false);
+        root.addView(directions,new LinearLayout.LayoutParams(-1,dp(62)));
+        TextView attribution=label("© OpenStreetMap contributors  •  توجيه تجريبي عبر OSRM",9,MUTED,false);
+        attribution.setGravity(Gravity.CENTER);root.addView(attribution,new LinearLayout.LayoutParams(-1,dp(17)));
         setContentView(root);
     }
-
-    private TextView text(String value, int size, int color, boolean bold) {
-        TextView view = new TextView(this);
-        view.setText(value);
-        view.setTextSize(size);
-        view.setTextColor(color);
-        view.setTypeface(android.graphics.Typeface.create(
-            "sans-serif", bold ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL
-        ));
-        return view;
+    private void loadLastLocation(){
+        if(locationManager==null||checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)return;
+        try{
+            Location a=locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            Location b=locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+            currentLocation=a==null?b:(b==null||a.getTime()>=b.getTime()?a:b);
+            if(currentLocation!=null)updateCurrentMarker();
+        }catch(Exception ignored){}
     }
-
-    private Button button(String value) {
-        Button button = new Button(this);
-        button.setText(value);
-        button.setTextSize(12);
-        button.setTextColor(0xFF071014);
-        button.setAllCaps(false);
-        button.setBackgroundColor(ACCENT);
-        return button;
-    }
-
-    private void loadLastKnownLocation() {
-        if (locationManager == null) return;
-        if (checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
-            status.setText("يلزم السماح بالوصول إلى الموقع لبدء التوجيه");
-            return;
-        }
-        try {
-            Location gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            Location network = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            currentLocation = newerLocation(gps, network);
-            if (currentLocation != null) updateCurrentMarker();
-        } catch (RuntimeException ignored) { }
-    }
-
-    private Location newerLocation(Location first, Location second) {
-        if (first == null) return second;
-        if (second == null) return first;
-        return first.getTime() >= second.getTime() ? first : second;
-    }
-
-    @Override protected void onResume() {
-        super.onResume();
-        if (map != null) map.onResume();
-        if (locationManager != null
-            && checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED) {
-            try {
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, 2000L, 5f, this
-                );
-            } catch (RuntimeException ignored) { }
+    @Override protected void onResume(){
+        super.onResume();if(map!=null)map.onResume();
+        if(locationManager!=null&&checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED){
+            try{locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,2500,5,this);}catch(Exception ignored){}
         }
     }
-
-    @Override protected void onPause() {
-        if (locationManager != null) {
-            try { locationManager.removeUpdates(this); } catch (RuntimeException ignored) { }
+    @Override protected void onPause(){
+        if(locationManager!=null)try{locationManager.removeUpdates(this);}catch(Exception ignored){}
+        if(map!=null)map.onPause();super.onPause();
+    }
+    @Override protected void onDestroy(){if(task!=null)task.cancel(true);if(map!=null)map.onDetach();super.onDestroy();}
+    @Override public void onLocationChanged(Location l){if(l!=null){currentLocation=l;updateCurrentMarker();}}
+    @Override public void onProviderDisabled(String p){if(LocationManager.GPS_PROVIDER.equals(p))status.setText("GPS متوقف — يمكنك البحث عن المدينة بدون GPS");}
+    @Override public void onProviderEnabled(String p){}
+    @Override public void onStatusChanged(String p,int s,Bundle b){}
+    private void updateCurrentMarker(){
+        if(map==null||currentLocation==null)return;
+        GeoPoint p=new GeoPoint(currentLocation.getLatitude(),currentLocation.getLongitude());
+        if(currentMarker==null){currentMarker=new Marker(map);currentMarker.setTitle("موقعك الحالي");map.getOverlays().add(currentMarker);}
+        currentMarker.setPosition(p);map.invalidate();
+    }
+    private void search(){
+        String q=input.getText().toString().trim();if(q.length()<2){input.setError("اكتب اسم مدينة أو محافظة");return;}
+        long now=System.currentTimeMillis();if(now-lastSearch<1100){status.setText("انتظر لحظة قبل البحث مرة أخرى");return;}lastSearch=now;
+        ((InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(input.getWindowToken(),0);
+        loadLastLocation();if(task!=null)task.cancel(true);
+        status.setText("جارٍ البحث عن "+q+"...");
+        directions.setText("يتم تحديد موقع المدينة على الخريطة");
+        Location start=currentLocation==null?null:new Location(currentLocation);
+        task=new SearchTask(this,start).execute(q);
+    }
+    private void showResult(SearchResult r){
+        if(isFinishing())return;
+        if(r.error!=null){status.setText(r.error);directions.setText("جرّب اسم المدينة بالعربية أو الإنجليزية وتحقق من الإنترنت.");return;}
+        if(destinationMarker!=null)map.getOverlays().remove(destinationMarker);
+        destinationMarker=new Marker(map);destinationMarker.setPosition(r.destination);destinationMarker.setTitle(r.name);destinationMarker.setSnippet("الوجهة المطلوبة");map.getOverlays().add(destinationMarker);
+        if(r.start!=null&&r.points!=null&&r.points.size()>1){
+            if(routeLine!=null)map.getOverlays().remove(routeLine);
+            routeLine=new Polyline(map);routeLine.setColor(0xFF16B8E6);routeLine.setWidth(dp(5));routeLine.setPoints(r.points);map.getOverlays().add(routeLine);
+            if(currentMarker==null){currentMarker=new Marker(map);currentMarker.setTitle("موقعك الحالي");map.getOverlays().add(currentMarker);}
+            currentMarker.setPosition(r.start);
+            status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %d دقيقة",r.distance,r.minutes));
+            directions.setText(r.steps);
+            map.getController().zoomToSpan(Math.max(Math.abs(r.start.getLatitude()-r.destination.getLatitude()),0.02),Math.max(Math.abs(r.start.getLongitude()-r.destination.getLongitude()),0.02));
+            map.getController().setCenter(new GeoPoint((r.start.getLatitude()+r.destination.getLatitude())/2,(r.start.getLongitude()+r.destination.getLongitude())/2));
+        }else{
+            if(routeLine!=null){map.getOverlays().remove(routeLine);routeLine=null;}
+            map.getController().setZoom(12.0);map.getController().animateTo(r.destination);
+            status.setText("تم العثور على: "+r.name);
+            directions.setText("تم تحديد المدينة على الخريطة. فعّل GPS وحدد موقعك للحصول على مسار القيادة من موقعك الحالي.");
         }
-        if (map != null) map.onPause();
-        super.onPause();
-    }
-
-    @Override protected void onDestroy() {
-        if (activeTask != null) activeTask.cancel(true);
-        if (map != null) map.onDetach();
-        super.onDestroy();
-    }
-
-    @Override public void onLocationChanged(Location location) {
-        if (location == null) return;
-        currentLocation = location;
-        updateCurrentMarker();
-        status.setText(String.format(Locale.US,
-            "موقع GPS: %.5f, %.5f", location.getLatitude(), location.getLongitude()));
-    }
-
-    @Override public void onProviderDisabled(String provider) {
-        if (LocationManager.GPS_PROVIDER.equals(provider)) {
-            status.setText("GPS متوقف؛ فعّله للحصول على موقعك");
-        }
-    }
-
-    @Override public void onProviderEnabled(String provider) { }
-
-    @Override public void onStatusChanged(String provider, int state, Bundle extras) { }
-
-    private void updateCurrentMarker() {
-        if (map == null || currentLocation == null) return;
-        GeoPoint point = new GeoPoint(currentLocation.getLatitude(), currentLocation.getLongitude());
-        if (currentMarker == null) {
-            currentMarker = new Marker(map);
-            currentMarker.setTitle("موقعك الحالي");
-            map.getOverlays().add(currentMarker);
-        }
-        currentMarker.setPosition(point);
-        map.getController().animateTo(point);
         map.invalidate();
     }
-
-    private void searchDestination() {
-        String query = destinationInput.getText().toString().trim();
-        if (query.length() < 2) {
-            destinationInput.setError("اكتب اسم وجهة أو عنواناً صحيحاً");
-            return;
-        }
-        long now = System.currentTimeMillis();
-        if (now - lastGeocodeRequest < 1100L) {
-            status.setText("انتظر لحظة قبل إرسال بحث جديد");
-            return;
-        }
-        lastGeocodeRequest = now;
-        loadLastKnownLocation();
-        if (currentLocation == null) {
-            status.setText("لم يصل GPS بعد. انتظر تحديد موقعك ثم أعد المحاولة.");
-            return;
-        }
-        if (activeTask != null) activeTask.cancel(true);
-        status.setText("جارٍ البحث عن الوجهة وحساب المسار...");
-        instructions.setText("يرجى الانتظار حتى يكتمل البحث.");
-        activeTask = new RouteTask(this, currentLocation).execute(query);
+    private static JSONObject getObject(String url)throws Exception{return new JSONObject(fetch(url));}
+    private static JSONArray getArray(String url)throws Exception{return new JSONArray(fetch(url));}
+    private static String fetch(String address)throws Exception{
+        HttpURLConnection c=(HttpURLConnection)new URL(address).openConnection();
+        c.setConnectTimeout(12000);c.setReadTimeout(18000);c.setRequestProperty("User-Agent","ALI-Car-System/1.2 (com.ali.carsystem)");
+        c.setRequestProperty("Accept","application/json");c.setRequestProperty("Accept-Language","ar,en;q=0.8");
+        try{int code=c.getResponseCode();if(code<200||code>=300)throw new Exception("HTTP "+code);
+            InputStream in=c.getInputStream();BufferedReader rd=new BufferedReader(new InputStreamReader(in,"UTF-8"));
+            StringBuilder s=new StringBuilder();String line;while((line=rd.readLine())!=null){s.append(line);if(s.length()>2000000)throw new Exception("response too large");}
+            rd.close();return s.toString();
+        }finally{c.disconnect();}
     }
-
-    private void showRoute(NavigationResult result) {
-        if (isFinishing()) return;
-        if (result.error != null) {
-            status.setText(result.error);
-            instructions.setText("تحقق من الإنترنت واسم الوجهة وإشارة GPS.");
-            return;
-        }
-
-        if (routeLine != null) map.getOverlays().remove(routeLine);
-        if (destinationMarker != null) map.getOverlays().remove(destinationMarker);
-
-        routeLine = new Polyline(map);
-        routeLine.setColor(0xFF00BEB5);
-        routeLine.setWidth(dp(5));
-        routeLine.setPoints(result.geometry);
-        map.getOverlays().add(routeLine);
-
-        destinationMarker = new Marker(map);
-        destinationMarker.setPosition(result.destination);
-        destinationMarker.setTitle(result.destinationName);
-        destinationMarker.setSnippet("الوجهة المحددة");
-        map.getOverlays().add(destinationMarker);
-
-        if (currentMarker == null) {
-            currentMarker = new Marker(map);
-            currentMarker.setTitle("موقعك الحالي");
-            map.getOverlays().add(currentMarker);
-        }
-        currentMarker.setPosition(result.start);
-        map.getController().animateTo(new GeoPoint(
-            (result.start.getLatitude() + result.destination.getLatitude()) / 2.0,
-            (result.start.getLongitude() + result.destination.getLongitude()) / 2.0
-        ));
-        map.getController().setZoom(12.5);
-        map.invalidate();
-
-        status.setText(String.format(Locale.US,
-            "المسافة %.1f كم  •  الوقت التقديري %d دقيقة",
-            result.distanceKm, result.durationMinutes));
-        instructions.setText(result.stepsText
-            + "\n\n© OpenStreetMap contributors  •  Route: OSRM");
+    private static ArrayList<GeoPoint> decode(String e){
+        ArrayList<GeoPoint> out=new ArrayList<>();int i=0,lat=0,lon=0;
+        while(i<e.length()){int[] a=decodeOne(e,i);lat+=a[0];i=a[1];int[] b=decodeOne(e,i);lon+=b[0];i=b[1];out.add(new GeoPoint(lat/1E5,lon/1E5));}return out;
     }
-
-    private static String readResponse(HttpURLConnection connection) throws Exception {
-        InputStream input = connection.getInputStream();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(input, "UTF-8"));
-        StringBuilder output = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            output.append(line);
-            if (output.length() > 2_000_000) throw new IllegalStateException("Response too large");
-        }
-        reader.close();
-        return output.toString();
+    private static int[] decodeOne(String s,int i){int result=0,shift=0,v;do{if(i>=s.length())throw new IllegalArgumentException("bad polyline");v=s.charAt(i++)-63;result|=(v&31)<<shift;shift+=5;}while(v>=32);return new int[]{(result&1)!=0?~(result>>1):(result>>1),i};}
+    private static final class SearchResult{
+        String error,name,steps;GeoPoint destination,start;ArrayList<GeoPoint> points;double distance;int minutes;
+        SearchResult(String e,String n,GeoPoint d,GeoPoint s,ArrayList<GeoPoint> p,String st,double km,int m){error=e;name=n;destination=d;start=s;points=p;steps=st;distance=km;minutes=m;}
     }
-
-    private static JSONObject getJson(String address, String userAgent) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(address).openConnection();
-        connection.setRequestMethod("GET");
-        connection.setConnectTimeout(12000);
-        connection.setReadTimeout(18000);
-        connection.setRequestProperty("User-Agent", userAgent);
-        connection.setRequestProperty("Accept", "application/json");
-        connection.setRequestProperty("Accept-Language", "ar,en;q=0.8");
-        try {
-            int code = connection.getResponseCode();
-            if (code < 200 || code >= 300) {
-                throw new IllegalStateException("الخدمة أعادت HTTP " + code);
-            }
-            return new JSONObject(readResponse(connection));
-        } finally {
-            connection.disconnect();
-        }
-    }
-
-    private static JSONArray getJsonArray(String address, String userAgent) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(address).openConnection();
-        connection.setRequestMethod("GET");
-        connection.setConnectTimeout(12000);
-        connection.setReadTimeout(18000);
-        connection.setRequestProperty("User-Agent", userAgent);
-        connection.setRequestProperty("Accept", "application/json");
-        try {
-            int code = connection.getResponseCode();
-            if (code < 200 || code >= 300) {
-                throw new IllegalStateException("الخدمة أعادت HTTP " + code);
-            }
-            return new JSONArray(readResponse(connection));
-        } finally {
-            connection.disconnect();
-        }
-    }
-
-    private static ArrayList<GeoPoint> decodePolyline(String encoded) {
-        ArrayList<GeoPoint> points = new ArrayList<>();
-        int index = 0;
-        int latitude = 0;
-        int longitude = 0;
-        while (index < encoded.length()) {
-            int[] lat = decodeValue(encoded, index);
-            latitude += lat[0];
-            index = lat[1];
-            int[] lon = decodeValue(encoded, index);
-            longitude += lon[0];
-            index = lon[1];
-            points.add(new GeoPoint(latitude / 1E5, longitude / 1E5));
-        }
-        return points;
-    }
-
-    private static int[] decodeValue(String encoded, int start) {
-        int result = 0;
-        int shift = 0;
-        int index = start;
-        int value;
-        do {
-            if (index >= encoded.length()) throw new IllegalArgumentException("Invalid polyline");
-            value = encoded.charAt(index++) - 63;
-            result |= (value & 0x1f) << shift;
-            shift += 5;
-        } while (value >= 0x20);
-        int decoded = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-        return new int[]{decoded, index};
-    }
-
-    private static String maneuverText(JSONObject step) {
-        JSONObject maneuver = step.optJSONObject("maneuver");
-        String type = maneuver == null ? "" : maneuver.optString("type", "");
-        String modifier = maneuver == null ? "" : maneuver.optString("modifier", "");
-        String road = step.optString("name", "");
-        double meters = step.optDouble("distance", 0);
-        String direction;
-        if ("left".equals(modifier) || "sharp left".equals(modifier)) direction = "يسار";
-        else if ("right".equals(modifier) || "sharp right".equals(modifier)) direction = "يمين";
-        else if ("slight left".equals(modifier)) direction = "ميل يسار";
-        else if ("slight right".equals(modifier)) direction = "ميل يمين";
-        else if ("uturn".equals(modifier)) direction = "انعطاف للخلف";
-        else direction = "تابع مباشرة";
-
-        String action;
-        if ("depart".equals(type)) action = "انطلق";
-        else if ("arrive".equals(type)) action = "وصلت إلى وجهتك";
-        else if ("roundabout".equals(type) || "rotary".equals(type)) action = "ادخل الدوار";
-        else if ("merge".equals(type)) action = "اندماج";
-        else if ("fork".equals(type)) action = "عند المفترق";
-        else if ("end of road".equals(type)) action = "نهاية الطريق، اتجه";
-        else if ("new name".equals(type) || "continue".equals(type)) action = "استمر";
-        else action = "انعطف";
-
-        String distance = meters >= 1000
-            ? String.format(Locale.US, "%.1f كم", meters / 1000.0)
-            : String.format(Locale.US, "%.0f م", meters);
-        String text = action;
-        if (!"depart".equals(type) && !"arrive".equals(type)) text += " " + direction;
-        if (!road.isEmpty()) text += " نحو " + road;
-        return "• " + text + " بعد " + distance;
-    }
-
-    private static final class NavigationResult {
-        final String error;
-        final String destinationName;
-        final GeoPoint start;
-        final GeoPoint destination;
-        final ArrayList<GeoPoint> geometry;
-        final String stepsText;
-        final double distanceKm;
-        final int durationMinutes;
-
-        NavigationResult(String error, String name, GeoPoint start, GeoPoint destination,
-                         ArrayList<GeoPoint> geometry, String steps, double distanceKm,
-                         int durationMinutes) {
-            this.error = error;
-            this.destinationName = name;
-            this.start = start;
-            this.destination = destination;
-            this.geometry = geometry;
-            this.stepsText = steps;
-            this.distanceKm = distanceKm;
-            this.durationMinutes = durationMinutes;
-        }
-    }
-
-    private static final class RouteTask extends AsyncTask<String, Void, NavigationResult> {
-        private final NavigationActivity activity;
-        private final Location startLocation;
-
-        RouteTask(NavigationActivity activity, Location start) {
-            this.activity = activity;
-            this.startLocation = new Location(start);
-        }
-
-        @Override protected NavigationResult doInBackground(String... queries) {
-            try {
-                String query = URLEncoder.encode(queries[0], "UTF-8");
-                String agent = "ALI-Car-System/1.1 (com.ali.carsystem)";
-                String normalizedQuery = queries[0].trim().toLowerCase(Locale.US);
-                android.content.SharedPreferences cache = activity.getSharedPreferences(
-                    "nominatim_cache", Context.MODE_PRIVATE);
-                String cachedQuery = cache.getString("query", "");
-                long cachedAt = cache.getLong("cached_at", 0L);
-                boolean cacheHit = normalizedQuery.equals(cachedQuery)
-                    && System.currentTimeMillis() - cachedAt < 7L * 24L * 60L * 60L * 1000L
-                    && cache.contains("latitude") && cache.contains("longitude");
-                double destinationLat;
-                double destinationLon;
-                String name;
-                if (cacheHit) {
-                    destinationLat = Double.longBitsToDouble(cache.getLong("latitude", 0L));
-                    destinationLon = Double.longBitsToDouble(cache.getLong("longitude", 0L));
-                    name = cache.getString("display_name", queries[0]);
-                } else {
-                    String searchUrl = "https://nominatim.openstreetmap.org/search?q="
-                        + query + "&format=jsonv2&limit=1&accept-language=ar";
-                    JSONArray matches = getJsonArray(searchUrl, agent);
-                    if (matches.length() == 0) {
-                        return new NavigationResult("لم يتم العثور على الوجهة", "", null,
-                            null, null, "", 0, 0);
+    private static final class SearchTask extends AsyncTask<String,Void,SearchResult>{
+        private final NavigationActivity activity;private final Location start;
+        SearchTask(NavigationActivity a,Location s){activity=a;start=s;}
+        @Override protected SearchResult doInBackground(String... q){
+            try{
+                String query=URLEncoder.encode(q[0],"UTF-8");
+                JSONArray hits=getArray("https://nominatim.openstreetmap.org/search?q="+query+"&format=jsonv2&limit=5&accept-language=ar");
+                if(hits.length()==0)return new SearchResult("لم يتم العثور على المدينة أو المحافظة",null,null,null,null,null,0,0);
+                JSONObject hit=hits.getJSONObject(0);double lat=Double.parseDouble(hit.getString("lat")),lon=Double.parseDouble(hit.getString("lon"));
+                GeoPoint dest=new GeoPoint(lat,lon);String name=hit.optString("display_name",q[0]);
+                if(start==null)return new SearchResult(null,name,dest,null,null,"لا تتوفر إشارة GPS حالياً.",0,0);
+                String url=String.format(Locale.US,"https://router.project-osrm.org/route/v1/driving/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=polyline&steps=true",start.getLongitude(),start.getLatitude(),lon,lat);
+                JSONObject routeResponse=getObject(url);JSONArray routes=routeResponse.optJSONArray("routes");
+                if(!"Ok".equals(routeResponse.optString("code"))||routes==null||routes.length()==0)
+                    return new SearchResult(null,name,dest,null,null,"لم يتوفر مسار قيادة لهذه الوجهة.",0,0);
+                JSONObject route=routes.getJSONObject(0);ArrayList<GeoPoint> points=decode(route.getString("geometry"));
+                StringBuilder steps=new StringBuilder("تعليمات الطريق:\\n");
+                JSONArray legs=route.optJSONArray("legs");
+                if(legs!=null&&legs.length()>0){JSONArray ss=legs.getJSONObject(0).optJSONArray("steps");if(ss!=null){
+                    for(int i=0;i<Math.min(ss.length(),12);i++){JSONObject step=ss.getJSONObject(i);JSONObject man=step.optJSONObject("maneuver");
+                        String mod=man==null?"":man.optString("modifier","");String dir="يسار".equals(mod)?"يسار":"يمين".equals(mod)?"يمين":"تابع مباشرة";
+                        String road=step.optString("name","");steps.append(dir);if(!road.isEmpty())steps.append(" نحو ").append(road);
+                        steps.append(" — ").append((int)(step.optDouble("distance",0))).append(" م\\n");
                     }
-                    JSONObject match = matches.getJSONObject(0);
-                    destinationLat = Double.parseDouble(match.getString("lat"));
-                    destinationLon = Double.parseDouble(match.getString("lon"));
-                    name = match.optString("display_name", queries[0]);
-                    cache.edit()
-                        .putString("query", normalizedQuery)
-                        .putLong("latitude", Double.doubleToRawLongBits(destinationLat))
-                        .putLong("longitude", Double.doubleToRawLongBits(destinationLon))
-                        .putString("display_name", name)
-                        .putLong("cached_at", System.currentTimeMillis())
-                        .apply();
-                }
-                GeoPoint destination = new GeoPoint(destinationLat, destinationLon);
-                GeoPoint start = new GeoPoint(
-                    startLocation.getLatitude(), startLocation.getLongitude());
-
-                String routeUrl = String.format(Locale.US,
-                    "https://router.project-osrm.org/route/v1/driving/%.6f,%.6f;%.6f,%.6f"
-                        + "?overview=full&geometries=polyline&steps=true",
-                    start.getLongitude(), start.getLatitude(),
-                    destination.getLongitude(), destination.getLatitude());
-                JSONObject response = getJson(routeUrl, agent);
-                if (!"Ok".equals(response.optString("code"))) {
-                    return new NavigationResult("تعذّر حساب المسار لهذه الوجهة", "", null,
-                        null, null, "", 0, 0);
-                }
-                JSONArray routes = response.optJSONArray("routes");
-                if (routes == null || routes.length() == 0) {
-                    return new NavigationResult("لا يوجد مسار قيادة متاح", "", null,
-                        null, null, "", 0, 0);
-                }
-                JSONObject route = routes.getJSONObject(0);
-                ArrayList<GeoPoint> geometry = decodePolyline(route.getString("geometry"));
-                StringBuilder stepsText = new StringBuilder("تعليمات المسار:\n");
-                JSONArray legs = route.optJSONArray("legs");
-                if (legs != null && legs.length() > 0) {
-                    JSONArray steps = legs.getJSONObject(0).optJSONArray("steps");
-                    if (steps != null) {
-                        for (int i = 0; i < steps.length(); i++) {
-                            stepsText.append(maneuverText(steps.getJSONObject(i))).append('\n');
-                        }
-                    }
-                }
-                double distanceKm = route.optDouble("distance", 0) / 1000.0;
-                int durationMinutes = (int) Math.ceil(route.optDouble("duration", 0) / 60.0);
-                return new NavigationResult(null, name, start, destination,
-                    geometry, stepsText.toString(), distanceKm, durationMinutes);
-            } catch (Exception error) {
-                String message = error.getMessage();
-                return new NavigationResult(
-                    message == null ? "تعذّر الاتصال بخدمة الملاحة" : "الملاحة: " + message,
-                    "", null, null, null, "", 0, 0);
-            }
+                }}
+                return new SearchResult(null,name,dest,new GeoPoint(start.getLatitude(),start.getLongitude()),points,steps.toString(),route.optDouble("distance",0)/1000.0,(int)Math.ceil(route.optDouble("duration",0)/60.0));
+            }catch(Exception e){return new SearchResult("تعذّر البحث: "+(e.getMessage()==null?"تحقق من الإنترنت":e.getMessage()),null,null,null,null,null,0,0);}
         }
-
-        @Override protected void onPostExecute(NavigationResult result) {
-            if (activity != null && !activity.isFinishing()) activity.showRoute(result);
-        }
+        @Override protected void onPostExecute(SearchResult r){if(!isCancelled()&&!activity.isFinishing())activity.showResult(r);}
     }
 }
