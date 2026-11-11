@@ -13,7 +13,6 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
-import android.content.Context;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -190,13 +189,13 @@ public final class NavigationActivity extends Activity implements LocationListen
                 if(!"Ok".equals(routeResponse.optString("code"))||routes==null||routes.length()==0)
                     return new SearchResult(null,name,dest,null,null,"لم يتوفر مسار قيادة لهذه الوجهة.",0,0);
                 JSONObject route=routes.getJSONObject(0);ArrayList<GeoPoint> points=decode(route.getString("geometry"));
-                StringBuilder steps=new StringBuilder("تعليمات الطريق:\\n");
+                StringBuilder steps=new StringBuilder("تعليمات الطريق:\n");
                 JSONArray legs=route.optJSONArray("legs");
                 if(legs!=null&&legs.length()>0){JSONArray ss=legs.getJSONObject(0).optJSONArray("steps");if(ss!=null){
                     for(int i=0;i<Math.min(ss.length(),12);i++){JSONObject step=ss.getJSONObject(i);JSONObject man=step.optJSONObject("maneuver");
                         String mod=man==null?"":man.optString("modifier","");String dir="يسار".equals(mod)?"يسار":"يمين".equals(mod)?"يمين":"تابع مباشرة";
                         String road=step.optString("name","");steps.append(dir);if(!road.isEmpty())steps.append(" نحو ").append(road);
-                        steps.append(" — ").append((int)(step.optDouble("distance",0))).append(" م\\n");
+                        steps.append(" — ").append((int)(step.optDouble("distance",0))).append(" م\n");
                     }
                 }}
                 return new SearchResult(null,name,dest,new GeoPoint(start.getLatitude(),start.getLongitude()),points,steps.toString(),route.optDouble("distance",0)/1000.0,(int)Math.ceil(route.optDouble("duration",0)/60.0));
