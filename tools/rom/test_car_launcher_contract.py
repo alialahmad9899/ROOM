@@ -95,6 +95,10 @@ for expected in (
     "BluetoothAdapter",
     "LocationManager.GPS_PROVIDER",
     "SimpleDateFormat",
+    "SYSTEM_UI_FLAG_IMMERSIVE_STICKY",
+    "أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",
+    "90000L",
+    "directionName",
 ):
     require(expected in main, f"dashboard feature missing: {expected}")
 
@@ -112,7 +116,17 @@ for expected in (
 require("MediaStore.Audio.Albums.ALBUM_ART" in music,
         "album-art lookup missing from local music player")
 require("prepareAsync()" in music, "music player must prepare audio asynchronously")
+require("progressBar.setMax(1000)" in music, "interactive music progress bar missing")
+require("SYSTEM_UI_FLAG_IMMERSIVE_STICKY" in music, "music activity must use immersive mode")
+require("BLOCKED_HOSTS" in (source_root / "YouTubeLiteActivity.java").read_text(encoding="utf-8"),
+        "YouTube Lite request filter missing")
+require("setLayerType(View.LAYER_TYPE_HARDWARE" in (source_root / "YouTubeLiteActivity.java").read_text(encoding="utf-8"),
+        "YouTube Lite hardware rendering is not enabled")
+require("chooseBestPlace" in navigation, "Arabic geocoder candidate ranking missing")
+require("startLocation == null" in navigation, "city lookup must work without a GPS fix")
 require("ACTION_POWER_CONNECTED" in boot, "charger receiver implementation missing")
 require("ACQUIRE_CAUSES_WAKEUP" in boot, "charger wake-up attempt missing")
+require("الهاتف" not in main and "القراءة" not in main,
+        "retired phone and reader features must be removed from dashboard source")
 
-print("PASS: API 21 / HOME launcher / charger event / dashboard / map-route / local music contracts.")
+print("PASS: API 21 / immersive dashboard / Arabic greeting / geocoding fallback / YouTube Lite / local music contracts.")

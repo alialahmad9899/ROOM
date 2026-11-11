@@ -20,7 +20,6 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
-import android.telephony.TelephonyManager;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -53,7 +52,6 @@ public final class MainActivity extends Activity implements LocationListener {
     private TextView gpsText;
     private TextView wifiText;
     private TextView btText;
-    private TextView simText;
     private TextView batteryText;
     private TextView clockText;
     private TextView dateText;
@@ -63,6 +61,12 @@ public final class MainActivity extends Activity implements LocationListener {
     private long lastGps = 0L;
     private float speed = 0f;
     private boolean gpsRegistered = false;
+    private float filteredBearing = 0f;
+    private boolean bearingInitialized = false;
+    private View ambientOverlay;
+    private long lastBatteryRefresh = 0L;
+    private float brightnessBeforeAmbient = -1f;
+    private final Runnable ambientRunnable = new Runnable() { public void run() { showAmbientClock(); } };
 
     private final Runnable clockTicker = new Runnable() {
         @Override public void run() {
@@ -75,7 +79,7 @@ public final class MainActivity extends Activity implements LocationListener {
         super.onCreate(state);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LOW_PROFILE);
+        applyImmersiveMode();
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
         buildDashboard();
@@ -84,6 +88,63 @@ public final class MainActivity extends Activity implements LocationListener {
         if (launch != null && launch.getBooleanExtra(EXTRA_BOOT_GREETING, false)) {
             playBootGreeting();
         }
+    }
+
+    private void applyImmersiveMode() {
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) applyImmersiveMode();
+    }
+    @Override public void onUserInteraction() {
+        super.onUserInteraction();
+        removeAmbientClock();
+        scheduleAmbientClock();
+    }
+    private void scheduleAmbientClock() {
+        handler.removeCallbacks(ambientRunnable);
+        handler.postDelayed(ambientRunnable, 90000L);
+    }
+    private void showAmbientClock() {
+        if (isFinishing() || frame == null || ambientOverlay != null) return;
+        TextView clock = label("", 58, 0xFF77808A, true);
+        clock.setGravity(Gravity.CENTER);
+        clock.setBackgroundColor(0xFF020304);
+        clock.setAlpha(0.82f);
+        ambientOverlay = clock;
+        brightnessBeforeAmbient = getWindow().getAttributes().screenBrightness;
+        WindowManager.LayoutParams ambientParams = getWindow().getAttributes();
+        ambientParams.screenBrightness = 0.07f;
+        getWindow().setAttributes(ambientParams);
+        frame.addView(clock, new FrameLayout.LayoutParams(-1, -1));
+        Runnable ticker = new Runnable() {
+            @Override public void run() {
+                if (ambientOverlay != clock) return;
+                clock.setText(new SimpleDateFormat("hh:mm a", Locale.US).format(new Date()));
+                clock.postDelayed(this, 15000L);
+            }
+        };
+        clock.setTag(ticker);
+        ticker.run();
+    }
+    private void removeAmbientClock() {
+        if (ambientOverlay == null) return;
+        Object ticker = ambientOverlay.getTag();
+        if (ticker instanceof Runnable) {
+            handler.removeCallbacks((Runnable) ticker);
+            ambientOverlay.removeCallbacks((Runnable) ticker);
+        }
+        if (ambientOverlay.getParent() instanceof FrameLayout)
+            ((FrameLayout) ambientOverlay.getParent()).removeView(ambientOverlay);
+        ambientOverlay = null;
+        WindowManager.LayoutParams restore = getWindow().getAttributes();
+        restore.screenBrightness = brightnessBeforeAmbient;
+        getWindow().setAttributes(restore);
+        brightnessBeforeAmbient = -1f;
     }
 
     private int dp(float value) {
@@ -107,6 +168,7 @@ public final class MainActivity extends Activity implements LocationListener {
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         header.setPadding(dp(4), 0, dp(4), 0);
 
         LinearLayout brand = new LinearLayout(this);
@@ -136,14 +198,20 @@ public final class MainActivity extends Activity implements LocationListener {
         status.setOrientation(LinearLayout.VERTICAL);
         wifiText = label("Wi-Fi", 10, MUTED, true);
         btText = label("Bluetooth", 10, MUTED, true);
-        simText = label("SIM", 10, MUTED, true);
         batteryText = label("BAT --%", 10, GOLD, true);
         status.addView(wifiText, new LinearLayout.LayoutParams(-2, dp(15)));
         status.addView(btText, new LinearLayout.LayoutParams(-2, dp(15)));
-        status.addView(simText, new LinearLayout.LayoutParams(-2, dp(15)));
         status.addView(batteryText, new LinearLayout.LayoutParams(-2, dp(15)));
         batteryText.setOnClickListener(v -> openBatterySettings());
         header.addView(status);
+        TextView quickSettings = label("⚙", 23, GOLD, true);
+        quickSettings.setGravity(Gravity.CENTER);
+        quickSettings.setBackground(box(TILE, 18));
+        quickSettings.setOnClickListener(v -> openIntent(
+            new Intent(Settings.ACTION_SETTINGS), "إعدادات الجهاز غير متاحة"));
+        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        settingsParams.leftMargin = dp(8);
+        header.addView(quickSettings, settingsParams);
         root.addView(header, new LinearLayout.LayoutParams(-1, dp(60)));
 
         LinearLayout body = new LinearLayout(this);
@@ -176,14 +244,11 @@ public final class MainActivity extends Activity implements LocationListener {
             new Tile("▶", "يوتيوب لايت", () -> openActivity(YouTubeLiteActivity.class)));
         tileRow(controls,
             new Tile("♫", "الموسيقى", () -> openActivity(MusicActivity.class)),
-            new Tile("☎", "الهاتف", this::openDialer));
+            new Tile("⚙", "إعدادات الجهاز", () -> openIntent(new Intent(Settings.ACTION_SETTINGS), "إعدادات الجهاز غير متاحة")));
         tileRow(controls,
             new Tile("◉", "تشغيل Wi-Fi", this::toggleWifi),
             new Tile("ᛒ", "Bluetooth", this::toggleBluetooth));
-        tileRow(controls,
-            new Tile("▤", "القراءة", this::openReader),
-            new Tile("⚙", "إعدادات الجهاز", () -> openIntent(
-                new Intent(Settings.ACTION_SETTINGS), "إعدادات الجهاز غير متاحة")));
+
 
         LinearLayout brightnessRow = new LinearLayout(this);
         brightnessRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -254,7 +319,12 @@ public final class MainActivity extends Activity implements LocationListener {
         card.setBackground(box(TILE, 17));
         card.setClickable(true);
         card.setFocusable(true);
-        TextView icon = label(tile.icon, 25, ACCENT, true);
+        int iconColor = tile.title.contains("الملاحة") ? 0xFF4DB6FF
+            : tile.title.contains("يوتيوب") ? 0xFFFF5D68
+            : tile.title.contains("الموسيقى") ? 0xFFC58BFF
+            : tile.title.contains("Wi-Fi") ? 0xFF40D9C8
+            : tile.title.contains("Bluetooth") ? 0xFF579BFF : 0xFFFFB65C;
+        TextView icon = label(tile.icon, 32, iconColor, true);
         icon.setGravity(Gravity.CENTER);
         TextView title = label(tile.title, 14, WHITE, true);
         title.setGravity(Gravity.CENTER);
@@ -310,10 +380,6 @@ public final class MainActivity extends Activity implements LocationListener {
         }
     }
 
-    private void openDialer() {
-        openIntent(new Intent(Intent.ACTION_DIAL), "تطبيق الهاتف غير متوفر");
-    }
-
     private void openIntent(Intent intent, String errorMessage) {
         try {
             if (intent.resolveActivity(getPackageManager()) == null) {
@@ -324,22 +390,6 @@ public final class MainActivity extends Activity implements LocationListener {
         } catch (ActivityNotFoundException | SecurityException error) {
             toast(errorMessage);
         }
-    }
-
-    private void openReader() {
-        String[] packages = {
-            "com.amazon.kindle",
-            "com.asus.supernote",
-            "com.google.android.apps.docs"
-        };
-        for (String packageName : packages) {
-            Intent intent = getPackageManager().getLaunchIntentForPackage(packageName);
-            if (intent != null) {
-                startActivity(intent);
-                return;
-            }
-        }
-        toast("لا يوجد تطبيق قراءة مثبت");
     }
 
     private void toggleWifi() {
@@ -392,15 +442,6 @@ public final class MainActivity extends Activity implements LocationListener {
                 btText.setTextColor(enabled ? ACCENT : MUTED);
             }
         } catch (RuntimeException ignored) { }
-        try {
-            TelephonyManager telephony = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
-            if (simText != null) {
-                boolean ready = telephony != null
-                    && telephony.getSimState() == TelephonyManager.SIM_STATE_READY;
-                simText.setText(ready ? "SIM  •  جاهزة" : "SIM  •  غير جاهزة");
-                simText.setTextColor(ready ? ACCENT : MUTED);
-            }
-        } catch (RuntimeException ignored) { }
         updateClockAndBattery();
     }
 
@@ -412,10 +453,11 @@ public final class MainActivity extends Activity implements LocationListener {
         }
         if (clockText != null) {
             Date now = new Date();
-            clockText.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(now));
-            dateText.setText(new SimpleDateFormat("EEE  •  dd MMM", Locale.getDefault()).format(now));
+            clockText.setText(new SimpleDateFormat("hh:mm a", Locale.US).format(now));
+            dateText.setText(new SimpleDateFormat("EEE  •  dd MMM", Locale.US).format(now));
         }
-        if (batteryText != null) {
+        if (batteryText != null && SystemClock.elapsedRealtime() - lastBatteryRefresh >= 30000L) {
+            lastBatteryRefresh = SystemClock.elapsedRealtime();
             try {
                 Intent battery = registerReceiver(null,
                     new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -481,12 +523,12 @@ public final class MainActivity extends Activity implements LocationListener {
         try {
             tts = new TextToSpeech(this, status -> {
                 if (status == TextToSpeech.SUCCESS && tts != null) {
-                    int language = tts.setLanguage(Locale.US);
+                    int language = tts.setLanguage(new Locale("ar"));
                     if (language != TextToSpeech.LANG_MISSING_DATA
                         && language != TextToSpeech.LANG_NOT_SUPPORTED) {
                         handler.postDelayed(() -> {
                             if (tts != null) {
-                                tts.speak("Welcome Ali. Developed by Ali Ahmad.",
+                                tts.speak("أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",
                                     TextToSpeech.QUEUE_FLUSH, null);
                             }
                         }, 900L);
@@ -502,6 +544,8 @@ public final class MainActivity extends Activity implements LocationListener {
 
     @Override protected void onResume() {
         super.onResume();
+        applyImmersiveMode();
+        scheduleAmbientClock();
         startGps();
         refreshStatus();
         handler.removeCallbacks(clockTicker);
@@ -510,6 +554,8 @@ public final class MainActivity extends Activity implements LocationListener {
 
     @Override protected void onPause() {
         handler.removeCallbacks(clockTicker);
+        handler.removeCallbacks(ambientRunnable);
+        removeAmbientClock();
         stopGps();
         super.onPause();
     }
@@ -555,6 +601,7 @@ public final class MainActivity extends Activity implements LocationListener {
         gpsRegistered = false;
         lastGps = 0L;
         speed = 0f;
+        bearingInitialized = false;
         if (speedView != null) {
             speedView.setSpeed(0f);
             speedView.setGps(false);
@@ -563,13 +610,30 @@ public final class MainActivity extends Activity implements LocationListener {
 
     @Override public void onLocationChanged(Location location) {
         if (location == null || speedView == null) return;
-        lastGps = SystemClock.elapsedRealtime();
+        if (location.hasAccuracy() && location.getAccuracy() > 35f) return;
         float nextSpeed = location.hasSpeed() ? location.getSpeed() * 3.6f : 0f;
-        if (Float.isNaN(nextSpeed) || Float.isInfinite(nextSpeed) || nextSpeed < 0f) nextSpeed = 0f;
-        speed = speed == 0f ? nextSpeed : speed * 0.65f + nextSpeed * 0.35f;
+        if (Float.isNaN(nextSpeed) || Float.isInfinite(nextSpeed) || nextSpeed < 0f) return;
+        if (speed > 18f && Math.abs(nextSpeed - speed) > 85f) return;
+        lastGps = SystemClock.elapsedRealtime();
+        speed = speed == 0f ? nextSpeed : speed * 0.72f + nextSpeed * 0.28f;
+        if (location.hasBearing() && nextSpeed > 2f) {
+            float raw = location.getBearing();
+            if (!bearingInitialized) { filteredBearing = raw; bearingInitialized = true; }
+            else {
+                float delta = ((raw - filteredBearing + 540f) % 360f) - 180f;
+                filteredBearing = (filteredBearing + delta * 0.25f + 360f) % 360f;
+            }
+        }
         speedView.setSpeed(speed);
         speedView.setGps(true);
-        gpsText.setText("إشارة GPS متصلة");
+        gpsText.setText("GPS متصل" + (bearingInitialized ? "  •  " + directionName(filteredBearing) : ""));
+    }
+
+    private String directionName(float bearing) {
+        String[] directions = {"شمال", "شمال شرق", "شرق", "جنوب شرق",
+            "جنوب", "جنوب غرب", "غرب", "شمال غرب"};
+        int index = Math.round((bearing % 360f) / 45f) % 8;
+        return "الاتجاه: " + directions[index];
     }
 
     @Override public void onProviderDisabled(String provider) {

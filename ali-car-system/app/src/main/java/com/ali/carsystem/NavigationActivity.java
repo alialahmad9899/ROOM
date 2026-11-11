@@ -56,12 +56,24 @@ public final class NavigationActivity extends Activity implements LocationListen
     private Marker destinationMarker;
     private Polyline routeLine;
 
+    private void applyImmersiveMode() {
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+
+    @Override public void onWindowFocusChanged(boolean focus) {
+        super.onWindowFocusChanged(focus);
+        if (focus) applyImmersiveMode();
+    }
+
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        applyImmersiveMode();
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         configureMapCache();
@@ -274,8 +286,7 @@ public final class NavigationActivity extends Activity implements LocationListen
         lastGeocodeRequest = now;
         loadLastKnownLocation();
         if (currentLocation == null) {
-            status.setText("لم يصل GPS بعد. انتظر تحديد موقعك ثم أعد المحاولة.");
-            return;
+            status.setText("سأبحث عن المدينة أولاً؛ يلزم GPS لرسم مسار من موقعك.");
         }
         if (activeTask != null) activeTask.cancel(true);
         status.setText("جارٍ البحث عن الوجهة وحساب المسار...");
@@ -285,6 +296,20 @@ public final class NavigationActivity extends Activity implements LocationListen
 
     private void showRoute(NavigationResult result) {
         if (isFinishing()) return;
+        if (result.destination != null && result.start == null) {
+            if (destinationMarker != null) map.getOverlays().remove(destinationMarker);
+            destinationMarker = new Marker(map);
+            destinationMarker.setPosition(result.destination);
+            destinationMarker.setTitle(result.destinationName);
+            destinationMarker.setSnippet("تم العثور على الوجهة؛ فعّل GPS لحساب الطريق");
+            map.getOverlays().add(destinationMarker);
+            map.getController().animateTo(result.destination);
+            map.getController().setZoom(11.5);
+            map.invalidate();
+            status.setText("تم العثور على: " + result.destinationName);
+            instructions.setText("تم تحديد المدينة على الخريطة. فعّل GPS للحصول على مسار القيادة من موقعك الحالي.");
+            return;
+        }
         if (result.error != null) {
             status.setText(result.error);
             instructions.setText("تحقق من الإنترنت واسم الوجهة وإشارة GPS.");
@@ -471,7 +496,7 @@ public final class NavigationActivity extends Activity implements LocationListen
 
         RouteTask(NavigationActivity activity, Location start) {
             this.activity = activity;
-            this.startLocation = new Location(start);
+            this.startLocation = start == null ? null : new Location(start);
         }
 
         @Override protected NavigationResult doInBackground(String... queries) {
@@ -495,13 +520,13 @@ public final class NavigationActivity extends Activity implements LocationListen
                     name = cache.getString("display_name", queries[0]);
                 } else {
                     String searchUrl = "https://nominatim.openstreetmap.org/search?q="
-                        + query + "&format=jsonv2&limit=1&accept-language=ar";
+                        + query + "&format=jsonv2&limit=5&addressdetails=1&accept-language=ar,en";
                     JSONArray matches = getJsonArray(searchUrl, agent);
                     if (matches.length() == 0) {
                         return new NavigationResult("لم يتم العثور على الوجهة", "", null,
                             null, null, "", 0, 0);
                     }
-                    JSONObject match = matches.getJSONObject(0);
+                    JSONObject match = chooseBestPlace(matches);
                     destinationLat = Double.parseDouble(match.getString("lat"));
                     destinationLon = Double.parseDouble(match.getString("lon"));
                     name = match.optString("display_name", queries[0]);
@@ -514,6 +539,10 @@ public final class NavigationActivity extends Activity implements LocationListen
                         .apply();
                 }
                 GeoPoint destination = new GeoPoint(destinationLat, destinationLon);
+                if (startLocation == null) {
+                    return new NavigationResult("تم تحديد الوجهة، لكن GPS غير متاح", name,
+                        null, destination, null, "", 0, 0);
+                }
                 GeoPoint start = new GeoPoint(
                     startLocation.getLatitude(), startLocation.getLongitude());
 
@@ -554,6 +583,22 @@ public final class NavigationActivity extends Activity implements LocationListen
                     message == null ? "تعذّر الاتصال بخدمة الملاحة" : "الملاحة: " + message,
                     "", null, null, null, "", 0, 0);
             }
+        }
+
+        private static JSONObject chooseBestPlace(JSONArray matches) throws Exception {
+            JSONObject best = matches.getJSONObject(0);
+            int bestScore = Integer.MIN_VALUE;
+            for (int i = 0; i < matches.length(); i++) {
+                JSONObject candidate = matches.getJSONObject(i);
+                String type = candidate.optString("type", "").toLowerCase(Locale.US);
+                String category = candidate.optString("category", "").toLowerCase(Locale.US);
+                int score = (int) Math.round(candidate.optDouble("importance", 0) * 100);
+                if ("city".equals(type) || "town".equals(type) || "village".equals(type)
+                    || "state".equals(type) || "administrative".equals(type)) score += 35;
+                if ("boundary".equals(category) || "place".equals(category)) score += 10;
+                if (score > bestScore) { bestScore = score; best = candidate; }
+            }
+            return best;
         }
 
         @Override protected void onPostExecute(NavigationResult result) {
