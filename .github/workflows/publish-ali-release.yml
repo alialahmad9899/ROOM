@@ -1,0 +1,137 @@
+name: Publish ALI P01Y system candidate
+
+on:
+  push:
+    branches: ["ali-car-system/**"]
+    paths:
+      - ".github/workflows/publish-ali-release.yml"
+      - "tools/flash/**"
+      - "docs/ADB-FASTBOOT-FLASH-GUIDE.md"
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout release tools and documentation
+        uses: actions/checkout@v4
+
+      - name: Validate Windows flash and recovery script syntax
+        shell: pwsh
+        run: |
+          $scripts = @(
+            "tools/flash/flash-ali-p01y.ps1",
+            "tools/flash/recover-ali-p01y.ps1"
+          )
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              Write-Error "PowerShell syntax errors in $script"
+              $errors | Format-List
+              exit 1
+            }
+          }
+          $required = @(
+            "tools/flash/flash-ali-p01y.bat",
+            "tools/flash/recover-ali-p01y.bat",
+            "docs/ADB-FASTBOOT-FLASH-GUIDE.md"
+          )
+          foreach ($path in $required) {
+            if (!(Test-Path $path)) { throw "Required flash asset missing: $path" }
+          }
+          Write-Host "PowerShell parser passed for both utilities; BAT launchers and guide are present."
+      - name: Download verified system image chunks
+        uses: actions/download-artifact@v4
+        with:
+          pattern: P01Y-WW-system-img-part-*
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 42744908320
+          path: workspace/chunks
+          merge-multiple: true
+
+      - name: Download reports, app and rollback archive
+        uses: actions/download-artifact@v4
+        with:
+          name: P01Y-WW-ROM-reports-and-rollback
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 42744908320
+          path: workspace/reports
+
+      - name: Reassemble and verify release payload
+        run: |
+          set -euo pipefail
+          mkdir -p workspace/release
+          test "$(find workspace/chunks -maxdepth 1 -name 'system.img.part-*' | wc -l)" -eq 5
+          cat workspace/chunks/system.img.part-* > workspace/release/system.img
+          cp workspace/reports/system.img.sha256 workspace/release/
+          (cd workspace/release && sha256sum -c system.img.sha256)
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path("workspace/reports")
+          report = json.loads((root / "ROM-MODIFICATIONS.json").read_text())
+          verification = json.loads((root / "CANDIDATE-VERIFICATION.json").read_text())
+          image = pathlib.Path("workspace/release/system.img")
+          assert verification.get("passed") is True, verification
+          assert report.get("flash_ready") is False, report
+          assert report.get("launcher", {}).get("package") == "com.ali.carsystem", report
+          assert report.get("final_system_image_bytes") == image.stat().st_size, report
+          assert image.stat().st_size == 2052186112
+          assert (root / "ALICarSystem.apk").is_file()
+          assert (root / "bootanimation.zip").is_file()
+          assert pathlib.Path("tools/flash/flash-ali-p01y.ps1").is_file()
+          assert pathlib.Path("tools/flash/flash-ali-p01y.bat").is_file()
+          assert pathlib.Path("tools/flash/recover-ali-p01y.ps1").is_file()
+          assert pathlib.Path("tools/flash/recover-ali-p01y.bat").is_file()
+          print("ALI release payload passed hash, package, image-size and static verification.")
+          PY
+          tar -czf workspace/release/original-configs.tar.gz -C workspace/reports original-configs
+          stat --printf='system_image_bytes=%s\n' workspace/release/system.img
+
+      - name: Publish ALI Car System prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ali-p01y-ww-android5-2026-11-10
+          name: "ALI Car System — P01Y WW Android 5.0.2 (NOT FLASH-READY)"
+          draft: false
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: |
+            workspace/release/system.img
+            workspace/release/system.img.sha256
+            workspace/release/original-configs.tar.gz
+            workspace/reports/removed-system-apps.tar.gz
+            workspace/reports/ROM-MODIFICATIONS.json
+            workspace/reports/CANDIDATE-VERIFICATION.json
+            workspace/reports/ALICarSystem.apk
+            workspace/reports/bootanimation.zip
+            workspace/reports/FLASH-STATUS.txt
+            workspace/reports/README-FLASH-RESTRICTIONS.md
+            workspace/reports/config-changes.patch
+            workspace/reports/system-image-size.txt
+            workspace/reports/audit/*.csv
+            tools/flash/flash-ali-p01y.ps1
+            tools/flash/flash-ali-p01y.bat
+            tools/flash/recover-ali-p01y.ps1
+            tools/flash/recover-ali-p01y.bat
+            docs/ADB-FASTBOOT-FLASH-GUIDE.md
+          body: |
+            ALI Car System candidate for ASUS ZenPad C 7.0 Z170CG / P01Y, SKU WW.
+
+            Built from the exact ASUS WW 12.26.4.69 Android 5.0.2 / API 21 / x86 system image.
+
+            Includes the Arabic ALI dashboard, GPS speedometer, YouTube Lite official-mobile-site wrapper, local MediaStore music player, Play Store shortcut, Wi-Fi/Bluetooth/phone/Maps/reader/settings shortcuts, ALI boot animation and English TTS greeting. The original 34-package debloat manifest and rollback archive are included.
+
+            Guarded Windows ADB-to-Fastboot and Fastboot-only recovery utilities are included. Both verify the exact image hash, and the recovery utility independently verifies Fastboot product, unlocked state, ext4 type and reported system capacity. Transfer chunks are set to 64 MiB to reduce individual USB transfer size. The utilities write only the system partition and never unlock the bootloader or wipe userdata/cache. A recovery helper is provided for a prior interrupted system transfer; it does not make this candidate physically tested or flash-ready.
+
+            Static read-only system verification and flash-tool syntax validation passed. This remains a system.img candidate, not a complete factory firmware or ASUS-signed OTA. It does not replace boot.img, recovery.img, kernel, modem or bootloader. Physical boot and recovery testing are still pending; stop if the utility reports an unexpected mount source, device identity, bootloader state or partition size.
+
+            Android 5 WebView may not support the current YouTube mobile site. Music pauses when the display turns off; actual suspend-to-RAM power behavior depends on the stock kernel and power HAL and has not been measured on the physical tablet.

@@ -64,14 +64,26 @@ def main() -> None:
                 "directory": item["directory"],
             })
 
-    launcher = root / "app" / "WesalCarLauncher" / "WesalCarLauncher.apk"
+    launcher = root / "app" / "ALICarSystem" / "ALICarSystem.apk"
     if not launcher.is_file():
         raise RuntimeError(f"Wesal launcher APK missing at {launcher}")
     badging = run_checked([args.aapt, "dump", "badging", str(launcher)])
-    if "package: name='com.wesal.carlauncher'" not in badging:
+    if "package: name='com.ali.carsystem'" not in badging:
         raise RuntimeError("Embedded launcher package ID is incorrect")
     if "sdkVersion:'21'" not in badging:
         raise RuntimeError("Embedded launcher does not declare minSdk 21")
+
+    bootanimation = root / "media" / "bootanimation.zip"
+    if not bootanimation.is_file() or bootanimation.stat().st_size < 1024:
+        raise RuntimeError("ALI bootanimation.zip is missing or unexpectedly small")
+    import zipfile
+    with zipfile.ZipFile(bootanimation) as bootzip:
+        names = set(bootzip.namelist())
+        if "desc.txt" not in names or not any(name.startswith("part0/") for name in names):
+            raise RuntimeError("ALI bootanimation.zip has an invalid frame layout")
+        desc = bootzip.read("desc.txt").decode("ascii", errors="strict")
+        if not desc.startswith("1024 600 "):
+            raise RuntimeError("ALI bootanimation resolution does not match 1024x600")
 
     archive_listing = run_checked(["tar", "-tzf", str(args.backup_archive)])
     missing_backup = []
@@ -110,8 +122,10 @@ def main() -> None:
         "missing_protected_packages": missing_protected,
         "removed_package_count": report.get("removed_package_count", 0),
         "unexpected_remaining_removed_directories": unexpected_remaining,
-        "embedded_launcher": "/system/app/WesalCarLauncher/WesalCarLauncher.apk",
-        "embedded_launcher_package": "com.wesal.carlauncher",
+        "embedded_launcher": "/system/app/ALICarSystem/ALICarSystem.apk",
+        "embedded_launcher_package": "com.ali.carsystem",
+        "bootanimation": "/system/media/bootanimation.zip",
+        "bootanimation_verified": bootanimation.is_file(),
         "removed_app_backup_archive": str(args.backup_archive),
         "missing_backup_directories": missing_backup,
         "stale_WW_hidden_list_entries": stale_hidden_entries,

@@ -87,6 +87,7 @@ def main() -> None:
     parser.add_argument("--candidate-audit", required=True, type=pathlib.Path)
     parser.add_argument("--manifest", required=True, type=pathlib.Path)
     parser.add_argument("--launcher-apk", required=True, type=pathlib.Path)
+    parser.add_argument("--bootanimation", required=True, type=pathlib.Path)
     parser.add_argument("--aapt", required=True)
     parser.add_argument("--output-dir", required=True, type=pathlib.Path)
     args = parser.parse_args()
@@ -257,16 +258,16 @@ def main() -> None:
     badging = run_checked([args.aapt, "dump", "badging", str(apk)])
     package_match = re.search(r"^package: name='([^']+)'", badging, re.MULTILINE)
     min_sdk_match = re.search(r"^sdkVersion:'(\d+)'", badging, re.MULTILINE)
-    if not package_match or package_match.group(1) != "com.wesal.carlauncher":
-        raise RuntimeError("Car launcher APK package ID is not com.wesal.carlauncher")
+    if not package_match or package_match.group(1) != "com.ali.carsystem":
+        raise RuntimeError("Car launcher APK package ID is not com.ali.carsystem")
     if not min_sdk_match or int(min_sdk_match.group(1)) > 21:
         raise RuntimeError("Car launcher APK does not support Android API 21")
 
-    launcher_dir = system_root / "app" / "WesalCarLauncher"
+    launcher_dir = system_root / "app" / "ALICarSystem"
     if launcher_dir.exists():
         raise RuntimeError(f"Launcher destination already exists: {launcher_dir}")
     launcher_dir.mkdir(parents=True)
-    launcher_dest = launcher_dir / "WesalCarLauncher.apk"
+    launcher_dest = launcher_dir / "ALICarSystem.apk"
     shutil.copy2(apk, launcher_dest)
     os.chown(launcher_dir, 0, 0)
     os.chown(launcher_dest, 0, 0)
@@ -281,6 +282,35 @@ def main() -> None:
     except (FileNotFoundError, subprocess.CalledProcessError):
         # Android's init restorecon uses the device's own /system file_contexts on boot.
         selinux_context = "restorecon-on-device-required"
+
+    bootanimation = args.bootanimation.resolve()
+    if not bootanimation.is_file():
+        raise FileNotFoundError(bootanimation)
+    bootanimation_dir = system_root / "media"
+    bootanimation_dir.mkdir(parents=True, exist_ok=True)
+    bootanimation_dest = bootanimation_dir / "bootanimation.zip"
+    original_bootanimation = None
+    if bootanimation_dest.is_file():
+        original_bootanimation = out / "original-configs" / "media" / "bootanimation.zip"
+        original_bootanimation.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(bootanimation_dest, original_bootanimation)
+    shutil.copy2(bootanimation, bootanimation_dest)
+    os.chown(bootanimation_dest, 0, 0)
+    os.chmod(bootanimation_dest, 0o644)
+    try:
+        subprocess.run(
+            ["chcon", "u:object_r:system_file:s0", str(bootanimation_dest)],
+            check=True, capture_output=True, text=True,
+        )
+        bootanimation_context = "u:object_r:system_file:s0"
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        bootanimation_context = "restorecon-on-device-required"
+    bootanimation_report = {
+        "path": "/system/media/bootanimation.zip",
+        "bytes": bootanimation_dest.stat().st_size,
+        "original_backed_up": original_bootanimation is not None,
+        "file_context": bootanimation_context,
+    }
 
     config_diff = []
     for change in config_changes:
@@ -308,10 +338,11 @@ def main() -> None:
         "launcher": {
             "package": package_match.group(1),
             "apk_bytes": apk.stat().st_size,
-            "path": "/system/app/WesalCarLauncher/WesalCarLauncher.apk",
+            "path": "/system/app/ALICarSystem/ALICarSystem.apk",
             "min_sdk": int(min_sdk_match.group(1)),
             "file_context": selinux_context,
         },
+        "bootanimation": bootanimation_report,
         "protected_packages": sorted(protected),
         "note": "Candidate system image only. Bootloader, dm-verity and exact device partition size still require read-only device verification before flashing.",
     }
@@ -322,6 +353,7 @@ def main() -> None:
         "removed_package_count": len(rows_to_remove),
         "removed_apk_mib": report["removed_apk_mib"],
         "launcher_package": package_match.group(1),
+        "bootanimation_bytes": bootanimation_dest.stat().st_size,
         "launcher_bytes": apk.stat().st_size,
         "modified_config_count": len(config_changes),
         "backup_archive": str(restore_archive),
