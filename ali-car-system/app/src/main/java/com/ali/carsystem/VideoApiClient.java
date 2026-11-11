@@ -38,7 +38,9 @@ public final class VideoApiClient {
 
     public static List<VideoItem> search(String query) throws Exception {
         Exception last=null;
+        int pipedTried=0;
         for(String base:pipedInstances()){
+            if(pipedTried++>=5)break;
             try{
                 String url=base+"/search?q="+Uri.encode(query)+"&filter=videos";
                 JSONArray arr=new JSONArray(request(url));
@@ -56,7 +58,9 @@ public final class VideoApiClient {
                 if(!out.isEmpty())return out;
             }catch(Exception e){last=e;}
         }
+        int invidiousTried=0;
         for(String host:invidiousInstances()){
+            if(invidiousTried++>=4)break;
             try{
                 JSONArray arr=new JSONArray(request(host+"/api/v1/search?q="+Uri.encode(query)+"&type=video&hl=ar"));
                 ArrayList<VideoItem> out=new ArrayList<>();
@@ -123,7 +127,7 @@ public final class VideoApiClient {
         Set<String> values=new LinkedHashSet<>();
         // Dynamic list maintained by the Piped community wiki; fall back to documented API servers.
         try{
-            String wiki=request("https://raw.githubusercontent.com/wiki/TeamPiped/Piped/Instances.md");
+            String wiki=request("https://raw.githubusercontent.com/TeamPiped/documentation/main/content/docs/public-instances/index.md");
             Matcher m=Pattern.compile("https?://(?:pipedapi|piped-api|api\\.piped)[a-zA-Z0-9.-]*").matcher(wiki);
             while(m.find())values.add(trimSlash(m.group()));
         }catch(Exception ignored){}
@@ -147,7 +151,7 @@ public final class VideoApiClient {
     private static String trimSlash(String s){while(s.endsWith("/"))s=s.substring(0,s.length()-1);return s;}
     private static String request(String address)throws Exception{
         HttpURLConnection c=(HttpURLConnection)new URL(address).openConnection();
-        c.setRequestMethod("GET");c.setConnectTimeout(3500);c.setReadTimeout(6500);
+        c.setRequestMethod("GET");c.setConnectTimeout(2500);c.setReadTimeout(4500);
         c.setRequestProperty("User-Agent","ALI-CAR-Native/2.0 Android-21");
         c.setRequestProperty("Accept","application/json,text/plain,*/*");
         try{
