@@ -16,6 +16,9 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.*;
+import android.view.ViewGroup;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -31,7 +34,6 @@ public final class MusicActivity extends Activity {
     private boolean prepared,tracking;
     private TextView now,play,elapsed,total;
     private SeekBar progress;
-    private LinearLayout listBox;
     private final Runnable tick=new Runnable(){public void run(){
         if(player!=null&&prepared&&!tracking){
             try{if(player.isPlaying()){int p=player.getCurrentPosition(),d=player.getDuration();progress.setProgress(d>0?p*1000/d:0);elapsed.setText(time(p));h.postDelayed(this,750);}}catch(Exception ignored){}
@@ -76,15 +78,11 @@ public final class MusicActivity extends Activity {
         panel.addView(pr,new LinearLayout.LayoutParams(-1,dp(33)));
         root.addView(panel,new LinearLayout.LayoutParams(-1,dp(150)));
         TextView heading=label("قائمة الملفات الصوتية ("+songs.size()+")",14,0xFFFFD78A,true);root.addView(heading,new LinearLayout.LayoutParams(-1,dp(30)));
-        ScrollView sc=new ScrollView(this);listBox=new LinearLayout(this);listBox.setOrientation(LinearLayout.VERTICAL);
-        if(songs.isEmpty()){TextView empty=label("لا توجد ملفات موسيقى في الذاكرة أو بطاقة SD.",14,0xFFB3C8D8,false);empty.setPadding(dp(10),dp(18),dp(10),dp(18));listBox.addView(empty);}
-        for(int i=0;i<songs.size();i++){
-            final int index=i;Song song=songs.get(i);TextView row=label(song.title+"\n"+song.artist,13,Color.WHITE,false);row.setPadding(dp(12),dp(6),dp(12),dp(6));
-            row.setBackground(shape(i%2==0?0xFF102338:0xFF0B1A2B,10,0xFF28465E));
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(55));lp.bottomMargin=dp(4);listBox.addView(row,lp);
-            row.setOnClickListener(v->select(index));
-        }
-        sc.addView(listBox);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
+        RecyclerView recycler=new RecyclerView(this);
+        recycler.setLayoutManager(new LinearLayoutManager(this));
+        recycler.setAdapter(new SongAdapter());
+        if(songs.isEmpty()){TextView empty=label("لا توجد ملفات موسيقى في الذاكرة أو بطاقة SD.",14,0xFFB3C8D8,false);recycler.setAdapter(new SongAdapter());}
+        root.addView(recycler,new LinearLayout.LayoutParams(-1,0,1));
         TextView back=button("العودة إلى ALI CAR");back.setOnClickListener(v->finish());root.addView(back,new LinearLayout.LayoutParams(-1,dp(42)));
         prev.setOnClickListener(v->select(Math.max(0,current-1)));next.setOnClickListener(v->select(Math.min(songs.size()-1,current+1)));
         play.setOnClickListener(v->toggle());progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
@@ -93,6 +91,25 @@ public final class MusicActivity extends Activity {
             public void onStopTrackingTouch(SeekBar b){tracking=false;if(player!=null&&prepared)try{player.seekTo(player.getDuration()*b.getProgress()/1000);}catch(Exception ignored){}}
         });
         setContentView(root);
+    }
+    private final class SongAdapter extends RecyclerView.Adapter<SongAdapter.Holder>{
+        @Override public Holder onCreateViewHolder(ViewGroup parent,int type){
+            LinearLayout row=new LinearLayout(MusicActivity.this);row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(12),dp(5),dp(12),dp(5));row.setBackground(shape(0xFF102338,10,0xFF28465E));
+            TextView title=label("",13,Color.WHITE,true),artist=label("",10,0xFFB3C8D8,false);
+            row.addView(title,new LinearLayout.LayoutParams(-1,dp(25)));
+            row.addView(artist,new LinearLayout.LayoutParams(-1,dp(18)));
+            return new Holder(row,title,artist);
+        }
+        @Override public void onBindViewHolder(Holder holder,int position){
+            Song song=songs.get(position);holder.title.setText(song.title);holder.artist.setText(song.artist);
+            holder.itemView.setOnClickListener(v->select(holder.getAdapterPosition()));
+        }
+        @Override public int getItemCount(){return songs.size();}
+        final class Holder extends RecyclerView.ViewHolder{
+            final TextView title,artist;
+            Holder(View v,TextView t,TextView a){super(v);title=t;artist=a;}
+        }
     }
     private TextView label(String s,int z,int c,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextColor(c);v.setTextSize(z);v.setTypeface(Typeface.create("sans-serif",bold?1:0));v.setGravity(Gravity.CENTER_VERTICAL);return v;}
     private android.graphics.drawable.GradientDrawable shape(int c,int r,int stroke){android.graphics.drawable.GradientDrawable d=new android.graphics.drawable.GradientDrawable();d.setColor(c);d.setCornerRadius(dp(r));d.setStroke(dp(1),stroke);return d;}
