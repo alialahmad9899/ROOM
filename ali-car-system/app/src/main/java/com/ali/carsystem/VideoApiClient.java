@@ -127,9 +127,9 @@ public final class VideoApiClient {
         Set<String> values=new LinkedHashSet<>();
         // Dynamic list maintained by the Piped community wiki; fall back to documented API servers.
         try{
-            String wiki=request("https://raw.githubusercontent.com/TeamPiped/documentation/main/content/docs/public-instances/index.md");
+            String wiki=request("https://raw.githubusercontent.com/wiki/TeamPiped/Piped/Instances.md");
             Matcher m=Pattern.compile("https?://(?:pipedapi|piped-api|api\\.piped)[a-zA-Z0-9.-]*").matcher(wiki);
-            while(m.find())values.add(trimSlash(m.group()));
+            while(m.find() && values.size()<3)values.add(trimSlash(m.group()));
         }catch(Exception ignored){}
         for(String s:PIPED_SEEDS)values.add(s);
         return new ArrayList<>(values);
@@ -138,7 +138,7 @@ public final class VideoApiClient {
         Set<String> values=new LinkedHashSet<>();
         try{
             JSONArray a=new JSONArray(request("https://api.invidious.io/instances.json?sort_by=health"));
-            for(int i=0;i<a.length();i++){
+            for(int i=0;i<a.length()&&values.size()<2;i++){
                 JSONArray pair=a.optJSONArray(i);if(pair==null||pair.length()<2)continue;
                 String host=pair.optString(0,"");JSONObject flags=pair.optJSONObject(1);
                 if(host.length()>0&&flags!=null&&flags.optBoolean("api",false)&&!host.contains(".onion"))
