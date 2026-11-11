@@ -161,7 +161,7 @@ public final class MainActivity extends Activity implements LocationListener {
         new AlertDialog.Builder(this).setTitle("سطوع الشاشة").setView(box).setPositiveButton("تم",null).show();
     }
     private int readBrightness(){try{return Settings.System.getInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,160);}catch(Exception e){return 160;}}
-    private void setBrightness(int v){WindowManager.LayoutParams p=getWindow().getAttributes();p.screenBrightness=Math.max(12,Math.min(255,v))/255f;getWindow().setAttributes(p);}
+    private void setBrightness(int v){int safe=Math.max(12,Math.min(255,v));WindowManager.LayoutParams p=getWindow().getAttributes();p.screenBrightness=safe/255f;getWindow().setAttributes(p);try{Settings.System.putInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS_MODE,Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);Settings.System.putInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,safe);}catch(SecurityException ignored){}}
     private void toggleWifi(){try{boolean ok=wifi.setWifiEnabled(!wifi.isWifiEnabled());Toast.makeText(this,ok?"Wi-Fi command sent":"System denied Wi-Fi change",Toast.LENGTH_SHORT).show();}catch(Exception e){Toast.makeText(this,"Wi-Fi permission denied",Toast.LENGTH_SHORT).show();}h.postDelayed(this::wirelessState,1300);}
     private void toggleBluetooth(){BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a==null)return;try{boolean ok=a.isEnabled()?a.disable():a.enable();Toast.makeText(this,ok?"Bluetooth command sent":"Bluetooth change failed",Toast.LENGTH_SHORT).show();}catch(Exception e){}h.postDelayed(this::wirelessState,1300);}
     private void wirelessState(){
