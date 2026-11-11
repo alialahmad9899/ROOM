@@ -32,7 +32,7 @@ public final class YouTubeSearchActivity extends Activity {
         query=new EditText(this);query.setSingleLine(true);query.setTextColor(Color.WHITE);query.setHintTextColor(0xFF8AA4B7);query.setHint("ابحث عن فيديو");query.setTextSize(15);
         search.addView(query,new LinearLayout.LayoutParams(0,dp(46),1));
         Button go=new Button(this);go.setText("بحث");search.addView(go,new LinearLayout.LayoutParams(dp(100),dp(46)));root.addView(search);
-        status=new TextView(this);status.setTextColor(0xFFFFD88A);status.setText("Piped ثم Invidious — اتصال مباشر دون WebView");root.addView(status,new LinearLayout.LayoutParams(-1,dp(30)));
+        status=new TextView(this);status.setTextColor(0xFFFFD88A);status.setText("Piped + Invidious — Native streaming");root.addView(status,new LinearLayout.LayoutParams(-1,dp(30)));
         RecyclerView list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new VideoAdapter(this::play);list.setAdapter(adapter);
         root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         Button back=new Button(this);back.setText("رجوع إلى ALI CAR");back.setOnClickListener(v->finish());root.addView(back,new LinearLayout.LayoutParams(-1,dp(42)));
