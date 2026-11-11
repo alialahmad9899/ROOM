@@ -95,6 +95,8 @@ for expected in (
     "BluetoothAdapter",
     "LocationManager.GPS_PROVIDER",
     "SimpleDateFormat",
+    "SYSTEM_UI_FLAG_IMMERSIVE_STICKY",
+    "أهلاً وسهلاً بك سيد علي",
 ):
     require(expected in main, f"dashboard feature missing: {expected}")
 
@@ -103,15 +105,18 @@ for expected in (
     "TileSourceFactory.MAPNIK",
     "nominatim.openstreetmap.org",
     "router.project-osrm.org",
-    "decodePolyline",
-    "maneuverText",
+    "decode(",
+    "SearchTask",
     "OpenStreetMap contributors",
 ):
     require(expected in navigation, f"navigation feature missing: {expected}")
 
+require("SYSTEM_UI_FLAG_IMMERSIVE_STICKY" in music, "music screen must hide system navigation bars")
 require("MediaStore.Audio.Albums.ALBUM_ART" in music,
         "album-art lookup missing from local music player")
 require("prepareAsync()" in music, "music player must prepare audio asynchronously")
+require("nominatim.openstreetmap.org/search" in navigation, "destination geocoding endpoint missing")
+require("تم العثور على:" in navigation, "destination-only map result missing when GPS is unavailable")
 require("ACTION_POWER_CONNECTED" in boot, "charger receiver implementation missing")
 require("ACQUIRE_CAUSES_WAKEUP" in boot, "charger wake-up attempt missing")
 
