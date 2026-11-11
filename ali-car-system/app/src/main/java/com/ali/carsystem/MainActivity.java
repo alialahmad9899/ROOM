@@ -31,12 +31,15 @@ public final class MainActivity extends Activity implements LocationListener {
     private WifiManager wifi;
     private TextView clock, date, speed, gps, wifiState, btState;
     private View idleOverlay;
+    private TextView idleTime, idleDate;
     private android.speech.tts.TextToSpeech tts;
     private long lastGps;
     private final Runnable ticker=new Runnable(){ public void run(){
         Date now=new Date();
         if(clock!=null) clock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(now));
         if(date!=null) date.setText(new SimpleDateFormat("EEE • dd MMM",Locale.US).format(now));
+        if(idleTime!=null) idleTime.setText(new SimpleDateFormat("HH:mm",Locale.US).format(now));
+        if(idleDate!=null) idleDate.setText(new SimpleDateFormat("EEEE • dd MMMM",new Locale("ar")).format(now));
         if(lastGps==0 || android.os.SystemClock.elapsedRealtime()-lastGps>8000){
             if(speed!=null) speed.setText("--");
             if(gps!=null) gps.setText("بانتظار إشارة GPS");
@@ -69,8 +72,19 @@ public final class MainActivity extends Activity implements LocationListener {
     @Override public void onWindowFocusChanged(boolean hasFocus){super.onWindowFocusChanged(hasFocus);if(hasFocus)applyImmersive();}
     @Override protected void onResume(){super.onResume();applyImmersive();startGps();handler.removeCallbacks(ticker);handler.post(ticker);}
     @Override protected void onPause(){handler.removeCallbacks(ticker);handler.removeCallbacks(idle);stopGps();super.onPause();}
-    @Override public void onUserInteraction(){super.onUserInteraction();resetIdle();if(idleOverlay!=null){((android.view.ViewGroup)idleOverlay.getParent()).removeView(idleOverlay);idleOverlay=null;}}
-    private void resetIdle(){handler.removeCallbacks(idle);handler.postDelayed(idle,90000);}
+    @Override public void onUserInteraction(){super.onUserInteraction();resetIdle();hideIdleClock();}
+    private void hideIdleClock(){
+        if(idleOverlay!=null){
+            if(idleOverlay.getParent() instanceof android.view.ViewGroup)
+                ((android.view.ViewGroup)idleOverlay.getParent()).removeView(idleOverlay);
+            idleOverlay=null;idleTime=null;idleDate=null;
+        }
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        WindowManager.LayoutParams attrs=getWindow().getAttributes();
+        attrs.screenBrightness=WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+        getWindow().setAttributes(attrs);
+    }
+    private void resetIdle(){handler.removeCallbacks(idle);handler.postDelayed(idle,20000);}
     private GradientDrawable bg(int color,int radius,int stroke){
         GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
             new int[]{color,blend(color,0xFF182D49),color});
@@ -169,15 +183,18 @@ public final class MainActivity extends Activity implements LocationListener {
     @Override public void onProviderEnabled(String p){}
     @Override public void onStatusChanged(String p,int s,Bundle b){}
     private void showIdleClock(){
-        if(isFinishing())return;
-        LinearLayout overlay=new LinearLayout(this);overlay.setGravity(Gravity.CENTER);overlay.setOrientation(LinearLayout.VERTICAL);
-        overlay.setBackgroundColor(0xF0050A10);
-        TextView time=txt(new SimpleDateFormat("HH:mm",Locale.US).format(new Date()),88,0xFFB8DFFF,true);
-        TextView day=txt(new SimpleDateFormat("EEEE • dd MMMM",new Locale("ar")).format(new Date()),20,MUTED,false);
-        overlay.addView(time);overlay.addView(day);
-        overlay.setOnClickListener(v->{((android.view.ViewGroup)overlay.getParent()).removeView(overlay);idleOverlay=null;resetIdle();});
+        if(isFinishing()||idleOverlay!=null)return;
+        LinearLayout overlay=new LinearLayout(this);overlay.setGravity(Gravity.CENTER);
+        overlay.setOrientation(LinearLayout.VERTICAL);overlay.setBackgroundColor(0xF0060D18);
+        idleTime=txt(new SimpleDateFormat("HH:mm",Locale.US).format(new Date()),88,0xFF9BCBEB,true);
+        idleDate=txt(new SimpleDateFormat("EEEE • dd MMMM",new Locale("ar")).format(new Date()),20,MUTED,false);
+        overlay.addView(idleTime);overlay.addView(idleDate);
+        overlay.setOnClickListener(v->{hideIdleClock();resetIdle();});
         ((android.view.ViewGroup)findViewById(android.R.id.content)).addView(overlay,new android.view.ViewGroup.LayoutParams(-1,-1));
         idleOverlay=overlay;
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        WindowManager.LayoutParams attrs=getWindow().getAttributes();
+        attrs.screenBrightness=0.06f;getWindow().setAttributes(attrs);
     }
     private void speakGreeting(){
         try{
