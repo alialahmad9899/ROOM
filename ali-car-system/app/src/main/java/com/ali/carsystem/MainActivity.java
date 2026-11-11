@@ -60,6 +60,8 @@ public final class MainActivity extends Activity implements LocationListener {
     private long lastGps = 0L;
     private float speed = 0f;
     private boolean gpsRegistered = false;
+    private float filteredBearing = 0f;
+    private boolean bearingInitialized = false;
     private View ambientOverlay;
     private long lastBatteryRefresh = 0L;
     private final Runnable ambientRunnable = new Runnable() { public void run() { showAmbientClock(); } };
@@ -586,6 +588,7 @@ public final class MainActivity extends Activity implements LocationListener {
         gpsRegistered = false;
         lastGps = 0L;
         speed = 0f;
+        bearingInitialized = false;
         if (speedView != null) {
             speedView.setSpeed(0f);
             speedView.setGps(false);
@@ -600,9 +603,24 @@ public final class MainActivity extends Activity implements LocationListener {
         if (speed > 18f && Math.abs(nextSpeed - speed) > 85f) return;
         lastGps = SystemClock.elapsedRealtime();
         speed = speed == 0f ? nextSpeed : speed * 0.72f + nextSpeed * 0.28f;
+        if (location.hasBearing() && nextSpeed > 2f) {
+            float raw = location.getBearing();
+            if (!bearingInitialized) { filteredBearing = raw; bearingInitialized = true; }
+            else {
+                float delta = ((raw - filteredBearing + 540f) % 360f) - 180f;
+                filteredBearing = (filteredBearing + delta * 0.25f + 360f) % 360f;
+            }
+        }
         speedView.setSpeed(speed);
         speedView.setGps(true);
-        gpsText.setText("إشارة GPS متصلة");
+        gpsText.setText("GPS متصل" + (bearingInitialized ? "  •  " + directionName(filteredBearing) : ""));
+    }
+
+    private String directionName(float bearing) {
+        String[] directions = {"شمال", "شمال شرق", "شرق", "جنوب شرق",
+            "جنوب", "جنوب غرب", "غرب", "شمال غرب"};
+        int index = Math.round((bearing % 360f) / 45f) % 8;
+        return "الاتجاه: " + directions[index];
     }
 
     @Override public void onProviderDisabled(String provider) {
