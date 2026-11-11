@@ -7,6 +7,9 @@ private MapView map;private EditText query;private TextView status,steps;private
 private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
 private void immersive(){getWindow().setFlags(1024,1024);getWindow().getDecorView().setSystemUiVisibility(5894|1024|512|4096|256);}
 @Override protected void onCreate(Bundle b){super.onCreate(b);immersive();Configuration.getInstance().setUserAgentValue("ALI-CAR-Native/2.0 Android-21");
+Configuration.getInstance().setCacheMapTileCount((short)4);
+Configuration.getInstance().setTileDownloadThreads((short)1);
+Configuration.getInstance().setTileFileSystemThreads((short)1);
 Configuration.getInstance().setTileFileSystemCacheMaxBytes(8L*1024*1024);Configuration.getInstance().setTileFileSystemCacheTrimBytes(4L*1024*1024);
 lm=(LocationManager)getSystemService(LOCATION_SERVICE);LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(8),dp(6),dp(8),dp(6));root.setBackgroundColor(0xFF06101B);
 TextView title=new TextView(this);title.setText("ALI NAVIGATION");title.setTextColor(-1);title.setTextSize(20);root.addView(title,new LinearLayout.LayoutParams(-1,dp(34)));
