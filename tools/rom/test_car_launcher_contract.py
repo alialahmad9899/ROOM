@@ -28,7 +28,7 @@ permissions = {x.get(f"{{{NS['a']}}}name") for x in MANIFEST.findall("uses-permi
 for item in ("android.permission.INTERNET", "android.permission.ACCESS_FINE_LOCATION",
              "android.permission.ACCESS_WIFI_STATE", "android.permission.CHANGE_WIFI_STATE",
              "android.permission.BLUETOOTH_ADMIN", "android.permission.READ_EXTERNAL_STORAGE",
-             "android.permission.RECEIVE_BOOT_COMPLETED"):
+             "android.permission.RECEIVE_BOOT_COMPLETED", "android.permission.WRITE_SETTINGS"):
     require(item in permissions, "permission missing: " + item)
 require("android.permission.READ_PHONE_STATE" not in permissions, "unused phone permission must stay removed")
 
