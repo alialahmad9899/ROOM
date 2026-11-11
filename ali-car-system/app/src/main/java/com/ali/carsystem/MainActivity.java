@@ -189,6 +189,14 @@ public final class MainActivity extends Activity implements LocationListener {
         status.addView(batteryText, new LinearLayout.LayoutParams(-2, dp(15)));
         batteryText.setOnClickListener(v -> openBatterySettings());
         header.addView(status);
+        TextView quickSettings = label("⚙", 23, GOLD, true);
+        quickSettings.setGravity(Gravity.CENTER);
+        quickSettings.setBackground(box(TILE, 18));
+        quickSettings.setOnClickListener(v -> openIntent(
+            new Intent(Settings.ACTION_SETTINGS), "إعدادات الجهاز غير متاحة"));
+        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        settingsParams.leftMargin = dp(8);
+        header.addView(quickSettings, settingsParams);
         root.addView(header, new LinearLayout.LayoutParams(-1, dp(60)));
 
         LinearLayout body = new LinearLayout(this);
