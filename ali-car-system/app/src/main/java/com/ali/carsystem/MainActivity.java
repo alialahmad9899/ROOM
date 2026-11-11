@@ -30,7 +30,7 @@ public final class MainActivity extends Activity implements LocationListener {
     private LocationManager locationManager;
     private WifiManager wifi;
     private TextView clock, date, speed, gps, wifiState, btState;
-    private View idleOverlay;
+    private View idleOverlay;\n    private android.speech.tts.TextToSpeech tts;
     private long lastGps;
     private final Runnable ticker=new Runnable(){ public void run(){
         Date now=new Date();
@@ -132,7 +132,7 @@ public final class MainActivity extends Activity implements LocationListener {
     }
     private void addTile(LinearLayout r,Tile t){
         LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setGravity(Gravity.CENTER);
-        c.setBackground(bg(t.color,20,0x553FFFFFF));
+        c.setBackground(bg(t.color,20,0x553F3F3F));
         TextView icon=txt(t.icon,32,WHITE,true),name=txt(t.name,14,WHITE,true);
         c.addView(icon);c.addView(name);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);p.leftMargin=dp(4);p.rightMargin=dp(4);r.addView(c,p);
@@ -179,13 +179,16 @@ public final class MainActivity extends Activity implements LocationListener {
         idleOverlay=overlay;
     }
     private void speakGreeting(){
-        try{android.speech.tts.TextToSpeech engine=new android.speech.tts.TextToSpeech(this,status->{
-            if(status==android.speech.tts.TextToSpeech.SUCCESS){
-                int result=engine.setLanguage(new Locale("ar"));
-                if(result!=android.speech.tts.TextToSpeech.LANG_MISSING_DATA&&result!=android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED)
-                    engine.speak("أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",android.speech.tts.TextToSpeech.QUEUE_FLUSH,null);
-            }
-        });}catch(Exception ignored){}
+        try{
+            tts=new android.speech.tts.TextToSpeech(this,status->{
+                if(status==android.speech.tts.TextToSpeech.SUCCESS){
+                    int result=tts.setLanguage(new Locale("ar"));
+                    if(result!=android.speech.tts.TextToSpeech.LANG_MISSING_DATA&&result!=android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED)
+                        tts.speak("أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",android.speech.tts.TextToSpeech.QUEUE_FLUSH,null);
+                }
+            });
+        }catch(Exception ignored){}
     }
+    @Override protected void onDestroy(){handler.removeCallbacksAndMessages(null);if(tts!=null){try{tts.stop();tts.shutdown();}catch(Exception ignored){}}super.onDestroy();}
     private static final class Tile{final String icon,name;final Runnable action;final int color;Tile(String i,String n,Runnable a,int c){icon=i;name=n;action=a;color=c;}}
 }
