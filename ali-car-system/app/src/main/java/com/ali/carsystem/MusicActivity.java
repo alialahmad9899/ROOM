@@ -58,11 +58,6 @@ public final class MusicActivity extends Activity {
         getWindow().setNavigationBarColor(0xFF080D13);
         loadSongs();
         build();
-        IntentFilter screenFilter = new IntentFilter();
-        screenFilter.addAction(Intent.ACTION_SCREEN_OFF);
-        screenFilter.addAction(Intent.ACTION_SCREEN_ON);
-        registerReceiver(screenOff, screenFilter);
-        receiverRegistered = true;
     }
 
     @Override protected void onDestroy() {
@@ -194,7 +189,7 @@ public final class MusicActivity extends Activity {
             TextView number = text(String.format(java.util.Locale.US, "%02d", index + 1), 15,
                 index % 2 == 0 ? 0xFF54D8C9 : 0xFFFFC66D, true);
             item.addView(number, new LinearLayout.LayoutParams(dp(42), dp(52)));
-            TextView row = text(song.title + "\\n" + song.artist, 14, 0xFFF4F7FB, false);
+            TextView row = text(song.title + "\n" + song.artist, 14, 0xFFF4F7FB, false);
             row.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
             item.addView(row, new LinearLayout.LayoutParams(0, dp(52), 1f));
             LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(-1, dp(60));
@@ -273,10 +268,6 @@ public final class MusicActivity extends Activity {
             player.setOnPreparedListener(mediaPlayer -> {
                 if (isFinishing()) return;
                 prepared = true;
-                if (!screenOn) {
-                    playButton.setText("متوقف عند إطفاء الشاشة");
-                    return;
-                }
                 try {
                     mediaPlayer.start();
                     playButton.setText("Ⅱ إيقاف مؤقت");
