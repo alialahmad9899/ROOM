@@ -53,7 +53,6 @@ public final class MainActivity extends Activity implements LocationListener {
     private TextView gpsText;
     private TextView wifiText;
     private TextView btText;
-    private TextView simText;
     private TextView batteryText;
     private TextView clockText;
     private TextView dateText;
@@ -63,6 +62,8 @@ public final class MainActivity extends Activity implements LocationListener {
     private long lastGps = 0L;
     private float speed = 0f;
     private boolean gpsRegistered = false;
+    private View ambientOverlay;
+    private final Runnable ambientRunnable = new Runnable() { public void run() { showAmbientClock(); } };
 
     private final Runnable clockTicker = new Runnable() {
         @Override public void run() {
@@ -75,7 +76,7 @@ public final class MainActivity extends Activity implements LocationListener {
         super.onCreate(state);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LOW_PROFILE);
+        applyImmersiveMode();
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
         buildDashboard();
@@ -84,6 +85,52 @@ public final class MainActivity extends Activity implements LocationListener {
         if (launch != null && launch.getBooleanExtra(EXTRA_BOOT_GREETING, false)) {
             playBootGreeting();
         }
+    }
+
+    private void applyImmersiveMode() {
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) applyImmersiveMode();
+    }
+    @Override public void onUserInteraction() {
+        super.onUserInteraction();
+        removeAmbientClock();
+        scheduleAmbientClock();
+    }
+    private void scheduleAmbientClock() {
+        handler.removeCallbacks(ambientRunnable);
+        handler.postDelayed(ambientRunnable, 90000L);
+    }
+    private void showAmbientClock() {
+        if (isFinishing() || frame == null || ambientOverlay != null) return;
+        TextView clock = label("", 58, 0xFF77808A, true);
+        clock.setGravity(Gravity.CENTER);
+        clock.setBackgroundColor(0xFF020304);
+        clock.setAlpha(0.82f);
+        ambientOverlay = clock;
+        frame.addView(clock, new FrameLayout.LayoutParams(-1, -1));
+        Runnable ticker = new Runnable() {
+            @Override public void run() {
+                if (ambientOverlay != clock) return;
+                clock.setText(new SimpleDateFormat("hh:mm a", Locale.US).format(new Date()));
+                clock.postDelayed(this, 15000L);
+            }
+        };
+        clock.setTag(ticker);
+        ticker.run();
+    }
+    private void removeAmbientClock() {
+        if (ambientOverlay == null) return;
+        Object ticker = ambientOverlay.getTag();
+        if (ticker instanceof Runnable) handler.removeCallbacks((Runnable) ticker);
+        if (ambientOverlay.getParent() instanceof FrameLayout)
+            ((FrameLayout) ambientOverlay.getParent()).removeView(ambientOverlay);
+        ambientOverlay = null;
     }
 
     private int dp(float value) {
@@ -136,11 +183,9 @@ public final class MainActivity extends Activity implements LocationListener {
         status.setOrientation(LinearLayout.VERTICAL);
         wifiText = label("Wi-Fi", 10, MUTED, true);
         btText = label("Bluetooth", 10, MUTED, true);
-        simText = label("SIM", 10, MUTED, true);
         batteryText = label("BAT --%", 10, GOLD, true);
         status.addView(wifiText, new LinearLayout.LayoutParams(-2, dp(15)));
         status.addView(btText, new LinearLayout.LayoutParams(-2, dp(15)));
-        status.addView(simText, new LinearLayout.LayoutParams(-2, dp(15)));
         status.addView(batteryText, new LinearLayout.LayoutParams(-2, dp(15)));
         batteryText.setOnClickListener(v -> openBatterySettings());
         header.addView(status);
@@ -176,14 +221,11 @@ public final class MainActivity extends Activity implements LocationListener {
             new Tile("▶", "يوتيوب لايت", () -> openActivity(YouTubeLiteActivity.class)));
         tileRow(controls,
             new Tile("♫", "الموسيقى", () -> openActivity(MusicActivity.class)),
-            new Tile("☎", "الهاتف", this::openDialer));
+            new Tile("⚙", "إعدادات الجهاز", () -> openIntent(new Intent(Settings.ACTION_SETTINGS), "إعدادات الجهاز غير متاحة")));
         tileRow(controls,
             new Tile("◉", "تشغيل Wi-Fi", this::toggleWifi),
             new Tile("ᛒ", "Bluetooth", this::toggleBluetooth));
-        tileRow(controls,
-            new Tile("▤", "القراءة", this::openReader),
-            new Tile("⚙", "إعدادات الجهاز", () -> openIntent(
-                new Intent(Settings.ACTION_SETTINGS), "إعدادات الجهاز غير متاحة")));
+
 
         LinearLayout brightnessRow = new LinearLayout(this);
         brightnessRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -394,12 +436,6 @@ public final class MainActivity extends Activity implements LocationListener {
         } catch (RuntimeException ignored) { }
         try {
             TelephonyManager telephony = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
-            if (simText != null) {
-                boolean ready = telephony != null
-                    && telephony.getSimState() == TelephonyManager.SIM_STATE_READY;
-                simText.setText(ready ? "SIM  •  جاهزة" : "SIM  •  غير جاهزة");
-                simText.setTextColor(ready ? ACCENT : MUTED);
-            }
         } catch (RuntimeException ignored) { }
         updateClockAndBattery();
     }
@@ -412,8 +448,8 @@ public final class MainActivity extends Activity implements LocationListener {
         }
         if (clockText != null) {
             Date now = new Date();
-            clockText.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(now));
-            dateText.setText(new SimpleDateFormat("EEE  •  dd MMM", Locale.getDefault()).format(now));
+            clockText.setText(new SimpleDateFormat("hh:mm a", Locale.US).format(now));
+            dateText.setText(new SimpleDateFormat("EEE  •  dd MMM", Locale.US).format(now));
         }
         if (batteryText != null) {
             try {
@@ -481,12 +517,12 @@ public final class MainActivity extends Activity implements LocationListener {
         try {
             tts = new TextToSpeech(this, status -> {
                 if (status == TextToSpeech.SUCCESS && tts != null) {
-                    int language = tts.setLanguage(Locale.US);
+                    int language = tts.setLanguage(new Locale("ar"));
                     if (language != TextToSpeech.LANG_MISSING_DATA
                         && language != TextToSpeech.LANG_NOT_SUPPORTED) {
                         handler.postDelayed(() -> {
                             if (tts != null) {
-                                tts.speak("Welcome Ali. Developed by Ali Ahmad.",
+                                tts.speak("أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",
                                     TextToSpeech.QUEUE_FLUSH, null);
                             }
                         }, 900L);
@@ -502,6 +538,8 @@ public final class MainActivity extends Activity implements LocationListener {
 
     @Override protected void onResume() {
         super.onResume();
+        applyImmersiveMode();
+        scheduleAmbientClock();
         startGps();
         refreshStatus();
         handler.removeCallbacks(clockTicker);
@@ -510,6 +548,8 @@ public final class MainActivity extends Activity implements LocationListener {
 
     @Override protected void onPause() {
         handler.removeCallbacks(clockTicker);
+        handler.removeCallbacks(ambientRunnable);
+        removeAmbientClock();
         stopGps();
         super.onPause();
     }
@@ -563,10 +603,12 @@ public final class MainActivity extends Activity implements LocationListener {
 
     @Override public void onLocationChanged(Location location) {
         if (location == null || speedView == null) return;
-        lastGps = SystemClock.elapsedRealtime();
+        if (location.hasAccuracy() && location.getAccuracy() > 35f) return;
         float nextSpeed = location.hasSpeed() ? location.getSpeed() * 3.6f : 0f;
-        if (Float.isNaN(nextSpeed) || Float.isInfinite(nextSpeed) || nextSpeed < 0f) nextSpeed = 0f;
-        speed = speed == 0f ? nextSpeed : speed * 0.65f + nextSpeed * 0.35f;
+        if (Float.isNaN(nextSpeed) || Float.isInfinite(nextSpeed) || nextSpeed < 0f) return;
+        if (speed > 18f && Math.abs(nextSpeed - speed) > 85f) return;
+        lastGps = SystemClock.elapsedRealtime();
+        speed = speed == 0f ? nextSpeed : speed * 0.72f + nextSpeed * 0.28f;
         speedView.setSpeed(speed);
         speedView.setGps(true);
         gpsText.setText("إشارة GPS متصلة");
