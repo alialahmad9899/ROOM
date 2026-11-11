@@ -143,7 +143,7 @@ public final class NavigationActivity extends Activity implements LocationListen
             currentMarker.setPosition(r.start);
             status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %d دقيقة",r.distance,r.minutes));
             directions.setText(r.steps);
-            map.getController().zoomToSpan(Math.max(Math.abs(r.start.getLatitude()-r.destination.getLatitude()),0.02),Math.max(Math.abs(r.start.getLongitude()-r.destination.getLongitude()),0.02));
+            map.getController().setZoom(9.0);
             map.getController().setCenter(new GeoPoint((r.start.getLatitude()+r.destination.getLatitude())/2,(r.start.getLongitude()+r.destination.getLongitude())/2));
         }else{
             if(routeLine!=null){map.getOverlays().remove(routeLine);routeLine=null;}
