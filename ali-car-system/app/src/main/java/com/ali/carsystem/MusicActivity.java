@@ -45,13 +45,15 @@ public final class MusicActivity extends Activity {
         @Override public void run() {
             if (player != null && prepared) {
                 try {
-                    int position = player.getCurrentPosition();
-                    int duration = player.getDuration();
-                    if (progressBar != null && duration > 0) progressBar.setProgress(position * 1000 / duration);
-                    if (elapsedText != null) elapsedText.setText(formatTime(position));
+                    if (player.isPlaying()) {
+                        int position = player.getCurrentPosition();
+                        int duration = player.getDuration();
+                        if (progressBar != null && duration > 0) progressBar.setProgress(position * 1000 / duration);
+                        if (elapsedText != null) elapsedText.setText(formatTime(position));
+                        handler.postDelayed(this, 700L);
+                    }
                 } catch (RuntimeException ignored) { }
             }
-            handler.postDelayed(this, 700L);
         }
     };
     private boolean receiverRegistered = false;
@@ -314,6 +316,8 @@ public final class MusicActivity extends Activity {
                 playButton.setText("▶ متابعة");
             } else {
                 player.start();
+                handler.removeCallbacks(progressTicker);
+                handler.post(progressTicker);
                 playButton.setText("Ⅱ إيقاف مؤقت");
             }
         } catch (IllegalStateException ignored) {
@@ -328,6 +332,9 @@ public final class MusicActivity extends Activity {
         Song song = songs.get(index);
         updateAlbumArt(song.albumId);
         nowPlaying.setText(song.title + "\n" + song.artist);
+        if (progressBar != null) progressBar.setProgress(0);
+        if (elapsedText != null) elapsedText.setText("00:00");
+        if (durationText != null) durationText.setText(formatTime((int) song.duration));
         playButton.setText("جارٍ التحميل...");
         try {
             player = new MediaPlayer();
@@ -416,6 +423,7 @@ public final class MusicActivity extends Activity {
             try {
                 if (player.isPlaying()) {
                     player.pause();
+                    handler.removeCallbacks(progressTicker);
                     playButton.setText("متوقف عند إطفاء الشاشة");
                 }
             } catch (IllegalStateException ignored) { }
