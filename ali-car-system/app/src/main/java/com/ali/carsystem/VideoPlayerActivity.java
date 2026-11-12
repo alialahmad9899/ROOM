@@ -30,7 +30,7 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
         id=getIntent().getStringExtra("id");title=getIntent().getStringExtra("title");backend=getIntent().getStringExtra("backend");base=getIntent().getStringExtra("base");
         FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xFF000000);surface=new SurfaceView(this);holder=surface.getHolder();holder.addCallback(this);
         root.addView(surface,new FrameLayout.LayoutParams(-1,-1));
-        status=new TextView(this);status.setText(title+"\nجارٍ تجهيز فيديو MP4 بدقة منخفضة...");status.setTextColor(-1);status.setTextSize(16);status.setGravity(Gravity.CENTER);status.setBackgroundColor(0x99000000);
+        status=new TextView(this);status.setText(title+"\nجارٍ تجهيز الفيديو بجودة مناسبة...");status.setTextColor(-1);status.setTextSize(16);status.setGravity(Gravity.CENTER);status.setBackgroundColor(0x99000000);
         root.addView(status,new FrameLayout.LayoutParams(-1,dp(70),Gravity.TOP));
         LinearLayout controls=new LinearLayout(this);controls.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         pauseButton=new TextView(this);pauseButton.setText("Ⅱ");pauseButton.setTextColor(-1);pauseButton.setTextSize(22);pauseButton.setGravity(Gravity.CENTER);
@@ -42,8 +42,8 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
         root.addView(controls,cp);setContentView(root);
         task=new AsyncTask<Void,Void,VideoApiClient.StreamInfo>(){
             Exception error;
-            protected VideoApiClient.StreamInfo doInBackground(Void...v){try{return VideoApiClient.stream(new VideoItem(id,title,"","",backend,base));}catch(Exception e){error=e;return null;}}
-            protected void onPostExecute(VideoApiClient.StreamInfo stream){if(isFinishing())return;if(stream==null){status.setText("تعذر تجهيز الفيديو: "+(error==null?"لا يوجد MP4 متوافق":error.getMessage()));return;}startStream(stream.url);}
+            protected VideoApiClient.StreamInfo doInBackground(Void...v){try{return VideoApiClient.stream(getApplicationContext(), new VideoItem(id,title,"","",backend,base));}catch(Exception e){error=e;return null;}}
+            protected void onPostExecute(VideoApiClient.StreamInfo stream){if(isFinishing())return;if(stream==null){status.setText(error==null?"الخادم لا يوفر صيغة فيديو متوافقة.":"تعذر الاتصال بخادم الفيديو. تحقق من الإنترنت وحاول مرة أخرى.");return;}startStream(stream.url);}
         }.execute();
     }
     private void togglePlayback(){
@@ -57,13 +57,13 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
             player=new MediaPlayer();player.setAudioStreamType(AudioManager.STREAM_MUSIC);
             if(surfaceReady)player.setDisplay(holder);
             player.setOnPreparedListener(mp->{prepared=true;startWhenReady();});
-            player.setOnCompletionListener(mp->status.setText("انتهى الفيديو"));
-            player.setOnErrorListener((mp,w,e)->{status.setVisibility(View.VISIBLE);status.setText("خطأ تشغيل الوسائط ("+w+"/"+e+")");release();return true;});
+            player.setOnCompletionListener(mp->status.setText("انتهى تشغيل الفيديو"));
+            player.setOnErrorListener((mp,w,e)->{status.setVisibility(View.VISIBLE);status.setText("تعذر تشغيل الفيديو على هذا الجهاز. جرّب نتيجة أخرى.");release();return true;});
             player.setDataSource(url);player.prepareAsync();
-        }catch(Exception e){status.setText("فشل بدء مشغل الفيديو: "+e.getMessage());release();}
+        }catch(Exception e){status.setText("تعذر بدء تشغيل الفيديو. جرّب نتيجة أخرى.");release();}
     }
     @Override public void surfaceCreated(SurfaceHolder h){surfaceReady=true;startWhenReady();}
-    private void startWhenReady(){if(player==null||!surfaceReady||!prepared)return;try{player.setDisplay(holder);if(!player.isPlaying())player.start();status.setVisibility(View.GONE);if(pauseButton!=null)pauseButton.setText("Ⅱ");}catch(Exception e){status.setVisibility(View.VISIBLE);status.setText("تعذر عرض الفيديو");}}
+    private void startWhenReady(){if(player==null||!surfaceReady||!prepared)return;try{player.setDisplay(holder);if(!player.isPlaying())player.start();status.setVisibility(View.GONE);if(pauseButton!=null)pauseButton.setText("Ⅱ");}catch(Exception e){status.setVisibility(View.VISIBLE);status.setText("تعذر عرض الفيديو على الشاشة.");}}
     @Override public void surfaceChanged(SurfaceHolder h,int f,int w,int ht){}
     @Override public void surfaceDestroyed(SurfaceHolder h){surfaceReady=false;if(player!=null)try{if(player.isPlaying())player.pause();player.setDisplay(null);}catch(Exception ignored){}}
     private void release(){prepared=false;if(player!=null){try{player.reset();player.release();}catch(Exception ignored){}player=null;}}
