@@ -29,11 +29,12 @@ public final class VideoApiClient {
     }
 
     private static final String[] PIPED_SEEDS = {
+        "https://pipedapi.kavin.rocks",
+        "https://api.piped.silkky.cloud",
+        "https://pipedapi.tokhmi.xyz",
+        "https://pipedapi.moomoo.me",
         "https://pipedapi.adminforge.de",
-        "https://pipedapi.privacy.com.de",
-        "https://pipedapi.nosebs.ru",
-        "https://pipedapi.leptons.xyz",
-        "https://api.piped.yt"
+        "https://pipedapi.privacy.com.de"
     };
     private static final String[] INVIDIOUS_SEEDS = {
         "https://inv.nadeko.net",
@@ -51,7 +52,7 @@ public final class VideoApiClient {
             if (tried++ >= 3) break;
             try {
                 JSONArray array = new JSONArray(request(context,
-                        base + "/search?q=" + encoded + "&filter=videos"));
+                        base + "/search?q=" + encoded + "&filter=videos&hl=ar"));
                 ArrayList<VideoItem> result = new ArrayList<>();
                 for (int i = 0; i < array.length() && result.size() < 30; i++) {
                     JSONObject item = array.optJSONObject(i);
