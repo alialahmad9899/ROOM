@@ -128,7 +128,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
         FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xFF020812);
         ImageView bg=new ImageView(this);bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
         Bitmap wallpaper=CarApplication.getBitmap("dashboard");
-        if(wallpaper==null){try(java.io.InputStream in=getAssets().open("bg_dashboard.webp")){
+        if(wallpaper==null){int res=getResources().getIdentifier("bg_dashboard","drawable",getPackageName());
+        try(java.io.InputStream in=getResources().openRawResource(res)){
             BitmapFactory.Options o=new BitmapFactory.Options();o.inPreferredConfig=Bitmap.Config.RGB_565;
             wallpaper=BitmapFactory.decodeStream(in,null,o);CarApplication.putBitmap("dashboard",wallpaper);
         }catch(Exception ignored){}}
