@@ -43,6 +43,7 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
         controls.addView(pauseButton,c);LinearLayout.LayoutParams x=new LinearLayout.LayoutParams(dp(48),dp(48));x.leftMargin=dp(5);controls.addView(close,x);
         FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-2,dp(50),Gravity.TOP|Gravity.RIGHT);cp.topMargin=dp(7);cp.rightMargin=dp(8);
         root.addView(controls,cp);setContentView(root);
+        applyPlayerCockpitStyle(root);
         task=new AsyncTask<Void,Void,VideoApiClient.StreamInfo>(){
             Exception error;
             protected VideoApiClient.StreamInfo doInBackground(Void...v){try{return VideoApiClient.stream(getApplicationContext(), new VideoItem(id,title,"","",backend,base));}catch(Exception e){error=e;return null;}}
@@ -75,4 +76,32 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
     @Override protected void onPause(){if(player!=null)try{if(player.isPlaying())player.pause();}catch(Exception ignored){}super.onPause();}
     @Override protected void onDestroy(){if(task!=null)task.cancel(true);release();getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);super.onDestroy();}
     @Override protected void onResume(){super.onResume();immersive();}
+
+    private void applyPlayerCockpitStyle(android.view.View view) {
+        if (view == null || view instanceof android.view.SurfaceView) return;
+        if (view instanceof android.widget.Button) {
+            android.widget.Button button = (android.widget.Button) view;
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                    new int[]{0xFF267C9E, 0xFF12344A, 0xFF0A1825});
+            bg.setCornerRadius(Math.round(18 * getResources().getDisplayMetrics().density));
+            bg.setStroke(Math.round(getResources().getDisplayMetrics().density), 0xFF65DFFF);
+            button.setBackground(bg);
+            button.setTextColor(android.graphics.Color.WHITE);
+            button.setElevation(4 * getResources().getDisplayMetrics().density);
+        } else if (view instanceof android.widget.TextView) {
+            android.widget.TextView text = (android.widget.TextView) view;
+            text.setTextColor(0xFFEAF7FF);
+            text.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD));
+            text.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        } else if (view instanceof android.widget.EditText) {
+            android.widget.EditText input = (android.widget.EditText) view;
+            input.setTextColor(0xFF111111);
+            input.setHintTextColor(0xFF667788);
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) applyPlayerCockpitStyle(group.getChildAt(i));
+        }
+    }
 }
