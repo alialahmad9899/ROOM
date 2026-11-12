@@ -64,10 +64,12 @@ jobs:
           {
             echo "Project: ALI Car System"
             echo "Package: com.ali.carsystem"
-            echo "Version: 2.1.0"\n            echo "Minimum Android: 5.0 / API 21"
+            echo "Version: 2.1.0"
+            echo "Minimum Android: 5.0 / API 21"
             echo "Target SDK: 22"
             echo "Build type: Debug (automatically signed for installation/testing)"
-            echo "Architecture: Native UI + RecyclerView + MediaPlayer/SurfaceView; no WebView"\n            echo "Wallpaper: supplied 1280x720 WebP, decoded as RGB_565"
+            echo "Architecture: Native UI + RecyclerView + MediaPlayer/SurfaceView; no WebView"
+            echo "Wallpaper: supplied 1280x720 WebP, decoded as RGB_565"
             echo "Commit: $GITHUB_SHA"
             stat --printf='APK bytes: %s\n' output/ALI-Car-System-2.1.0-api21-debug.apk
             cat output/SHA256SUMS.txt
