@@ -232,7 +232,7 @@ public final class VideoApiClient {
         try{
             String fixed=address.startsWith("//")?"https:"+address:address;
             connection=NetworkCompat.open(context,fixed);
-            connection.setConnectTimeout(4000);connection.setReadTimeout(5000);
+            connection.setConnectTimeout(8000);connection.setReadTimeout(10000);
             int code=connection.getResponseCode();if(code<200||code>=300)return null;
             if(connection.getContentLength()>2*1024*1024)return null;
             try(InputStream in=connection.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){
@@ -248,7 +248,7 @@ public final class VideoApiClient {
 
     private static String request(Context context,String address)throws Exception{
         HttpURLConnection connection=NetworkCompat.open(context,address);
-        connection.setConnectTimeout(4000);connection.setReadTimeout(5000);
+        connection.setConnectTimeout(8000);connection.setReadTimeout(10000);
         try{
             int code=connection.getResponseCode();
             if(code<200||code>=300)throw new java.io.IOException("تعذر الوصول إلى الخادم.");
