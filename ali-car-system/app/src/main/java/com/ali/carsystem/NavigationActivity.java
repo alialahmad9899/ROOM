@@ -19,6 +19,7 @@ import org.json.JSONObject;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
+import org.osmdroid.util.BoundingBox;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.Marker;
 import org.osmdroid.views.overlay.Polyline;
@@ -46,6 +47,7 @@ public final class NavigationActivity extends Activity implements LocationListen
     private GeoPoint pendingDestination;
     private String pendingDestinationName;
     private boolean waitingForGps, firstFix=true;
+    private long lastRouteAttemptMs;
     private ValueAnimator carAnimator;
     private int dp(float value){return Math.round(value*getResources().getDisplayMetrics().density);}
 
@@ -98,6 +100,12 @@ public final class NavigationActivity extends Activity implements LocationListen
         statusLp.topMargin=dp(4);top.addView(routeStatus,statusLp);
         FrameLayout.LayoutParams topLp=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);
         root.addView(top,topLp);
+        TextView attribution=text("© OpenStreetMap contributors",10,Color.WHITE,false);
+        attribution.setPadding(dp(7),dp(3),dp(7),dp(3));
+        attribution.setBackground(glass(0xCC101820,0x6678DFFF,7));
+        FrameLayout.LayoutParams attributionLp=new FrameLayout.LayoutParams(-2,dp(24),Gravity.BOTTOM|Gravity.RIGHT);
+        attributionLp.setMargins(dp(6),dp(6),dp(8),dp(8));
+        root.addView(attribution,attributionLp);
         setContentView(root);
         query.setOnEditorActionListener((v,action,event)->{searchDestination();return true;});
         loadLastKnownLocation();
@@ -196,7 +204,12 @@ public final class NavigationActivity extends Activity implements LocationListen
         }catch(Exception error){return NavResult.error(NetworkCompat.arabicError(error));}
     }
     private void displayResult(NavResult result){
-        if(result.error!=null){routeStatus.setText(result.error);maneuverBanner.setText("تحقق من الإنترنت وحاول مرة أخرى");return;}
+        if(result.error!=null){
+            routeStatus.setText(result.error);
+            maneuverBanner.setText(result.error.contains("HTTP")?"خدمة الخرائط رفضت الطلب أو تعطلت":"تعذر إكمال طلب الملاحة — سيعاد عند توفر إشارة/خدمة");
+            if(pendingDestination!=null)waitingForGps=true;
+            return;
+        }
         pendingDestination=result.destination;pendingDestinationName=result.name;
         if(destinationMarker!=null)map.getOverlays().remove(destinationMarker);
         destinationMarker=new Marker(map);destinationMarker.setPosition(result.destination);destinationMarker.setTitle(result.name);
@@ -212,8 +225,17 @@ public final class NavigationActivity extends Activity implements LocationListen
         routeLine=new Polyline(map);routeLine.setPoints(result.points);routeLine.setColor(0xFF00CFFF);
         routeLine.setWidth(dp(14));map.getOverlays().add(routeLine);
         ensureCarMarker();moveCarMarker(result.start,true);
-        map.getController().setZoom(18.5);
-        map.getController().animateTo(result.start);
+        if(result.points!=null&&result.points.size()>1){
+            double north=-90,south=90,east=-180,west=180;
+            for(GeoPoint p:result.points){
+                north=Math.max(north,p.getLatitude());south=Math.min(south,p.getLatitude());
+                east=Math.max(east,p.getLongitude());west=Math.min(west,p.getLongitude());
+            }
+            map.zoomToBoundingBox(new BoundingBox(north,east,south,west),true);
+        }else{
+            map.getController().setZoom(16.0);
+            map.getController().animateTo(result.start);
+        }
         routeStatus.setText(String.format(Locale.US,"المسافة %.1f كم   •   الوقت المتبقي %.0f دقيقة",result.km,result.minutes));
         maneuverBanner.setText(TextUtils.isEmpty(result.nextInstruction)?"اتبع الخط السماوي":result.nextInstruction);
         map.invalidate();
@@ -283,13 +305,24 @@ public final class NavigationActivity extends Activity implements LocationListen
     }
     @Override protected void onResume(){
         super.onResume();immersive();if(map!=null)map.onResume();
-        if(locationManager!=null&&(checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED
-                ||checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED)){
-            try{locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,1f,this);}catch(Exception ignored){}
-            try{locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1800L,4f,this);}catch(Exception ignored){}
-            loadLastKnownLocation();
-            if(currentLocation!=null)onLocationChanged(currentLocation);
-        }
+        if(locationManager==null)return;
+        boolean fine=checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED;
+        boolean coarse=checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED;
+        if(!fine&&!coarse){routeStatus.setText("يلزم السماح بإذن الموقع من إعدادات التطبيق");return;}
+        boolean registered=false;
+        try{
+            if(locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)){
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,1f,this);registered=true;
+            }
+        }catch(Exception error){routeStatus.setText("تعذر تشغيل مستشعر GPS: "+NetworkCompat.arabicError(error));}
+        try{
+            if(locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)){
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1800L,4f,this);registered=true;
+            }
+        }catch(Exception error){if(!registered)routeStatus.setText("تعذر تشغيل تحديد الموقع عبر الشبكة");}
+        if(!registered)routeStatus.setText("فعّل GPS وخدمات الموقع ثم أعد المحاولة");
+        loadLastKnownLocation();
+        if(currentLocation!=null)onLocationChanged(currentLocation);
     }
     @Override protected void onPause(){
         if(locationManager!=null){try{locationManager.removeUpdates(this);}catch(Exception ignored){}}
@@ -301,21 +334,31 @@ public final class NavigationActivity extends Activity implements LocationListen
         if(map!=null){map.onDetach();map=null;}super.onDestroy();
     }
     @Override public void onLocationChanged(Location location){
-        if(location==null)return;currentLocation=location;
-        if(location.hasAccuracy()&&location.getAccuracy()>45f)return;
+        if(location==null)return;
+        currentLocation=new Location(location);
         GeoPoint point=new GeoPoint(location.getLatitude(),location.getLongitude());
         ensureCarMarker();moveCarMarker(point,false);
         if(location.hasBearing()&&location.hasSpeed()&&location.getSpeed()>0.8f){
             carMarker.setRotation(location.getBearing());
             map.setMapOrientation(-location.getBearing());
         }
-        if(waitingForGps&&pendingDestination!=null&&routeTask==null){
-            waitingForGps=false;routeTask=new AsyncTask<Void,Void,NavResult>(){
-                @Override protected NavResult doInBackground(Void...args){return requestRoute(location,pendingDestination,pendingDestinationName);}
-                @Override protected void onPostExecute(NavResult result){routeTask=null;if(!isFinishing())displayResult(result);}
+        boolean usableForRouting=!location.hasAccuracy()||location.getAccuracy()<=100f;
+        if(waitingForGps&&pendingDestination!=null&&routeTask==null&&usableForRouting
+                &&SystemClock.elapsedRealtime()-lastRouteAttemptMs>=10000L){
+            lastRouteAttemptMs=SystemClock.elapsedRealtime();
+            routeTask=new AsyncTask<Void,Void,NavResult>(){
+                @Override protected NavResult doInBackground(Void...args){return requestRoute(new Location(location),pendingDestination,pendingDestinationName);}
+                @Override protected void onPostExecute(NavResult result){
+                    routeTask=null;
+                    if(isFinishing())return;
+                    if(result.error!=null)waitingForGps=true;
+                    displayResult(result);
+                }
             }.execute();
+        }else if(waitingForGps&&pendingDestination!=null&&!usableForRouting){
+            routeStatus.setText("إشارة الموقع ضعيفة حالياً — ننتظر دقة أفضل");
         }
-        if(routeLine!=null){map.getController().animateTo(point);if(map.getZoomLevelDouble()<17.5)map.getController().setZoom(18.5);}
+        if(routeLine!=null){map.getController().animateTo(point);if(map.getZoomLevelDouble()<15.5)map.getController().setZoom(16.0);}
         else if(firstFix){map.getController().animateTo(point);firstFix=false;}
         map.invalidate();
     }
