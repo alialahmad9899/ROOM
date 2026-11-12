@@ -527,7 +527,7 @@ public final class MainActivity extends Activity implements LocationListener {
     @Override public void onProviderEnabled(String provider){
         if(gpsText!=null)gpsText.setText("تم تفعيل الموقع — جارٍ إعادة تشغيل GPS");
         gpsRunning=false;
-        handler.post(this::startGps);
+        handler.post(()->{stopGps();startGps();});
     }
     @Override public void onStatusChanged(String provider,int status,Bundle extras){}
 
