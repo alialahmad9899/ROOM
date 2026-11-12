@@ -86,7 +86,7 @@ require("pager.getCurrentItem()==0" in main, "ambient sleep must be restricted t
 
 # Music screen is native and animated; playback shortcuts resolve to the saved track.
 for token in ("MediaStore.Audio.Media", "MediaPlayer", "player.prepareAsync()", "DiscView",
-              "VisualizerView", "setAlbumArt", "setPlaying", "last_music_index",
+              "VisualizerView", "setAlbumArt", "setPlaying", "last_song_title",
               "FLAG_KEEP_SCREEN_ON", "MediaStore.Audio.Media.ALBUM_ID"):
     require(token in music, "music player contract missing: " + token)
 require("private void releasePlayer()" in music and "progressTick" in music, "music progress loop missing")
