@@ -22,7 +22,7 @@ import java.text.SimpleDateFormat;
 public final class MainActivity extends BaseActivity implements LocationListener, TextToSpeech.OnInitListener {
     private final Handler handler=new Handler(Looper.getMainLooper());
     private ViewPager pager;
-    private SpeedometerView speedometer;
+    private SpeedometerView speedometer, clusterGauge;
     private TextView gpsStatus, songTitle, digitalClock, dateLabel;
     private LocationManager locationManager;
     private Location previousFix;
@@ -226,7 +226,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout all=vertical();all.setPadding(dp(18),dp(12),dp(18),dp(12));root.addView(all,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=horizontal();TextView back=label("›",32,0xFF9DEFFF,true);back.setGravity(Gravity.CENTER);back.setOnClickListener(v->pager.setCurrentItem(0,true));header.addView(back,new LinearLayout.LayoutParams(dp(52),dp(40)));
         TextView title=label("عدادات القيادة والكيلومتراج",20,Color.WHITE,true);title.setGravity(Gravity.CENTER);header.addView(title,new LinearLayout.LayoutParams(0,dp(40),1));all.addView(header);
-        SpeedometerView gauge=new SpeedometerView(this);gauge.setSpeed(lastDisplayedSpeed);LinearLayout.LayoutParams gl=new LinearLayout.LayoutParams(dp(260),dp(260));gl.gravity=Gravity.CENTER;all.addView(gauge,gl);
+        clusterGauge=new SpeedometerView(this);clusterGauge.setSpeed(lastDisplayedSpeed);LinearLayout.LayoutParams gl=new LinearLayout.LayoutParams(dp(260),dp(260));gl.gravity=Gravity.CENTER;all.addView(clusterGauge,gl);
         LinearLayout stats=horizontal();stats.setGravity(Gravity.CENTER);
         stats.addView(statCard("رحلة حالية","trip"),new LinearLayout.LayoutParams(0,dp(104),1));
         stats.addView(statCard("كيلومترات إجمالية","odometer"),new LinearLayout.LayoutParams(0,dp(104),1));
@@ -288,7 +288,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
             }
         }
         previousFix=new Location(l);maxSpeed=Math.max(maxSpeed,lastDisplayedSpeed);prefs().edit().putFloat("max_speed",maxSpeed).apply();
-        if(speedometer!=null)speedometer.setSpeed(lastDisplayedSpeed);
+        if(speedometer!=null)speedometer.setSpeed(lastDisplayedSpeed);if(clusterGauge!=null)clusterGauge.setSpeed(lastDisplayedSpeed);
         if(gpsStatus!=null)gpsStatus.setText(l.hasAccuracy()?String.format(Locale.US,"GPS دقة ±%.0f متر",l.getAccuracy()):"GPS نشط");
         if(lastDisplayedSpeed>120)announceSpeedLimit();
         updateStats();
