@@ -186,7 +186,7 @@ public final class YouTubeSearchActivity extends Activity {
             android.widget.TextView text = (android.widget.TextView) view;
             if (!(view instanceof android.widget.EditText)) {
                 text.setTextColor(0xFFE8F6FF);
-                text.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.MEDIUM));
+                text.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL));
             }
             text.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         }
@@ -196,5 +196,5 @@ public final class YouTubeSearchActivity extends Activity {
             for (int i = 0; i < group.getChildCount(); i++) applyCockpitTheme(group.getChildAt(i));
         }
     }
-    private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+
 }
