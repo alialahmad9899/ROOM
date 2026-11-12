@@ -130,7 +130,7 @@ for token in ("getLastKnownLocation(provider)", "LocationManager.GPS_PROVIDER",
     require(token in navigation, "navigation/GPS contract missing: " + token)
 require("location.getAccuracy()>45f" not in navigation,
         "navigation must not discard all GPS fixes solely for a 45m accuracy threshold")
-require("gpsRunning=registered" in main and "handler.post(()->{stopGps();startGps();}) in main,
+require("gpsRunning=registered" in main and "handler.post(()->{stopGps();startGps();})" in main,
         "main GPS provider state must retry after provider enable")
 
 # API21 TLS uses trusted roots and hostname verification, not permissive trust-all.
