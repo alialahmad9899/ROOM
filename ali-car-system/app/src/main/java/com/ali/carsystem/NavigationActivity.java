@@ -58,7 +58,8 @@ public final class NavigationActivity extends Activity implements LocationListen
     @Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)immersive();}
 
     @Override protected void onCreate(Bundle state){
-        super.onCreate(state);immersive();
+        super.onCreate(state);
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);immersive();
         Configuration.getInstance().setUserAgentValue(NetworkCompat.USER_AGENT);
         try{HttpsURLConnection.setDefaultSSLSocketFactory(LegacyTls.socketFactory(getApplicationContext()));}catch(Exception ignored){}
         Configuration.getInstance().setCacheMapTileCount((short)4);
