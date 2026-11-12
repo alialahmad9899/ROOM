@@ -96,7 +96,8 @@ public final class MainActivity extends Activity implements LocationListener {
         root=new FrameLayout(this);root.setBackgroundColor(Color.BLACK);root.setClipChildren(false);
         pager=new ViewPager(this);
         pager.setId(View.generateViewId());
-        pager.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);\n        pager.setOffscreenPageLimit(1);
+        pager.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        pager.setOffscreenPageLimit(1);
         pager.setAdapter(new CockpitPagerAdapter());
         pager.addOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener(){
             @Override public void onPageSelected(int position){
