@@ -201,12 +201,12 @@ public final class MainActivity extends Activity implements LocationListener {
 
         LinearLayout dock=new LinearLayout(this);dock.setGravity(Gravity.CENTER);dock.setOrientation(LinearLayout.HORIZONTAL);dock.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         dock.setPadding(dp(16),dp(4),dp(16),0);
-        dock.addView(dockItem("▶","يوتيوب",0xFFFF536C,()->openActivity(YouTubeSearchActivity.class)),dockParams());
-        dock.addView(dockItem("⌖","الملاحة",0xFF4DE5B2,()->openActivity(NavigationActivity.class)),dockParams());
-        dock.addView(dockItem("♫","الموسيقى",0xFFE48CFF,()->openActivity(MusicActivity.class)),dockParams());
-        dock.addView(dockItem("ᛒ","بلوتوث",0xFF65BFFF,this::toggleBluetooth),dockParams());
-        dock.addView(dockItem("◉","واي فاي",0xFF6DF5E2,this::toggleWifi),dockParams());
-        dock.addView(dockItem("☼","السطوع",0xFFFFD36B,this::showBrightnessPill),dockParams());
+        dock.addView(dockItem(R.drawable.ic_car_youtube,"يوتيوب",0xFFFF536C,()->openActivity(YouTubeSearchActivity.class)),dockParams());
+        dock.addView(dockItem(R.drawable.ic_car_navigation,"الملاحة",0xFF4DE5B2,()->openActivity(NavigationActivity.class)),dockParams());
+        dock.addView(dockItem(R.drawable.ic_car_music,"الموسيقى",0xFFE48CFF,()->openActivity(MusicActivity.class)),dockParams());
+        dock.addView(dockItem(R.drawable.ic_car_bluetooth,"بلوتوث",0xFF65BFFF,this::toggleBluetooth),dockParams());
+        dock.addView(dockItem(R.drawable.ic_car_wifi,"واي فاي",0xFF6DF5E2,this::toggleWifi),dockParams());
+        dock.addView(dockItem(R.drawable.ic_car_brightness,"السطوع",0xFFFFD36B,this::showBrightnessPill),dockParams());
         FrameLayout.LayoutParams dockLp=new FrameLayout.LayoutParams(-1,dp(82),Gravity.BOTTOM);
         dockLp.bottomMargin=dp(22);page.addView(dock,dockLp);
         TextView credit=label("تم تطوير الواجهة بواسطة : ali ahmad",10,0xFFF4EBD9,true);credit.setGravity(Gravity.CENTER);
@@ -260,15 +260,18 @@ public final class MainActivity extends Activity implements LocationListener {
     private LinearLayout.LayoutParams dockParams(){
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1f);p.leftMargin=dp(2);p.rightMargin=dp(2);return p;
     }
-    private LinearLayout dockItem(String symbol,String caption,int color,Runnable action){
+    private LinearLayout dockItem(int iconResource,String caption,int color,Runnable action){
         LinearLayout item=new LinearLayout(this);item.setOrientation(LinearLayout.VERTICAL);item.setGravity(Gravity.CENTER);
-        TextView glyph=label(symbol,31,color,true);glyph.setGravity(Gravity.CENTER);
-        glyph.setShadowLayer(dp(10),0,dp(3),color);glyph.setBackgroundColor(Color.TRANSPARENT);glyph.setPadding(0,0,0,0);
-        TextView name=label(caption,10,Color.WHITE,true);name.setGravity(Gravity.CENTER);
+        ImageView glyph=new ImageView(this);glyph.setImageResource(iconResource);
+        glyph.setColorFilter(color,android.graphics.PorterDuff.Mode.SRC_IN);
+        glyph.setScaleType(ImageView.ScaleType.FIT_CENTER);glyph.setPadding(dp(8),dp(4),dp(8),dp(2));
+        glyph.setElevation(dp(5));
+        TextView name=label(caption,11,Color.WHITE,true);name.setGravity(Gravity.CENTER);
         name.setShadowLayer(dp(4),0,dp(1),Color.BLACK);name.setBackgroundColor(Color.TRANSPARENT);
-        item.addView(glyph,new LinearLayout.LayoutParams(-1,dp(50)));
-        item.addView(name,new LinearLayout.LayoutParams(-1,dp(20)));
+        item.addView(glyph,new LinearLayout.LayoutParams(-1,dp(52)));
+        item.addView(name,new LinearLayout.LayoutParams(-1,dp(22)));
         item.setBackgroundColor(Color.TRANSPARENT);item.setOnClickListener(v->action.run());item.setClickable(true);
+        item.setFocusable(true);
         return item;
     }
     private TextView mediaKey(String glyph,String action){
