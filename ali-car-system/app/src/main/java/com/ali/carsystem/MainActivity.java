@@ -119,7 +119,7 @@ public final class MainActivity extends Activity implements LocationListener {
         dock.addView(dockItem("◉","واي فاي",0xFF087E72,0xFF54EACB,this::toggleWifi),dockLp());
         dock.addView(dockItem("☼","السطوع",0xFF9E5B08,0xFFFFD266,this::brightnessDialog),dockLp());
         screen.addView(dock,new LinearLayout.LayoutParams(-1,dp(82)));
-        TextView credit=label("تم تطوير الواجهة بواسطة : ali ahmad",11,0xFFFFDFA1,true);credit.setGravity(Gravity.CENTER);
+        TextView credit=label("تم تطوير الواجهة بواسطة: علي أحمد",11,0xFFFFDFA1,true);credit.setGravity(Gravity.CENTER);
         screen.addView(credit,new LinearLayout.LayoutParams(-1,dp(21)));
         root.addView(screen,new FrameLayout.LayoutParams(-1,-1));setContentView(root);wirelessState();
     }
