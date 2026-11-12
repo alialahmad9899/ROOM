@@ -117,7 +117,7 @@ for token in ("MediaStore.Audio.Media", "RecyclerView", "prepareAsync", "SeekBar
 # Nominatim + GeoJSON OSRM + immersive, full-screen car-navigation mode.
 for token in ("MapView", "nominatim.openstreetmap.org", "router.project-osrm.org",
               'URLEncoder.encode(text,"UTF-8")', "geometries=geojson", "coordinates",
-              "AliCarLauncher/2.0 (Android 5.0)", "routeLine.setWidth(dp(14))",
+              "routeLine.setWidth(dp(14))",
               "map.setMapOrientation(-location.getBearing())", "createCarBitmap",
               "moveCarMarker", "map.getController().setZoom(18.5)", "onWindowFocusChanged",
               "SYSTEM_UI_FLAG_IMMERSIVE_STICKY", "map.onDetach", "0xFF111111", "0xFF666666"):
