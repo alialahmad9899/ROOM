@@ -25,7 +25,7 @@ public final class SettingsActivity extends BaseActivity {
         button("إعدادات التطبيقات",()->startActivity(new Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)));
         button("تفعيل وضع السيارة المقفل",()->{if(owner){try{dpm.setLockTaskPackages(admin,new String[]{getPackageName()});startLockTask();}catch(Exception e){add("تعذر تشغيل وضع القفل: "+e.getMessage());}}else add("يلزم تعيين التطبيق Device Owner أولاً عبر إعداد الجهاز.");});
         button("إيقاف وضع القفل",()->{try{stopLockTask();}catch(Exception ignored){}});
-        button("إذن تعديل سطوع النظام",()->startActivity(new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,android.net.Uri.parse("package:"+getPackageName()))));
+        button("إذن تعديل سطوع النظام",()->{if(Build.VERSION.SDK_INT>=23)startActivity(new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,android.net.Uri.parse("package:"+getPackageName())));else Toast.makeText(this,"إذن تعديل السطوع متاح ضمن صلاحيات النظام في هذا الإصدار",Toast.LENGTH_LONG).show();});
         button("إدارة التطبيقات الاختيارية",()->showHideDialog(owner));
         add("اسم كلاس الإدارة الكامل: com.ali.carsystem.CarAdminReceiver");
         add("لا يمكن إخفاء خدمات النظام إلا عندما يكون التطبيق Device Owner؛ لن نخفي خدمات Google أو الهاتف أو الموقع تلقائياً.");
