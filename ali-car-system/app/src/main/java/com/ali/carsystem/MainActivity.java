@@ -189,7 +189,7 @@ public final class MainActivity extends Activity implements LocationListener {
         FrameLayout.LayoutParams contentLp=new FrameLayout.LayoutParams(-1,-1);
         contentLp.topMargin=dp(52);contentLp.bottomMargin=dp(118);page.addView(content,contentLp);
 
-        LinearLayout dock=new LinearLayout(this);dock.setGravity(Gravity.CENTER);dock.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout dock=new LinearLayout(this);dock.setGravity(Gravity.CENTER);dock.setOrientation(LinearLayout.HORIZONTAL);dock.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         dock.setPadding(dp(16),dp(4),dp(16),0);
         dock.addView(dockItem("▶","يوتيوب",0xFFFF536C,()->openActivity(YouTubeSearchActivity.class)),dockParams());
         dock.addView(dockItem("⌖","الملاحة",0xFF4DE5B2,()->openActivity(NavigationActivity.class)),dockParams());
