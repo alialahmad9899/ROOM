@@ -59,17 +59,17 @@ jobs:
           grep -F "targetSdkVersion:'22'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           mkdir -p output
-          cp "$APK" output/ALI-Car-System-2.0.0-api21-debug.apk
-          sha256sum output/ALI-Car-System-2.0.0-api21-debug.apk > output/SHA256SUMS.txt
+          cp "$APK" output/ALI-Car-System-2.1.0-api21-debug.apk
+          sha256sum output/ALI-Car-System-2.1.0-api21-debug.apk > output/SHA256SUMS.txt
           {
             echo "Project: ALI Car System"
             echo "Package: com.ali.carsystem"
-            echo "Minimum Android: 5.0 / API 21"
+            echo "Version: 2.1.0"\n            echo "Minimum Android: 5.0 / API 21"
             echo "Target SDK: 22"
             echo "Build type: Debug (automatically signed for installation/testing)"
-            echo "Architecture: Native UI + RecyclerView + MediaPlayer/SurfaceView; no WebView"
+            echo "Architecture: Native UI + RecyclerView + MediaPlayer/SurfaceView; no WebView"\n            echo "Wallpaper: supplied 1280x720 WebP, decoded as RGB_565"
             echo "Commit: $GITHUB_SHA"
-            stat --printf='APK bytes: %s\n' output/ALI-Car-System-2.0.0-api21-debug.apk
+            stat --printf='APK bytes: %s\n' output/ALI-Car-System-2.1.0-api21-debug.apk
             cat output/SHA256SUMS.txt
           } > output/BUILD-INFO.txt
 
@@ -78,7 +78,7 @@ jobs:
         with:
           name: ALI-CAR-SYSTEM-API21-APK
           path: |
-            output/ALI-Car-System-2.0.0-api21-debug.apk
+            output/ALI-Car-System-2.1.0-api21-debug.apk
             output/SHA256SUMS.txt
             output/BUILD-INFO.txt
           if-no-files-found: error
