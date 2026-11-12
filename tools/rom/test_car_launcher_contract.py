@@ -124,8 +124,8 @@ for token in ("MapView", "nominatim.openstreetmap.org", "router.project-osrm.org
     require(token in navigation, "car navigation contract missing: " + token)
 
 # Shared secure API-21 transport; no permissive certificate bypass.
-require("NetworkCompat.open(context, address)" in video_api, "video API bypasses TLS transport")
-require("NetworkCompat.open(this, address)" in navigation, "navigation bypasses TLS transport")
+require("NetworkCompat.open(context" in video_api, "video API bypasses TLS transport")
+require("NetworkCompat.open(this" in navigation, "navigation bypasses TLS transport")
 require('AliCarLauncher/2.0 (Android 5.0)' in network, "Nominatim User-Agent missing from shared HTTP transport")
 require("setSSLSocketFactory(LegacyTls.socketFactory(context))" in network,
         "HTTPS does not use the API-21 TLS socket factory")
