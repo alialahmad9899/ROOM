@@ -36,10 +36,10 @@ public final class MainActivity extends Activity implements LocationListener {
         String t=new SimpleDateFormat("hh:mm",Locale.US).format(now);
         if(timeText!=null)timeText.setText(t);
         if(largeTime!=null)largeTime.setText(t);
-        if(dateText!=null)dateText.setText(new SimpleDateFormat("EEEE, dd MMM yyyy",Locale.US).format(now));
+        if(dateText!=null)dateText.setText(new SimpleDateFormat("EEEE، d MMMM yyyy",new Locale("ar")).format(now));
         if(lastGps!=0 && SystemClock.elapsedRealtime()-lastGps>7000){
             speed=0; speedView.setSpeed(0); speedView.setGps(false);
-            if(gpsText!=null)gpsText.setText("GPS waiting for signal");
+            if(gpsText!=null)gpsText.setText("بانتظار إشارة تحديد الموقع");
         }
         if(speedView!=null)speedView.invalidate();
         h.postDelayed(this,1000);
@@ -80,7 +80,7 @@ public final class MainActivity extends Activity implements LocationListener {
         TextView logo=label("ALI CAR",26,Color.WHITE,true);logo.setLetterSpacing(.12f);logo.setShadowLayer(dp(7),0,0,CYAN);
         header.addView(logo,new LinearLayout.LayoutParams(0,dp(45),1));
         LinearLayout state=new LinearLayout(this);state.setGravity(Gravity.CENTER_VERTICAL);
-        wifiText=label("● Wi-Fi",12,0xFF75E6FF,true);btText=label("ᛒ Bluetooth",12,0xFF8BC7FF,true);
+        wifiText=label("◉ واي فاي",12,0xFF75E6FF,true);btText=label("ᛒ بلوتوث",12,0xFF8BC7FF,true);
         timeText=label("--:--",21,Color.WHITE,true);
         wifiText.setPadding(dp(4),0,dp(8),0);btText.setPadding(dp(4),0,dp(8),0);timeText.setPadding(dp(8),0,dp(8),0);
         state.addView(wifiText);state.addView(btText);state.addView(timeText);
@@ -90,10 +90,10 @@ public final class MainActivity extends Activity implements LocationListener {
 
         LinearLayout body=new LinearLayout(this);body.setGravity(Gravity.CENTER);body.setPadding(dp(3),dp(4),dp(3),dp(4));
         LinearLayout left=panel();left.setOrientation(LinearLayout.VERTICAL);left.setGravity(Gravity.CENTER);
-        TextView sl=label("GPS SPEED",12,0xFF8BDFFF,true);sl.setGravity(Gravity.CENTER);
+        TextView sl=label("مؤشر السرعة",12,0xFF8BDFFF,true);sl.setGravity(Gravity.CENTER);
         left.addView(sl,new LinearLayout.LayoutParams(-1,dp(23)));
         speedView=new SpeedView();left.addView(speedView,new LinearLayout.LayoutParams(-1,0,1));
-        gpsText=label("Waiting for GPS",11,0xFFE4F3FF,true);gpsText.setGravity(Gravity.CENTER);
+        gpsText=label("بانتظار إشارة الموقع",11,0xFFE4F3FF,true);gpsText.setGravity(Gravity.CENTER);
         left.addView(gpsText,new LinearLayout.LayoutParams(-1,dp(22)));
         LinearLayout media=new LinearLayout(this);media.setGravity(Gravity.CENTER);
         media.addView(mediaButton("⏮","previous"),new LinearLayout.LayoutParams(dp(58),dp(38)));
@@ -112,23 +112,23 @@ public final class MainActivity extends Activity implements LocationListener {
         screen.addView(body,new LinearLayout.LayoutParams(-1,0,1));
 
         LinearLayout dock=new LinearLayout(this);dock.setGravity(Gravity.CENTER);
-        dock.addView(dockItem("▶","YouTube Lite",0xFFB8142B,0xFFFF6378,()->open(YouTubeSearchActivity.class)),dockLp());
-        dock.addView(dockItem("⌖","Navigation",0xFF087C4A,0xFF64E9A3,()->open(NavigationActivity.class)),dockLp());
-        dock.addView(dockItem("♫","Music",0xFF7920A5,0xFFE17BFF,()->open(MusicActivity.class)),dockLp());
-        dock.addView(dockItem("ᛒ","Bluetooth",0xFF104EAA,0xFF6BB9FF,this::toggleBluetooth),dockLp());
-        dock.addView(dockItem("◉","Wi-Fi",0xFF087E72,0xFF54EACB,this::toggleWifi),dockLp());
-        dock.addView(dockItem("☼","Brightness",0xFF9E5B08,0xFFFFD266,this::brightnessDialog),dockLp());
+        dock.addView(dockItem("▶","يوتيوب",0xFFB8142B,0xFFFF6378,()->open(YouTubeSearchActivity.class)),dockLp());
+        dock.addView(dockItem("⌖","الملاحة",0xFF087C4A,0xFF64E9A3,()->open(NavigationActivity.class)),dockLp());
+        dock.addView(dockItem("♫","الموسيقى",0xFF7920A5,0xFFE17BFF,()->open(MusicActivity.class)),dockLp());
+        dock.addView(dockItem("ᛒ","بلوتوث",0xFF104EAA,0xFF6BB9FF,this::toggleBluetooth),dockLp());
+        dock.addView(dockItem("◉","واي فاي",0xFF087E72,0xFF54EACB,this::toggleWifi),dockLp());
+        dock.addView(dockItem("☼","السطوع",0xFF9E5B08,0xFFFFD266,this::brightnessDialog),dockLp());
         screen.addView(dock,new LinearLayout.LayoutParams(-1,dp(82)));
         TextView credit=label("تم تطوير الواجهة بواسطة : ali ahmad",11,0xFFFFDFA1,true);credit.setGravity(Gravity.CENTER);
         screen.addView(credit,new LinearLayout.LayoutParams(-1,dp(21)));
         root.addView(screen,new FrameLayout.LayoutParams(-1,-1));setContentView(root);wirelessState();
     }
-    private LinearLayout panel(){LinearLayout p=new LinearLayout(this);p.setPadding(dp(8),dp(6),dp(8),dp(6));p.setBackground(shape(0xA80A1828,18,0x7052DFFF));return p;}
+    private LinearLayout panel(){LinearLayout p=new LinearLayout(this);p.setPadding(dp(8),dp(6),dp(8),dp(6));p.setBackgroundColor(Color.TRANSPARENT);return p;}
     private LinearLayout.LayoutParams dockLp(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);p.leftMargin=dp(3);p.rightMargin=dp(3);return p;}
     private View dockItem(String symbol,String title,int c1,int c2,Runnable run){
         LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setGravity(Gravity.CENTER);card.setBackground(shape(c1,15,c2));
         TextView i=label(symbol,27,Color.WHITE,true);i.setGravity(Gravity.CENTER);i.setShadowLayer(dp(5),0,dp(2),Color.BLACK);
-        TextView t=label(title,10,Color.WHITE,true);t.setGravity(Gravity.CENTER);
+        TextView t=label(title,10,Color.WHITE,true);t.setGravity(Gravity.CENTER);t.setTextDirection(View.TEXT_DIRECTION_RTL);
         card.addView(i,new LinearLayout.LayoutParams(-1,dp(43)));card.addView(t,new LinearLayout.LayoutParams(-1,dp(23)));
         card.setOnClickListener(v->run.run());card.setClickable(true);return card;
     }
@@ -147,7 +147,7 @@ public final class MainActivity extends Activity implements LocationListener {
     private void settingsMenu(View anchor){
         PopupMenu m=new PopupMenu(this,anchor);
         m.getMenu().add("إعدادات الجهاز").setOnMenuItemClickListener(x->{try{startActivity(new Intent(Settings.ACTION_SETTINGS));}catch(Exception ignored){}return true;});
-        m.getMenu().add("إدارة الجهاز و Kiosk").setOnMenuItemClickListener(x->{open(AdminToolsActivity.class);return true;});m.show();
+        m.getMenu().add("إدارة الجهاز ووضع القيادة المغلق").setOnMenuItemClickListener(x->{open(AdminToolsActivity.class);return true;});m.show();
     }
     private void brightnessDialog(){
         LinearLayout box=new LinearLayout(this);box.setPadding(dp(15),dp(8),dp(15),dp(8));box.setOrientation(LinearLayout.VERTICAL);
@@ -162,18 +162,18 @@ public final class MainActivity extends Activity implements LocationListener {
     }
     private int readBrightness(){try{return Settings.System.getInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,160);}catch(Exception e){return 160;}}
     private void setBrightness(int v){int safe=Math.max(12,Math.min(255,v));WindowManager.LayoutParams p=getWindow().getAttributes();p.screenBrightness=safe/255f;getWindow().setAttributes(p);try{Settings.System.putInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS_MODE,Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);Settings.System.putInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,safe);}catch(SecurityException ignored){}}
-    private void toggleWifi(){try{boolean ok=wifi.setWifiEnabled(!wifi.isWifiEnabled());Toast.makeText(this,ok?"Wi-Fi command sent":"System denied Wi-Fi change",Toast.LENGTH_SHORT).show();}catch(Exception e){Toast.makeText(this,"Wi-Fi permission denied",Toast.LENGTH_SHORT).show();}h.postDelayed(this::wirelessState,1300);}
-    private void toggleBluetooth(){BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a==null)return;try{boolean ok=a.isEnabled()?a.disable():a.enable();Toast.makeText(this,ok?"Bluetooth command sent":"Bluetooth change failed",Toast.LENGTH_SHORT).show();}catch(Exception e){}h.postDelayed(this::wirelessState,1300);}
+    private void toggleWifi(){try{boolean ok=wifi.setWifiEnabled(!wifi.isWifiEnabled());Toast.makeText(this,ok?"تم إرسال أمر تشغيل أو إيقاف الواي فاي":"تعذر تغيير حالة الواي فاي",Toast.LENGTH_SHORT).show();}catch(Exception e){Toast.makeText(this,"لا يسمح النظام بتغيير حالة الواي فاي",Toast.LENGTH_SHORT).show();}h.postDelayed(this::wirelessState,1300);}
+    private void toggleBluetooth(){BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a==null)return;try{boolean ok=a.isEnabled()?a.disable():a.enable();Toast.makeText(this,ok?"تم إرسال أمر تشغيل أو إيقاف البلوتوث":"تعذر تغيير حالة البلوتوث",Toast.LENGTH_SHORT).show();}catch(Exception e){}h.postDelayed(this::wirelessState,1300);}
     private void wirelessState(){
-        if(wifiText!=null){boolean on=wifi!=null&&wifi.isWifiEnabled();wifiText.setText(on?"● Wi-Fi ON":"● Wi-Fi OFF");wifiText.setTextColor(on?0xFF7AF4C1:0xFFFFA2A2);}
-        BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(btText!=null){boolean on=a!=null&&a.isEnabled();btText.setText(on?"ᛒ Bluetooth ON":"ᛒ Bluetooth OFF");btText.setTextColor(on?0xFF8BC7FF:0xFFFFA2A2);}
+        if(wifiText!=null){boolean on=wifi!=null&&wifi.isWifiEnabled();wifiText.setText(on?"◉ واي فاي يعمل":"◉ واي فاي متوقف");wifiText.setTextColor(on?0xFF7AF4C1:0xFFFFA2A2);}
+        BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(btText!=null){boolean on=a!=null&&a.isEnabled();btText.setText(on?"ᛒ بلوتوث يعمل":"ᛒ بلوتوث متوقف");btText.setTextColor(on?0xFF8BC7FF:0xFFFFA2A2);}
     }
     private void open(Class<?> c){try{startActivity(new Intent(this,c));}catch(Exception e){Toast.makeText(this,"تعذر فتح الشاشة",Toast.LENGTH_SHORT).show();}}
     private void greet(){try{tts=new TextToSpeech(this,s->{if(s==TextToSpeech.SUCCESS&&tts!=null){int a=tts.setLanguage(new Locale("ar"));if(a!=TextToSpeech.LANG_MISSING_DATA&&a!=TextToSpeech.LANG_NOT_SUPPORTED)tts.speak("أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",TextToSpeech.QUEUE_FLUSH,null);}});}catch(Exception ignored){}}
 
     private void startGps(){
         if(gpsRunning||locations==null)return;
-        try{if(!locations.isProviderEnabled(LocationManager.GPS_PROVIDER)){gpsText.setText("Enable GPS");return;}
+        try{if(!locations.isProviderEnabled(LocationManager.GPS_PROVIDER)){gpsText.setText("فعّل نظام تحديد الموقع");return;}
             locations.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,1,this);gpsRunning=true;
         }catch(Exception ignored){}
     }
@@ -185,9 +185,9 @@ public final class MainActivity extends Activity implements LocationListener {
         if(Float.isNaN(v)||Float.isInfinite(v)||v<0)return;
         if(speed>15&&Math.abs(v-speed)>75)return;
         speed=speed==0?v:speed*.72f+v*.28f;lastGps=SystemClock.elapsedRealtime();speedView.setSpeed(speed);speedView.setGps(true);
-        gpsText.setText(l.hasAccuracy()?String.format(Locale.US,"GPS ±%.0f m",l.getAccuracy()):"GPS locked");
+        gpsText.setText(l.hasAccuracy()?String.format(new Locale("ar"),"دقة الموقع ±%.0f متر",l.getAccuracy()):"إشارة الموقع مستقرة");
     }
-    @Override public void onProviderDisabled(String p){if(LocationManager.GPS_PROVIDER.equals(p)&&gpsText!=null){gpsText.setText("GPS disabled");speedView.setGps(false);}}
+    @Override public void onProviderDisabled(String p){if(LocationManager.GPS_PROVIDER.equals(p)&&gpsText!=null){gpsText.setText("نظام تحديد الموقع متوقف");speedView.setGps(false);}}
     @Override public void onProviderEnabled(String p){}
     @Override public void onStatusChanged(String p,int s,Bundle b){}
 
@@ -217,7 +217,7 @@ public final class MainActivity extends Activity implements LocationListener {
         @Override protected void onDraw(Canvas c){super.onDraw(c);float x=getWidth()/2f,y=getHeight()/2f,r=Math.min(getWidth()*.38f,getHeight()*.42f);a.set(x-r,y-r,x+r,y+r);
             p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(7));p.setStrokeCap(Paint.Cap.ROUND);p.setColor(0xFF344C60);c.drawArc(a,135,270,false,p);
             p.setColor(hasGps?CYAN:0xFF788A9C);c.drawArc(a,135,value/240f*270,false,p);p.setStyle(Paint.Style.FILL);p.setTextAlign(Paint.Align.CENTER);
-            p.setTypeface(Typeface.create("sans-serif-light",0));p.setTextSize(Math.min(dp(55),r*.65f));p.setColor(Color.WHITE);c.drawText(hasGps?String.valueOf(Math.round(value)):"--",x,y+dp(8),p);
+            p.setTypeface(Typeface.create("sans-serif-light",0));p.setTextSize(Math.min(dp(55),r*.65f));p.setColor(Color.WHITE);p.setShadowLayer(dp(10),0,0,0xFF42CFFF);c.drawText(hasGps?String.valueOf(Math.round(value)):"--",x,y+dp(8),p);
             p.setTypeface(Typeface.DEFAULT_BOLD);p.setTextSize(dp(14));p.setColor(GOLD);c.drawText("km/h",x,y+dp(31),p);
         }
     }
