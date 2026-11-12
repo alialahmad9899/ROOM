@@ -12,7 +12,7 @@ public final class GeoMath {
     public static double speedKmh(double distanceMeters,long elapsedMillis) {
         if (elapsedMillis <= 0 || distanceMeters < 0) return 0;
         double v=distanceMeters/(elapsedMillis/1000d)*3.6d;
-        return Double.isFinite(v) ? Math.max(0,Math.min(350,v)) : 0;
+        return (!Double.isNaN(v) && !Double.isInfinite(v)) ? Math.max(0,Math.min(350,v)) : 0;
     }
     public static boolean isUsableFix(long fixTime,long now,long maxAgeMs,float accuracyMeters) {
         return fixTime > 0 && now >= fixTime && now-fixTime <= maxAgeMs &&
