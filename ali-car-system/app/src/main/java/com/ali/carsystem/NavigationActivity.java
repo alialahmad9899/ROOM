@@ -75,7 +75,7 @@ public final class NavigationActivity extends Activity implements LocationListen
         map.getController().setZoom(13.0);map.getController().setCenter(new GeoPoint(34.8,38.9));
         root.addView(map,new FrameLayout.LayoutParams(-1,-1));
 
-        LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.VERTICAL);top.setPadding(dp(8),dp(7),dp(8),0);
+        LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.VERTICAL);top.setPadding(dp(8),0,dp(8),0);
         LinearLayout searchRow=new LinearLayout(this);searchRow.setGravity(Gravity.CENTER_VERTICAL);
         query=new EditText(this);query.setSingleLine(true);query.setTextColor(0xFF111111);query.setHintTextColor(0xFF666666);
         query.setHint("ابحث عن مدينة أو محافظة أو شارع");query.setTextSize(15);query.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
@@ -91,15 +91,13 @@ public final class NavigationActivity extends Activity implements LocationListen
         maneuverBanner.setBackground(glass(0xE8152B40,0x9978DFFF,13));
         LinearLayout.LayoutParams bannerLp=new LinearLayout.LayoutParams(-1,dp(40));bannerLp.topMargin=dp(5);
         top.addView(maneuverBanner,bannerLp);
+        routeStatus=text("المسافة والوقت يظهران هنا",12,Color.WHITE,true);
+        routeStatus.setGravity(Gravity.CENTER);routeStatus.setPadding(dp(10),0,dp(10),0);
+        routeStatus.setBackground(glass(0xC9152B40,0x6678DFFF,14));
+        LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(-1,dp(34));
+        statusLp.topMargin=dp(4);top.addView(routeStatus,statusLp);
         FrameLayout.LayoutParams topLp=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);
         root.addView(top,topLp);
-
-        routeStatus=text("المسافة والوقت المتبقي يظهران هنا",13,Color.WHITE,true);
-        routeStatus.setGravity(Gravity.CENTER);routeStatus.setPadding(dp(12),0,dp(12),0);
-        routeStatus.setBackground(glass(0xE8152B40,0x9978DFFF,18));
-        FrameLayout.LayoutParams bottomLp=new FrameLayout.LayoutParams(-1,dp(42),Gravity.BOTTOM);
-        bottomLp.leftMargin=dp(12);bottomLp.rightMargin=dp(12);bottomLp.bottomMargin=dp(10);
-        root.addView(routeStatus,bottomLp);
         setContentView(root);
         query.setOnEditorActionListener((v,action,event)->{searchDestination();return true;});
         loadLastKnownLocation();
