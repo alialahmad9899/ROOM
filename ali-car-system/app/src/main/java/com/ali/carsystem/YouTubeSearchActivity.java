@@ -90,6 +90,7 @@ public final class YouTubeSearchActivity extends Activity {
             return true;
         });
         setContentView(root);
+        applyCockpitTheme(root);
     }
 
     private void search() {
@@ -155,4 +156,44 @@ public final class YouTubeSearchActivity extends Activity {
         if (task != null) task.cancel(true);
         super.onDestroy();
     }
+
+    private void applyCockpitTheme(android.view.View view) {
+        if (view == null) return;
+        if (view instanceof android.widget.EditText) {
+            android.widget.EditText input = (android.widget.EditText) view;
+            input.setTextColor(0xFF111111);
+            input.setHintTextColor(0xFF657786);
+            input.setPadding(dp(12), dp(4), dp(12), dp(4));
+            android.graphics.drawable.GradientDrawable field = new android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                    new int[]{0xFFF9FCFF, 0xFFEAF5FA});
+            field.setCornerRadius(dp(14));
+            field.setStroke(dp(1), 0xFF65DFFF);
+            input.setBackground(field);
+        } else if (view instanceof android.widget.Button) {
+            android.widget.Button button = (android.widget.Button) view;
+            android.graphics.drawable.GradientDrawable glass = new android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                    new int[]{0xFF277DA3, 0xFF12344A, 0xFF0B1B2A});
+            glass.setCornerRadius(dp(18));
+            glass.setStroke(dp(1), 0xFF6DE4FF);
+            button.setBackground(glass);
+            button.setTextColor(android.graphics.Color.WHITE);
+            button.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD));
+            button.setElevation(dp(4));
+        } else if (view instanceof android.widget.TextView) {
+            android.widget.TextView text = (android.widget.TextView) view;
+            if (!(view instanceof android.widget.EditText)) {
+                text.setTextColor(0xFFE8F6FF);
+                text.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.MEDIUM));
+            }
+            text.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            group.setClipToPadding(false);
+            for (int i = 0; i < group.getChildCount(); i++) applyCockpitTheme(group.getChildAt(i));
+        }
+    }
+    private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 }
