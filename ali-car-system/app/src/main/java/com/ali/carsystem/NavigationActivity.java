@@ -43,7 +43,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         TextView attribution=new TextView(this);attribution.setText("© OpenStreetMap contributors");attribution.setTextColor(-1);attribution.setTextSize(10);attribution.setBackgroundColor(0xAA061522);attribution.setPadding(dp(7),dp(4),dp(7),dp(4));
         FrameLayout.LayoutParams ap=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);root.addView(attribution,ap);
         setContentView(root);go.setOnClickListener(v->searchDestination());search.setOnEditorActionListener((v,a,e)->{searchDestination();return true;});
-        loadLastKnown();if(current!=null)showCar(current);map.onResume();
+        loadLastKnown();if(current!=null)showCar(current);
     }
     private void searchDestination(){
         String q=search.getText().toString().trim();if(q.length()<2){search.setError("أدخل اسم وجهة");return;}
