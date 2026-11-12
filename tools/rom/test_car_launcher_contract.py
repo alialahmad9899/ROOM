@@ -67,8 +67,16 @@ dock = [line for line in main.splitlines() if "dock.addView(dockItem(" in line]
 require(len(dock) == 6, "main dashboard must have exactly six shortcut icons")
 for name in ('"يوتيوب"', '"الملاحة"', '"الموسيقى"', '"بلوتوث"', '"واي فاي"', '"السطوع"'):
     require(any(name in line for line in dock), "dock item missing: " + name)
-require("iconBubble" not in main and "glyph.setBackgroundColor(Color.TRANSPARENT)" in main,
-        "dock icons must not have backing squares/circles")
+require("iconBubble" not in main and "R.drawable.ic_car_youtube" in main
+        and "R.drawable.ic_car_navigation" in main and "R.drawable.ic_car_music" in main
+        and "R.drawable.ic_car_bluetooth" in main and "R.drawable.ic_car_wifi" in main
+        and "R.drawable.ic_car_brightness" in main,
+        "dock must use six native vector icons instead of Unicode glyphs")
+for icon in ("ic_car_youtube.xml", "ic_car_navigation.xml", "ic_car_music.xml",
+             "ic_car_bluetooth.xml", "ic_car_wifi.xml", "ic_car_brightness.xml"):
+    require((SRC / "res" / "drawable" / icon).is_file(), "vector dock icon missing: " + icon)
+require("dashboard.webp" in main and "wallpaper!=null" in main,
+        "wallpaper decode must include a validated bitmap fallback")
 
 # Animated four-second neon welcome and screen-on broadcast.
 for token in ("showWelcomeSplash", "ACTION_SCREEN_ON", "SplashNeonView", "PathMeasure",
@@ -92,7 +100,8 @@ for token in ("MediaStore.Audio.Media", "MediaPlayer", "player.prepareAsync()", 
 require("private void releasePlayer()" in music and "progressTick" in music, "music progress loop missing")
 
 # YouTube search across services, MP4 progressive formats and HLS fallback.
-for token in ("ExecutorCompletionService", "Executors.newFixedThreadPool(4)", "video/mp4",
+for token in ("ExecutorCompletionService", "Executors.newFixedThreadPool(4)", "deadline=System.nanoTime()",
+              'root.optJSONArray("items")', "video/mp4",
               "formatStreams", ".m3u8", "hlsUrl", "hls", "setConnectTimeout(8000)",
               "setReadTimeout(10000)", "for(String server:piped)", "for(String server:invidious)"):
     require(token in video_api, "video streaming contract missing: " + token)
@@ -107,9 +116,13 @@ for token in ("getLastKnownLocation(provider)", "LocationManager.GPS_PROVIDER",
               "requestLocationUpdates(LocationManager.NETWORK_PROVIDER",
               "nominatim.openstreetmap.org", "router.project-osrm.org", "geometries=geojson",
               "routeLine.setWidth(dp(14))", "carMarker.setRotation(location.getBearing())",
+              "zoomToBoundingBox", "OpenStreetMap contributors", "lastRouteAttemptMs>=10000L",
               "map.setMapOrientation(-location.getBearing())", "FLAG_KEEP_SCREEN_ON"):
     require(token in navigation, "navigation/GPS contract missing: " + token)
-require("120000L" not in navigation, "route must not reject a usable last-known fix just because it is not fresh")
+require("location.getAccuracy()>45f" not in navigation,
+        "navigation must not discard all GPS fixes solely for a 45m accuracy threshold")
+require("gpsRunning=registered" in main and "handler.post(this::startGps)" in main,
+        "main GPS provider state must retry after provider enable")
 
 # API21 TLS uses trusted roots and hostname verification, not permissive trust-all.
 require("NetworkCompat.open(context" in video_api, "video API bypasses NetworkCompat")
