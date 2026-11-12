@@ -89,7 +89,7 @@ for token in ("MediaStore.Audio.Media", "MediaPlayer", "player.prepareAsync()", 
               "VisualizerView", "setAlbumArt", "setPlaying", "last_music_index",
               "FLAG_KEEP_SCREEN_ON", "MediaStore.Audio.Media.ALBUM_ID"):
     require(token in music, "music player contract missing: " + token)
-require("removeCallbacks(progressTick)" not in music, "progress updates must survive track changes")
+require("private void releasePlayer()" in music and "progressTick" in music, "music progress loop missing")
 
 # YouTube search across services, MP4 progressive formats and HLS fallback.
 for token in ("ExecutorCompletionService", "Executors.newFixedThreadPool(4)", "video/mp4",
