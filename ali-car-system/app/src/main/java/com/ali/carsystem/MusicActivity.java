@@ -54,9 +54,9 @@ public final class MusicActivity extends Activity {
         buildUi();loadSongs();
         String action=getIntent().getStringExtra("ali.music.action");
         if(songs.isEmpty()){empty.setVisibility(View.VISIBLE);}
-        else if("next".equals(action)){playAt(0);next();}
-        else if("previous".equals(action)){playAt(songs.size()>1?songs.size()-1:0);}
-        else if("play".equals(action)){playAt(0);}
+        else if("next".equals(action)){playAt((lastMusicIndex()+1)%songs.size());}
+        else if("previous".equals(action)){playAt((lastMusicIndex()-1+ songs.size())%songs.size());}
+        else if("play".equals(action)){playAt(lastMusicIndex());}
         handler.post(progressTick);
     }
     private void buildUi(){
@@ -173,6 +173,8 @@ public final class MusicActivity extends Activity {
     private void playAt(int position){
         if(position<0||position>=songs.size())return;
         releasePlayer();index=position;Song song=songs.get(index);
+        getSharedPreferences("ali_car_trip_data",MODE_PRIVATE).edit()
+                .putInt("last_music_index",index).putString("last_song_title",song.title).apply();
         try{
             player=new MediaPlayer();
             Uri uri=Uri.withAppendedPath(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,String.valueOf(song.id));
@@ -186,9 +188,18 @@ public final class MusicActivity extends Activity {
         if(title!=null)title.setText(song.title);if(artist!=null)artist.setText(song.artist);
         if(playButton!=null)playButton.setText("Ⅱ");
         if(disc!=null)disc.setAlbumArt(null);
-        if(songTitlePreferenceAvailable())getSharedPreferences("ali_car_trip_data",MODE_PRIVATE).edit().putString("last_song_title",song.title).apply();
     }
-    private boolean songTitlePreferenceAvailable(){return true;}
+    private int lastMusicIndex(){
+        android.content.SharedPreferences saved=getSharedPreferences("ali_car_trip_data",MODE_PRIVATE);
+        String lastTitle=saved.getString("last_song_title","");
+        if(lastTitle!=null&&!lastTitle.isEmpty()){
+            for(int i=0;i<songs.size();i++){
+                if(lastTitle.equalsIgnoreCase(songs.get(i).title))return i;
+            }
+        }
+        int lastIndex=saved.getInt("last_music_index",-1);
+        return lastIndex>=0&&lastIndex<songs.size()?lastIndex:0;
+    }
     private void loadAlbumArt(long albumId){
         Bitmap bitmap=null;
         try{
