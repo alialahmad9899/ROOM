@@ -12,8 +12,8 @@ public final class NetworkCompat {
 
     public static HttpURLConnection open(Context context, String address) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) new URL(address).openConnection();
-        connection.setConnectTimeout(7000);
-        connection.setReadTimeout(11000);
+        connection.setConnectTimeout(4000);
+        connection.setReadTimeout(5000);
         connection.setRequestMethod("GET");
         connection.setRequestProperty("User-Agent", USER_AGENT);
         connection.setRequestProperty("Accept", "application/json,text/plain,image/*,*/*");
