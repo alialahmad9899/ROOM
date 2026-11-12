@@ -63,7 +63,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           mkdir -p output
           cp "$APK" output/ALI-Car-System-2.2.1-api21-debug.apk
-          sha256sum output/ALI-Car-System-2.2.0-api21-debug.apk > output/SHA256SUMS.txt
+          sha256sum output/ALI-Car-System-2.2.1-api21-debug.apk > output/SHA256SUMS.txt
           {
             echo "Project: ALI Car System"
             echo "Package: com.ali.carsystem"
@@ -74,7 +74,7 @@ jobs:
             echo "Architecture: Native UI + RecyclerView + MediaPlayer/SurfaceView; no WebView"
             echo "Wallpaper: clean supplied ALI CAR highway photo, fully decoded in CI and loaded as RGB_565"
             echo "Commit: $GITHUB_SHA"
-            stat --printf='APK bytes: %s\n' output/ALI-Car-System-2.2.0-api21-debug.apk
+            stat --printf='APK bytes: %s\n' output/ALI-Car-System-2.2.1-api21-debug.apk
             cat output/SHA256SUMS.txt
           } > output/BUILD-INFO.txt
 
@@ -83,7 +83,7 @@ jobs:
         with:
           name: ALI-CAR-SYSTEM-API21-APK
           path: |
-            output/ALI-Car-System-2.2.0-api21-debug.apk
+            output/ALI-Car-System-2.2.1-api21-debug.apk
             output/SHA256SUMS.txt
             output/BUILD-INFO.txt
           if-no-files-found: error
