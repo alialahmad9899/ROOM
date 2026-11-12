@@ -147,6 +147,10 @@ public final class VideoApiClient {
 
     /** Try each configured public instance for the same video ID before returning an error. */
     public static StreamInfo stream(Context context,VideoItem selected)throws Exception{
+        return stream(context,selected,null);
+    }
+
+    public static StreamInfo stream(Context context,VideoItem selected,String excludedUrl)throws Exception{
         Exception last=null;
         List<String> piped=new ArrayList<>();
         if("PIPED".equals(selected.backend)&&selected.baseUrl!=null)piped.add(selected.baseUrl);
@@ -157,10 +161,10 @@ public final class VideoApiClient {
                 JSONObject stream=choosePiped(data.optJSONArray("videoStreams"));
                 if(stream!=null){
                     String url=stream.optString("url","");
-                    if(url.length()>0)return new StreamInfo(url,data.optString("title",selected.title),false);
+                    if(url.length()>0&&!url.equals(excludedUrl))return new StreamInfo(url,data.optString("title",selected.title),false);
                 }
                 String hls=validHls(data.optString("hls",""));
-                if(hls.length()>0)return new StreamInfo(hls,data.optString("title",selected.title),true);
+                if(hls.length()>0&&!hls.equals(excludedUrl))return new StreamInfo(hls,data.optString("title",selected.title),true);
                 last=new Exception("هذا الخادم لم يقدم صيغة فيديو قابلة للتشغيل.");
             }catch(Exception error){last=error;}
         }
@@ -193,7 +197,7 @@ public final class VideoApiClient {
             JSONObject item=streams.optJSONObject(i);if(item==null)continue;
             String mime=item.optString("mimeType","").toLowerCase();
             String url=item.optString("url","");
-            if(!mime.startsWith("video/mp4")||url.length()==0||item.optBoolean("videoOnly",true))continue;
+            if(!mime.startsWith("video/mp4")||url.length()==0||item.optBoolean("videoOnly",false))continue;
             candidates.add(item);
         }
         sortByPreferredQuality(candidates);
