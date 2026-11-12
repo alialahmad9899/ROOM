@@ -24,6 +24,7 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
     private TextView status, pauseButton;
     private String title, id, backend, base;
     private boolean surfaceReady, prepared;
+    private int alternativeAttempts;
     private AsyncTask<Void,Void,VideoApiClient.StreamInfo> task;
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     private void immersive(){getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -50,6 +51,32 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
             protected void onPostExecute(VideoApiClient.StreamInfo stream){if(isFinishing())return;if(stream==null){status.setText(error==null?"الخادم لا يوفر صيغة فيديو متوافقة.":(error.getMessage()==null?"تعذر الاتصال بخادم الفيديو. تحقق من الإنترنت وحاول مرة أخرى.":error.getMessage()));return;}startStream(stream.url);}
         }.execute();
     }
+    private void retryAlternative(String failedUrl){
+        if(isFinishing())return;
+        if(alternativeAttempts>=3){
+            status.setText("تعذر تشغيل الفيديو من الخوادم المتاحة. جرّب فيديو آخر.");
+            return;
+        }
+        alternativeAttempts++;
+        final String failed=failedUrl;
+        task=new AsyncTask<Void,Void,VideoApiClient.StreamInfo>(){
+            Exception error;
+            @Override protected VideoApiClient.StreamInfo doInBackground(Void...v){
+                try{return VideoApiClient.stream(getApplicationContext(),
+                        new VideoItem(id,title,"","",backend,base),failed);}
+                catch(Exception e){error=e;return null;}
+            }
+            @Override protected void onPostExecute(VideoApiClient.StreamInfo stream){
+                if(isFinishing())return;
+                if(stream==null){
+                    status.setText(error==null?"لا يوجد مصدر بديل متاح.":error.getMessage());
+                    return;
+                }
+                status.setText("تم العثور على مصدر بديل — جارٍ التشغيل...");
+                startStream(stream.url);
+            }
+        }.execute();
+    }
     private void togglePlayback(){
         if(player==null||!prepared)return;
         try{if(player.isPlaying()){player.pause();pauseButton.setText("▶");}
@@ -62,11 +89,19 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
             if(surfaceReady)player.setDisplay(holder);
             player.setOnPreparedListener(mp->{prepared=true;startWhenReady();});
             player.setOnCompletionListener(mp->status.setText("انتهى تشغيل الفيديو"));
-            player.setOnErrorListener((mp,w,e)->{status.setVisibility(View.VISIBLE);status.setText("تعذر تشغيل الفيديو على هذا الجهاز. جرّب نتيجة أخرى.");release();return true;});
+            player.setOnErrorListener((mp,w,e)->{
+                status.setVisibility(View.VISIBLE);
+                status.setText("تعذر تشغيل هذا المصدر — جارٍ تجربة خادم آخر للفيديو نفسه...");
+                release();retryAlternative(url);return true;
+            });
             Map<String,String> headers=new HashMap<>();headers.put("User-Agent",NetworkCompat.USER_AGENT);
             if(base!=null&&base.startsWith("https://"))headers.put("Referer",base);
             player.setDataSource(this,Uri.parse(url),headers);player.prepareAsync();
-        }catch(Exception e){status.setText("تعذر بدء تشغيل الفيديو. جرّب نتيجة أخرى.");release();}
+        }catch(Exception e){
+            status.setVisibility(View.VISIBLE);
+            status.setText("فشل مصدر البث — جارٍ تجربة بديل...");
+            release();retryAlternative(url);
+        }
     }
     @Override public void surfaceCreated(SurfaceHolder h){surfaceReady=true;startWhenReady();}
     private void startWhenReady(){if(player==null||!surfaceReady||!prepared)return;try{player.setDisplay(holder);if(!player.isPlaying())player.start();status.setVisibility(View.GONE);if(pauseButton!=null)pauseButton.setText("Ⅱ");}catch(Exception e){status.setVisibility(View.VISIBLE);status.setText("تعذر عرض الفيديو على الشاشة.");}}
