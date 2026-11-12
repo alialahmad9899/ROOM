@@ -40,7 +40,7 @@ public final class MainActivity extends Activity implements LocationListener {
         Date now=new Date();
         String time=new SimpleDateFormat("hh:mm",Locale.US).format(now);
         if(digitalClock!=null)digitalClock.setText(time);
-        if(dateText!=null)dateText.setText(new SimpleDateFormat("EEEE, dd MMM yyyy",Locale.US).format(now));
+        if(dateText!=null)dateText.setText(new SimpleDateFormat("EEEE، d MMMM yyyy",new Locale("ar")).format(now));
         if(speedView!=null&&lastGps!=0&&SystemClock.elapsedRealtime()-lastGps>7000){
             speedView.setSpeed(0);speedView.setGps(false);filteredSpeed=0;
             if(gpsText!=null)gpsText.setText("بانتظار إشارة الموقع");
