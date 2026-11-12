@@ -430,15 +430,35 @@ public final class MainActivity extends Activity implements LocationListener {
     }
 
     private void startGps(){
-        if(gpsRunning||locations==null)return;
-        if(checkSelfPermissionCompat(android.Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)return;
+        if(locations==null)return;
+        if(checkSelfPermissionCompat(android.Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED
+                &&checkSelfPermissionCompat(android.Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED){
+            if(gpsText!=null)gpsText.setText("اسمح للتطبيق بالوصول إلى الموقع");
+            return;
+        }
+        if(gpsRunning)return;
+        boolean registered=false;
         try{
-            if(locations.isProviderEnabled(LocationManager.GPS_PROVIDER))locations.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,1f,this);
-            if(locations.isProviderEnabled(LocationManager.NETWORK_PROVIDER))locations.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1800L,4f,this);
-            gpsRunning=true;
-            Location latest=bestLastKnownLocation();
-            if(latest!=null)onLocationChanged(latest);
+            if(locations.isProviderEnabled(LocationManager.GPS_PROVIDER)){
+                locations.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,1f,this);
+                registered=true;
+            }
+        }catch(SecurityException|IllegalArgumentException error){
+            if(gpsText!=null)gpsText.setText("تعذر تشغيل GPS — تحقق من الإذن");
+        }
+        try{
+            if(locations.isProviderEnabled(LocationManager.NETWORK_PROVIDER)){
+                locations.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1800L,4f,this);
+                registered=true;
+            }
         }catch(SecurityException|IllegalArgumentException ignored){}
+        gpsRunning=registered;
+        if(!registered){
+            if(gpsText!=null)gpsText.setText("فعّل GPS وخدمات الموقع ثم أعد المحاولة");
+            return;
+        }
+        Location latest=bestLastKnownLocation();
+        if(latest!=null)onLocationChanged(latest);
     }
     private int checkSelfPermissionCompat(String permission){
         if(Build.VERSION.SDK_INT>=23)return checkSelfPermission(permission);
@@ -452,12 +472,15 @@ public final class MainActivity extends Activity implements LocationListener {
         }return best;
     }
     private void stopGps(){
-        if(locations!=null&&gpsRunning){try{locations.removeUpdates(this);}catch(Exception ignored){}}
+        if(locations!=null){try{locations.removeUpdates(this);}catch(Exception ignored){}}
         gpsRunning=false;previousAcceptedLocation=null;lastGpsElapsed=0;
     }
     @Override public void onLocationChanged(Location location){
         if(location==null||mainGauge==null)return;
-        if(location.hasAccuracy()&&location.getAccuracy()>55f)return;
+        if(location.hasAccuracy()&&location.getAccuracy()>100f){
+            if(gpsText!=null)gpsText.setText(String.format(new Locale("ar"),"إشارة GPS ضعيفة ±%.0f m",location.getAccuracy()));
+            return;
+        }
         long now=SystemClock.elapsedRealtime();
         float raw=location.hasSpeed()?location.getSpeed()*3.6f:0f;
         if((!location.hasSpeed()||raw<.5f)&&previousAcceptedLocation!=null){
@@ -489,7 +512,11 @@ public final class MainActivity extends Activity implements LocationListener {
     private void saveDouble(String key,double value){prefs.edit().putLong(key,Double.doubleToRawLongBits(value)).apply();}
     private double readDouble(String key,double fallback){return Double.longBitsToDouble(prefs.getLong(key,Double.doubleToRawLongBits(fallback)));}
     @Override public void onProviderDisabled(String provider){if(gpsText!=null)gpsText.setText("مزود الموقع متوقف");}
-    @Override public void onProviderEnabled(String provider){if(gpsText!=null)gpsText.setText("تم تفعيل الموقع");}
+    @Override public void onProviderEnabled(String provider){
+        if(gpsText!=null)gpsText.setText("تم تفعيل الموقع — جارٍ إعادة تشغيل GPS");
+        gpsRunning=false;
+        handler.post(this::startGps);
+    }
     @Override public void onStatusChanged(String provider,int status,Bundle extras){}
 
     private void refreshSongTitle(){
