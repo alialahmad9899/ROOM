@@ -62,7 +62,9 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
             player.setOnPreparedListener(mp->{prepared=true;startWhenReady();});
             player.setOnCompletionListener(mp->status.setText("انتهى تشغيل الفيديو"));
             player.setOnErrorListener((mp,w,e)->{status.setVisibility(View.VISIBLE);status.setText("تعذر تشغيل الفيديو على هذا الجهاز. جرّب نتيجة أخرى.");release();return true;});
-            Map<String,String> headers=new HashMap<>();headers.put("User-Agent",NetworkCompat.USER_AGENT);\n            if(base!=null&&base.startsWith("https://"))headers.put("Referer",base);\n            player.setDataSource(this,Uri.parse(url),headers);player.prepareAsync();
+            Map<String,String> headers=new HashMap<>();headers.put("User-Agent",NetworkCompat.USER_AGENT);
+            if(base!=null&&base.startsWith("https://"))headers.put("Referer",base);
+            player.setDataSource(this,Uri.parse(url),headers);player.prepareAsync();
         }catch(Exception e){status.setText("تعذر بدء تشغيل الفيديو. جرّب نتيجة أخرى.");release();}
     }
     @Override public void surfaceCreated(SurfaceHolder h){surfaceReady=true;startWhenReady();}
