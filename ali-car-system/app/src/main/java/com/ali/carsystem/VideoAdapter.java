@@ -27,6 +27,7 @@ public final class VideoAdapter extends RecyclerView.Adapter<VideoAdapter.Holder
         }
     };
     private final List<VideoItem> items = new ArrayList<>();
+    private static int dp(View view,float value){return Math.round(value*view.getResources().getDisplayMetrics().density);}
     private final Click click;
 
     public VideoAdapter(Click listener) { click = listener; }
@@ -40,22 +41,22 @@ public final class VideoAdapter extends RecyclerView.Adapter<VideoAdapter.Holder
         LinearLayout row = new LinearLayout(parent.getContext());
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(8, 6, 8, 6);
+        row.setPadding(dp(parent,8), dp(parent,6), dp(parent,8), dp(parent,6));
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(0xE9182A3C);
-        bg.setCornerRadius(12);
-        bg.setStroke(1, 0xFF257EA0);
+        bg.setCornerRadius(dp(parent,12));
+        bg.setStroke(dp(parent,1), 0xFF257EA0);
         row.setBackground(bg);
 
         ImageView thumb = new ImageView(parent.getContext());
         thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
         thumb.setBackgroundColor(0xFF101A28);
-        row.addView(thumb, new LinearLayout.LayoutParams(112, 66));
+        row.addView(thumb, new LinearLayout.LayoutParams(dp(parent,160), dp(parent,90)));
 
         LinearLayout texts = new LinearLayout(parent.getContext());
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.setGravity(Gravity.CENTER_VERTICAL);
-        texts.setPadding(10, 2, 6, 2);
+        texts.setPadding(dp(parent,12), dp(parent,2), dp(parent,8), dp(parent,2));
         TextView title = new TextView(parent.getContext());
         title.setTextColor(Color.WHITE);
         title.setTextSize(14);
@@ -67,9 +68,9 @@ public final class VideoAdapter extends RecyclerView.Adapter<VideoAdapter.Holder
         author.setTextColor(0xFFB6D7E8);
         author.setTextSize(11);
         author.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        texts.addView(title, new LinearLayout.LayoutParams(-1, 42));
-        texts.addView(author, new LinearLayout.LayoutParams(-1, 22));
-        row.addView(texts, new LinearLayout.LayoutParams(0, 66, 1));
+        texts.addView(title, new LinearLayout.LayoutParams(-1, dp(parent,48)));
+        texts.addView(author, new LinearLayout.LayoutParams(-1, dp(parent,24)));
+        row.addView(texts, new LinearLayout.LayoutParams(0, dp(parent,90), 1));
         return new Holder(row, thumb, title, author);
     }
 
