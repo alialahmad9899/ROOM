@@ -1,37 +1,24 @@
 plugins { id 'com.android.application' }
 
-def wallpaperPartsDir = rootProject.file("../tools/rom/assets/ali-car-wallpaper-v2")
+def dashboardSource = file("src/main/assets/dashboard.webp")
 def dashboardWallpaper = file("src/main/res/drawable-nodpi/bg_car_dashboard.webp")
 
 tasks.register("materializeDashboardWallpaper") {
-    inputs.files((1..8).collect { index ->
-        new File(wallpaperPartsDir, String.format("part-%02d.b64", index))
-    })
+    inputs.file(dashboardSource)
     outputs.file(dashboardWallpaper)
     doLast {
-        StringBuilder encoded = new StringBuilder()
-        (1..8).each { index ->
-            File part = new File(wallpaperPartsDir, String.format("part-%02d.b64", index))
-            if (!part.isFile()) {
-                throw new GradleException("Missing dashboard wallpaper source segment: " + part)
-            }
-            String chunk = part.getText("UTF-8").replaceAll("\\s", "")
-            if (!chunk.matches("[A-Za-z0-9+/=]+")) {
-                throw new GradleException("Invalid Base64 characters in wallpaper segment " + index)
-            }
-            encoded.append(chunk)
+        if (!dashboardSource.isFile()) {
+            throw new GradleException("Missing supplied ALI CAR highway background: " + dashboardSource)
         }
-        byte[] image = java.util.Base64.getDecoder().decode(encoded.toString())
-        if (image.length < 20000 || image.length > 100000) {
-            throw new GradleException("Unexpected compressed wallpaper size: " + image.length)
-        }
-        if (new String(image, 0, 4, "US-ASCII") != "RIFF"
+        byte[] image = dashboardSource.bytes
+        if (image.length < 1000
+                || new String(image, 0, 4, "US-ASCII") != "RIFF"
                 || new String(image, 8, 4, "US-ASCII") != "WEBP") {
-            throw new GradleException("Dashboard wallpaper is not a valid RIFF/WebP file")
+            throw new GradleException("Supplied dashboard background is not a valid WebP container")
         }
         dashboardWallpaper.parentFile.mkdirs()
         dashboardWallpaper.bytes = image
-        logger.lifecycle("Materialized supplied 1280x720 WebP resource drawable-nodpi/bg_car_dashboard.webp: " + image.length + " bytes")
+        logger.lifecycle("Installed supplied ALI CAR highway photograph from assets/dashboard.webp: " + image.length + " bytes")
     }
 }
 
