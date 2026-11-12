@@ -10,6 +10,9 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
+import android.net.Uri;
+import java.util.HashMap;
+import java.util.Map;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -43,7 +46,7 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
         task=new AsyncTask<Void,Void,VideoApiClient.StreamInfo>(){
             Exception error;
             protected VideoApiClient.StreamInfo doInBackground(Void...v){try{return VideoApiClient.stream(getApplicationContext(), new VideoItem(id,title,"","",backend,base));}catch(Exception e){error=e;return null;}}
-            protected void onPostExecute(VideoApiClient.StreamInfo stream){if(isFinishing())return;if(stream==null){status.setText(error==null?"الخادم لا يوفر صيغة فيديو متوافقة.":"تعذر الاتصال بخادم الفيديو. تحقق من الإنترنت وحاول مرة أخرى.");return;}startStream(stream.url);}
+            protected void onPostExecute(VideoApiClient.StreamInfo stream){if(isFinishing())return;if(stream==null){status.setText(error==null?"الخادم لا يوفر صيغة فيديو متوافقة.":(error.getMessage()==null?"تعذر الاتصال بخادم الفيديو. تحقق من الإنترنت وحاول مرة أخرى.":error.getMessage()));return;}startStream(stream.url);}
         }.execute();
     }
     private void togglePlayback(){
@@ -59,7 +62,7 @@ public final class VideoPlayerActivity extends Activity implements SurfaceHolder
             player.setOnPreparedListener(mp->{prepared=true;startWhenReady();});
             player.setOnCompletionListener(mp->status.setText("انتهى تشغيل الفيديو"));
             player.setOnErrorListener((mp,w,e)->{status.setVisibility(View.VISIBLE);status.setText("تعذر تشغيل الفيديو على هذا الجهاز. جرّب نتيجة أخرى.");release();return true;});
-            player.setDataSource(url);player.prepareAsync();
+            Map<String,String> headers=new HashMap<>();headers.put("User-Agent",NetworkCompat.USER_AGENT);\n            if(base!=null&&base.startsWith("https://"))headers.put("Referer",base);\n            player.setDataSource(this,Uri.parse(url),headers);player.prepareAsync();
         }catch(Exception e){status.setText("تعذر بدء تشغيل الفيديو. جرّب نتيجة أخرى.");release();}
     }
     @Override public void surfaceCreated(SurfaceHolder h){surfaceReady=true;startWhenReady();}
