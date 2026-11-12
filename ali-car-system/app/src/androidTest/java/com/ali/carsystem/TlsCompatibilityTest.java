@@ -8,7 +8,7 @@ import javax.net.ssl.SSLSocketFactory;
 public final class TlsCompatibilityTest extends InstrumentationTestCase {
     public void testTls12IsAvailableOnApi21() throws Exception {
         Context context=getInstrumentation().getTargetContext();
-        SSLSocketFactory factory=LegacyTls.socketFactory(context);
+        SSLSocketFactory factory=LegacyTls.factory(context);
         SSLSocket socket=(SSLSocket)factory.createSocket();
         try {
             boolean tls12=false;
