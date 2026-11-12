@@ -44,8 +44,9 @@ final class VideoApi {
         }catch(Exception ignored){}
         pipedCache=Collections.unmodifiableList(p);invidiousCache=Collections.unmodifiableList(v);discoveryTime=System.currentTimeMillis();
     }
+    static String encodeQuery(String value) throws Exception { return URLEncoder.encode(value,"UTF-8"); }
     static List<Item> search(Context context,String query)throws Exception{
-        final String encoded=URLEncoder.encode(query,"UTF-8");
+        final String encoded=encodeQuery(query);
         final List<String> endpoints=new ArrayList<>();
         for(String s:piped(context))endpoints.add("PIPED|"+s);
         for(String s:invidious(context))endpoints.add("INVIDIOUS|"+s);
