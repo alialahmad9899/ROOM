@@ -79,9 +79,9 @@ public final class LegacyTls {
             system = a;
             extra = b;
         }
-        @Override public void checkClientTrusted(Certificate[] chain, String authType)
+        @Override public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType)
                 throws CertificateException {
-            system.checkClientTrusted(toX509(chain), authType);
+            system.checkClientTrusted(chain, authType);
         }
         @Override public void checkServerTrusted(java.security.cert.X509Certificate[] chain,
                                                   String authType) throws CertificateException {
@@ -105,17 +105,7 @@ public final class LegacyTls {
                 all.put(cert.getSubjectX500Principal().getName(), cert);
             return all.values().toArray(new java.security.cert.X509Certificate[0]);
         }
-        private java.security.cert.X509Certificate[] toX509(Certificate[] chain)
-                throws CertificateException {
-            java.security.cert.X509Certificate[] result =
-                    new java.security.cert.X509Certificate[chain.length];
-            for (int i = 0; i < chain.length; i++) {
-                if (!(chain[i] instanceof java.security.cert.X509Certificate))
-                    throw new CertificateException("Unexpected certificate type");
-                result[i] = (java.security.cert.X509Certificate) chain[i];
-            }
-            return result;
-        }
+
     }
 
     private static final class Tls12SocketFactory extends SSLSocketFactory {
