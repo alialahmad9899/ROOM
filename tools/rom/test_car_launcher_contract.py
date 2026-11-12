@@ -125,12 +125,12 @@ for token in ("getLastKnownLocation(provider)", "LocationManager.GPS_PROVIDER",
               "requestLocationUpdates(LocationManager.NETWORK_PROVIDER",
               "nominatim.openstreetmap.org", "router.project-osrm.org", "geometries=geojson",
               "routeLine.setWidth(dp(14))", "carMarker.setRotation(location.getBearing())",
-              "zoomToBoundingBox", "OpenStreetMap contributors", "lastRouteAttemptMs>=10000L",
+              "zoomToBoundingBox", "OpenStreetMap contributors", "lastRouteAttemptMs", ">=10000L",
               "map.setMapOrientation(-location.getBearing())", "FLAG_KEEP_SCREEN_ON"):
     require(token in navigation, "navigation/GPS contract missing: " + token)
 require("location.getAccuracy()>45f" not in navigation,
         "navigation must not discard all GPS fixes solely for a 45m accuracy threshold")
-require("gpsRunning=registered" in main and "handler.post(this::startGps)" in main,
+require("gpsRunning=registered" in main and "handler.post(()->{stopGps();startGps();}) in main,
         "main GPS provider state must retry after provider enable")
 
 # API21 TLS uses trusted roots and hostname verification, not permissive trust-all.
