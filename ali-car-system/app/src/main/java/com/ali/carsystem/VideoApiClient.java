@@ -180,10 +180,10 @@ public final class VideoApiClient {
                 JSONObject stream=chooseInvidious(data.optJSONArray("formatStreams"));
                 if(stream!=null){
                     String url=stream.optString("url","");
-                    if(url.length()>0)return new StreamInfo(url,data.optString("title",selected.title),false);
+                    if(url.length()>0&&!url.equals(excludedUrl))return new StreamInfo(url,data.optString("title",selected.title),false);
                 }
                 String hls=validHls(data.optString("hlsUrl",""));
-                if(hls.length()>0)return new StreamInfo(hls,data.optString("title",selected.title),true);
+                if(hls.length()>0&&!hls.equals(excludedUrl))return new StreamInfo(hls,data.optString("title",selected.title),true);
                 last=new Exception("لم يقدم الخادم صيغة فيديو مناسبة.");
             }catch(Exception error){last=error;}
         }
