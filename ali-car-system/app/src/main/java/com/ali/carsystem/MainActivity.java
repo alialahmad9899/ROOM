@@ -61,9 +61,9 @@ public final class MainActivity extends Activity implements LocationListener {
     private final Runnable idleTimer=this::showAmbientClock;
     private final BroadcastReceiver screenOnReceiver=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
-            if(Intent.ACTION_SCREEN_ON.equals(intent.getAction())&&isResumed){
-                dismissAmbientClock();showWelcomeSplash();
-                scheduleIdleForMainPage();
+            if(Intent.ACTION_SCREEN_ON.equals(intent.getAction())){
+                if(isResumed){dismissAmbientClock();showWelcomeSplash();scheduleIdleForMainPage();}
+                else screenWakePending=true;
             }
         }
     };
@@ -88,6 +88,7 @@ public final class MainActivity extends Activity implements LocationListener {
         try{tts=new TextToSpeech(this,status->{if(status==TextToSpeech.SUCCESS){tts.setLanguage(Locale.US);}});}catch(Exception ignored){}
         buildDashboard();
         handler.post(clockTick);
+        if(!receiverRegistered){registerReceiver(screenOnReceiver,new IntentFilter(Intent.ACTION_SCREEN_ON));receiverRegistered=true;}
         showWelcomeSplash();
     }
 
@@ -493,16 +494,16 @@ public final class MainActivity extends Activity implements LocationListener {
     @Override protected void onResume(){
         super.onResume();isResumed=true;immersive();startGps();
         handler.removeCallbacks(clockTick);handler.post(clockTick);
-        if(!receiverRegistered){registerReceiver(screenOnReceiver,new IntentFilter(Intent.ACTION_SCREEN_ON));receiverRegistered=true;}
+        if(screenWakePending){screenWakePending=false;showWelcomeSplash();}
         scheduleIdleForMainPage();
     }
     @Override protected void onPause(){
         isResumed=false;handler.removeCallbacks(idleTimer);
-        if(receiverRegistered){try{unregisterReceiver(screenOnReceiver);}catch(Exception ignored){}receiverRegistered=false;}
         if(splashOverlay!=null&&root!=null){root.removeView(splashOverlay);splashOverlay=null;}
         dismissAmbientClock();stopGps();super.onPause();
     }
     @Override protected void onDestroy(){
+        if(receiverRegistered){try{unregisterReceiver(screenOnReceiver);}catch(Exception ignored){}receiverRegistered=false;}
         handler.removeCallbacksAndMessages(null);stopGps();
         if(tts!=null){try{tts.stop();tts.shutdown();}catch(Exception ignored){}}
         super.onDestroy();
