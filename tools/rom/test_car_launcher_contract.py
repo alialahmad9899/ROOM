@@ -28,7 +28,7 @@ def read(name):
 require(re.search(r"applicationId\s+['\"]com\.ali\.carsystem['\"]", GRADLE), "applicationId mismatch")
 require(re.search(r"minSdk\s+21\b", GRADLE), "minSdk must be API 21")
 require(re.search(r"targetSdk\s+22\b", GRADLE), "targetSdk must be API 22")
-require("versionCode 12" in GRADLE and "versionName '2.2.0'" in GRADLE, "app version must be 2.2.0")
+require("versionCode 13" in GRADLE and "versionName '2.2.1'" in GRADLE, "app version must be 2.2.0")
 require("androidx.viewpager:viewpager:1.0.0" in GRADLE, "ViewPager dependency missing")
 require("org.osmdroid:osmdroid-android:6.1.20" in GRADLE, "OSMDroid dependency missing")
 require("materializeDashboardWallpaper" in GRADLE, "Gradle wallpaper task missing")
