@@ -3,6 +3,7 @@ package com.ali.carsystem;
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
