@@ -1,7 +1,7 @@
 plugins { id 'com.android.application' }
 
 def wallpaperPartsDir = rootProject.file("../tools/rom/assets/ali-car-wallpaper-v2")
-def dashboardWallpaper = file("src/main/assets/dashboard.webp")
+def dashboardWallpaper = file("src/main/res/drawable-nodpi/bg_car_dashboard.webp")
 
 tasks.register("materializeDashboardWallpaper") {
     inputs.files((1..8).collect { index ->
@@ -31,7 +31,7 @@ tasks.register("materializeDashboardWallpaper") {
         }
         dashboardWallpaper.parentFile.mkdirs()
         dashboardWallpaper.bytes = image
-        logger.lifecycle("Materialized supplied 1280x720 WebP dashboard wallpaper: " + image.length + " bytes")
+        logger.lifecycle("Materialized supplied 1280x720 WebP resource drawable-nodpi/bg_car_dashboard.webp: " + image.length + " bytes")
     }
 }
 
@@ -43,8 +43,8 @@ android {
         applicationId 'com.ali.carsystem'
         minSdk 21
         targetSdk 22
-        versionCode 11
-        versionName '2.1.0'
+        versionCode 12
+        versionName '2.2.0'
     }
 
     compileOptions {
@@ -66,5 +66,6 @@ tasks.named("preBuild").configure {
 
 dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.viewpager:viewpager:1.0.0'
     implementation 'org.osmdroid:osmdroid-android:6.1.20'
 }
