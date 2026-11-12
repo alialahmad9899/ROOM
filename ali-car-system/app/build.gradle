@@ -1,5 +1,40 @@
 plugins { id 'com.android.application' }
 
+def wallpaperPartsDir = rootProject.file("../tools/rom/assets/ali-car-wallpaper-v2")
+def dashboardWallpaper = file("src/main/assets/dashboard.webp")
+
+tasks.register("materializeDashboardWallpaper") {
+    inputs.files((1..8).collect { index ->
+        new File(wallpaperPartsDir, String.format("part-%02d.b64", index))
+    })
+    outputs.file(dashboardWallpaper)
+    doLast {
+        StringBuilder encoded = new StringBuilder()
+        (1..8).each { index ->
+            File part = new File(wallpaperPartsDir, String.format("part-%02d.b64", index))
+            if (!part.isFile()) {
+                throw new GradleException("Missing dashboard wallpaper source segment: " + part)
+            }
+            String chunk = part.getText("UTF-8").replaceAll("\\s", "")
+            if (!chunk.matches("[A-Za-z0-9+/=]+")) {
+                throw new GradleException("Invalid Base64 characters in wallpaper segment " + index)
+            }
+            encoded.append(chunk)
+        }
+        byte[] image = java.util.Base64.getDecoder().decode(encoded.toString())
+        if (image.length < 20000 || image.length > 100000) {
+            throw new GradleException("Unexpected compressed wallpaper size: " + image.length)
+        }
+        if (new String(image, 0, 4, "US-ASCII") != "RIFF"
+                || new String(image, 8, 4, "US-ASCII") != "WEBP") {
+            throw new GradleException("Dashboard wallpaper is not a valid RIFF/WebP file")
+        }
+        dashboardWallpaper.parentFile.mkdirs()
+        dashboardWallpaper.bytes = image
+        logger.lifecycle("Materialized supplied 1280x720 WebP dashboard wallpaper: " + image.length + " bytes")
+    }
+}
+
 android {
     namespace 'com.ali.carsystem'
     compileSdk 35
@@ -8,8 +43,8 @@ android {
         applicationId 'com.ali.carsystem'
         minSdk 21
         targetSdk 22
-        versionCode 10
-        versionName '2.0.0'
+        versionCode 11
+        versionName '2.1.0'
     }
 
     compileOptions {
@@ -23,6 +58,10 @@ android {
                          'META-INF/NOTICE','META-INF/NOTICE.txt']
         }
     }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn("materializeDashboardWallpaper")
 }
 
 dependencies {
