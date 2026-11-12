@@ -1,5 +1,6 @@
 package com.ali.carsystem;
 
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.content.*;
@@ -39,7 +40,7 @@ public final class MainActivity extends Activity implements LocationListener {
     private SeekBar volumeSeek;
     private TextView muteButton;
     private TextToSpeech tts;
-    private boolean gpsRunning,receiverRegistered,isResumed,muted;
+    private boolean gpsRunning,receiverRegistered,isResumed,muted,screenWakePending;
     private int oldVolume=-1;
     private Location previousAcceptedLocation;
     private float filteredSpeed;
