@@ -26,7 +26,7 @@ final class VideoApi {
         List<String> p=new ArrayList<>(),v=new ArrayList<>();
         try{
             String page=read(context,"https://github.com/TeamPiped/Piped/wiki/Instances");
-            Matcher m=Pattern.compile("https?://[A-Za-z0-9.-]*piped[A-Za-z0-9.-]*").matcher(page);
+            Matcher m=Pattern.compile("https?://[A-Za-z0-9.-]*piped-?api[A-Za-z0-9.-]*").matcher(page);
             while(m.find()){String u=m.group().replaceAll("[),.;]+$","");if(u.matches("https://[A-Za-z0-9.-]+")&&!p.contains(u))p.add(u);}
         }catch(Exception ignored){}
         if(!p.contains("https://pipedapi.kavin.rocks"))p.add("https://pipedapi.kavin.rocks");
