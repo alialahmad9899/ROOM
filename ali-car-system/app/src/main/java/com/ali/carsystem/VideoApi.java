@@ -131,12 +131,6 @@ final class VideoApi {
         }
         throw new IOException(last==null?"لا يوجد مصدر بث متوافق لهذا الفيديو":last.getMessage(),last);
     }
-    static String classifyUrl(String url){
-        String u=url==null?"":url.toLowerCase(Locale.US);
-        if(u.contains(".m3u8"))return "HLS";
-        if(u.contains(".mp4")||u.contains("mime=video%2fmp4")||u.contains("mime=video/mp4"))return "MP4";
-        return "UNKNOWN";
-    }
     static String read(Context context,String url)throws Exception{
         java.net.HttpURLConnection c=LegacyTls.open(context,url);
         try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){
