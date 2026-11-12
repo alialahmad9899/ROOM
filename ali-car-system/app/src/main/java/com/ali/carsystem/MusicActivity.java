@@ -4,6 +4,7 @@ import android.content.*;
 import android.database.Cursor;
 import android.graphics.*;
 import android.media.*;
+import android.media.audiofx.Visualizer;
 import android.net.Uri;
 import android.os.*;
 import android.provider.MediaStore;
