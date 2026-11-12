@@ -4,6 +4,9 @@ on:
     branches: ["ali-car-system/3.0.0-clean-rebuild"]
     paths: ["ali-car-system/**","tools/rom/**",".github/workflows/build-car-app-3.yml"]
   workflow_dispatch:
+concurrency:
+  group: ali-car-system-api21-x86-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
   actions: write
@@ -82,9 +85,3 @@ jobs:
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
-      - name: Delete superseded 2.2.1 branch and old artifact
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          curl -sS -X DELETE -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/$GITHUB_REPOSITORY/git/refs/heads/ali-car-system/2.2.1-full-repair-2026-11-13 || true
-          curl -sS -X DELETE -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/13988414642 || true
