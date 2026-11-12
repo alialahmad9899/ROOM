@@ -32,17 +32,36 @@ public final class NetworkCompat {
     }
 
     public static String arabicError(Throwable error) {
+        String detail = "";
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause.getMessage() != null && detail.length() == 0) detail = cause.getMessage();
             if (cause instanceof java.net.UnknownHostException)
-                return "تعذر الوصول إلى الخادم. تأكد من اتصال الإنترنت.";
+                return "تعذر العثور على عنوان الخادم. تحقق من الإنترنت أو جرّب خادماً آخر.";
             if (cause instanceof java.net.SocketTimeoutException)
-                return "استغرق الاتصال وقتاً طويلاً. حاول مرة أخرى.";
+                return "انتهت مهلة استجابة الخادم. اتصال الإنترنت موجود لكن الخدمة بطيئة أو لا تستجيب.";
             if (cause instanceof javax.net.ssl.SSLHandshakeException
                     || cause instanceof javax.net.ssl.SSLPeerUnverifiedException
                     || cause instanceof java.security.cert.CertificateException)
-                return "تعذر التحقق من شهادة أمان الخادم. تحقق من تاريخ الجهاز ووقته.";
+                return "فشل الاتصال الآمن بالخادم. تحقق من تاريخ الجهاز ووقته أو من توافق TLS.";
             if (cause instanceof java.net.ConnectException)
-                return "الخادم لا يستجيب حالياً. حاول لاحقاً.";
+                return "تعذر فتح اتصال مع الخادم؛ قد يكون الخادم متوقفاً أو يحظر الاتصال.";
+            if (cause instanceof org.json.JSONException)
+                return "وصل رد من الخادم لكن تنسيق البيانات غير متوافق. جرّب خادماً آخر.";
         }
-        return "تعذر الاتصال بالخادم. تأكد من الإنترنت ثم أعد المحاولة.";
+        java.util.regex.Matcher status = java.util.regex.Pattern.compile("HTTP\\s+(\\d{3})").matcher(detail);
+        if (status.find()) {
+            int code = Integer.parseInt(status.group(1));
+            if (code == 401 || code == 403)
+                return "الخادم رفض الطلب (HTTP " + code + "). هذا عطل في صلاحية الخادم وليس دليلاً على انقطاع الإنترنت.";
+            if (code == 429)
+                return "الخادم حدّ عدد الطلبات مؤقتاً (HTTP 429). انتظر قليلاً ثم أعد المحاولة.";
+            if (code >= 500)
+                return "خدمة الخادم تواجه عطلاً داخلياً (HTTP " + code + "). جرّب خادماً آخر.";
+            return "رفض الخادم الطلب برمز HTTP " + code + ".";
+        }
+        if (detail.contains("استجابة") || detail.contains("تنسيق"))
+            return detail;
+        if (detail.length() > 0)
+            return "فشل طلب الخدمة: " + detail;
+        return "حدث خطأ غير معروف أثناء الاتصال بالخدمة.";
     }}
