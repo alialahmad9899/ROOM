@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "ali-car-system"
 SRC = APP / "app" / "src" / "main"
 JAVA = SRC / "java" / "com" / "ali" / "carsystem"
-WALLPAPER_PARTS = ROOT / "tools" / "rom" / "assets" / "ali-car-wallpaper-v2"
+WALLPAPER_SOURCE = APP / "app" / "src" / "main" / "assets" / "dashboard.webp"
 GRADLE = (APP / "app" / "build.gradle").read_text(encoding="utf-8")
 MANIFEST = ET.parse(SRC / "AndroidManifest.xml").getroot()
 NS = {"a": "http://schemas.android.com/apk/res/android"}
@@ -33,10 +33,19 @@ require("androidx.viewpager:viewpager:1.0.0" in GRADLE, "ViewPager dependency mi
 require("org.osmdroid:osmdroid-android:6.1.20" in GRADLE, "OSMDroid dependency missing")
 require("materializeDashboardWallpaper" in GRADLE, "Gradle wallpaper task missing")
 require('src/main/res/drawable-nodpi/bg_car_dashboard.webp' in GRADLE, "wallpaper must be installed into drawable-nodpi")
-require('new String(image, 8, 4, "US-ASCII") != "WEBP"' in GRADLE, "WebP asset validation missing")
-for number in range(1, 9):
-    require((WALLPAPER_PARTS / f"part-{number:02d}.b64").is_file(),
-            f"supplied compressed wallpaper segment {number}/8 missing")
+require('inputs.file(dashboardSource)' in GRADLE and 'dashboardWallpaper.bytes = image' in GRADLE,
+        "Gradle must install the clean supplied dashboard photo directly")
+require(WALLPAPER_SOURCE.is_file(), "supplied dashboard photograph is missing")
+try:
+    from PIL import Image
+    with Image.open(WALLPAPER_SOURCE) as wallpaper:
+        wallpaper.verify()
+    with Image.open(WALLPAPER_SOURCE) as wallpaper:
+        wallpaper.load()
+        require(wallpaper.width >= 300 and wallpaper.height >= 160,
+                "wallpaper resolution is unexpectedly small")
+except Exception as error:
+    raise SystemExit("FAIL: supplied dashboard wallpaper cannot be fully decoded: " + str(error))
 
 permissions = {x.get(f"{{{NS['a']}}}name") for x in MANIFEST.findall("uses-permission")}
 for item in ("android.permission.INTERNET", "android.permission.ACCESS_FINE_LOCATION",
