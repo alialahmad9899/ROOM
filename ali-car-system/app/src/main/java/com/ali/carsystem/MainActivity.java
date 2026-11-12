@@ -87,7 +87,6 @@ public final class MainActivity extends Activity implements LocationListener {
         tripKm=readDouble("trip_km",0);odometerKm=readDouble("odometer_km",0);maxSpeed=readDouble("max_speed",0);
         try{tts=new TextToSpeech(this,status->{if(status==TextToSpeech.SUCCESS){tts.setLanguage(Locale.US);}});}catch(Exception ignored){}
         buildDashboard();
-        handler.post(clockTick);
         if(!receiverRegistered){registerReceiver(screenOnReceiver,new IntentFilter(Intent.ACTION_SCREEN_ON));receiverRegistered=true;}
         showWelcomeSplash();
     }
@@ -492,14 +491,21 @@ public final class MainActivity extends Activity implements LocationListener {
     @Override public void onProviderEnabled(String provider){if(gpsText!=null)gpsText.setText("تم تفعيل الموقع");}
     @Override public void onStatusChanged(String provider,int status,Bundle extras){}
 
+    private void refreshSongTitle(){
+        if(songTitle==null||prefs==null)return;
+        String savedTitle=prefs.getString("last_song_title","");
+        songTitle.setText(savedTitle==null||savedTitle.trim().isEmpty()
+                ?"لا توجد أغنية قيد التشغيل":savedTitle);
+    }
     @Override protected void onResume(){
         super.onResume();isResumed=true;immersive();startGps();
+        refreshSongTitle();
         handler.removeCallbacks(clockTick);handler.post(clockTick);
         if(screenWakePending){screenWakePending=false;showWelcomeSplash();}
         scheduleIdleForMainPage();
     }
     @Override protected void onPause(){
-        isResumed=false;handler.removeCallbacks(idleTimer);
+        isResumed=false;handler.removeCallbacks(idleTimer);handler.removeCallbacks(clockTick);
         if(splashOverlay!=null&&root!=null){root.removeView(splashOverlay);splashOverlay=null;}
         dismissAmbientClock();stopGps();super.onPause();
     }
