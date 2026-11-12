@@ -135,7 +135,7 @@ public final class VideoApiClient {
     public static StreamInfo stream(Context context,VideoItem selected)throws Exception{
         Exception last=null;
         List<String> piped=new ArrayList<>();
-        piped.add(selected.baseUrl);
+        if("PIPED".equals(selected.backend)&&selected.baseUrl!=null)piped.add(selected.baseUrl);
         for(String value:PIPED_SERVERS)if(!piped.contains(value))piped.add(value);
         for(String server:piped){
             try{
