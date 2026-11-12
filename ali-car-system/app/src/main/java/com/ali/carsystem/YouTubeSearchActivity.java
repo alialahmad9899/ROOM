@@ -54,9 +54,12 @@ public final class YouTubeSearchActivity extends Activity {
         search.setGravity(Gravity.CENTER_VERTICAL);
         query = new EditText(this);
         query.setSingleLine(true);
-        query.setTextColor(Color.WHITE);
-        query.setHintTextColor(0xFF8AA4B7);
+        query.setTextColor(0xFF111111);
+        query.setHintTextColor(0xFF666666);
         query.setHint("اكتب اسم الفيديو أو كلمات البحث");
+        android.graphics.drawable.GradientDrawable inputBg=new android.graphics.drawable.GradientDrawable();
+        inputBg.setColor(0xFFFFFFFF);inputBg.setCornerRadius(dp(12));inputBg.setStroke(dp(1),0xFF84DFFF);query.setBackground(inputBg);
+        query.setPadding(dp(12),0,dp(12),0);
         query.setTextSize(15);
         query.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         query.setTextDirection(View.TEXT_DIRECTION_RTL);
