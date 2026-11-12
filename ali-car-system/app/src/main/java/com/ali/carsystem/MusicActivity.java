@@ -1,377 +1,134 @@
 package com.ali.carsystem;
 
 import android.app.Activity;
-import android.content.BroadcastReceiver;
 import android.content.ContentUris;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.database.Cursor;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.Typeface;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.ImageView;
-import android.widget.FrameLayout;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
-
-import java.io.IOException;
+import android.view.WindowManager;
+import android.widget.*;
+import android.view.ViewGroup;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
+import java.util.Locale;
 
 public final class MusicActivity extends Activity {
-    private final ArrayList<Song> songs = new ArrayList<>();
+    private static final class Song {
+        final String title,artist;final Uri uri;final int duration;
+        Song(String t,String a,Uri u,int d){title=t;artist=a;uri=u;duration=d;}
+    }
+    private final ArrayList<Song> songs=new ArrayList<>();
+    private final Handler h=new Handler(Looper.getMainLooper());
     private MediaPlayer player;
-    private int current = -1;
-    private boolean prepared = false;
-    private TextView nowPlaying;
-    private TextView playButton;
-    private ImageView albumArt;
-    private TextView artFallback;
-    private boolean receiverRegistered = false;
-    private boolean screenOn = true;
-
-    private final BroadcastReceiver screenOff = new BroadcastReceiver() {
-        @Override public void onReceive(Context context, Intent intent) {
-            if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
-                screenOn = false;
-                pausePlayback();
-            } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
-                screenOn = true;
+    private int current=-1;
+    private boolean prepared,tracking;
+    private TextView now,play,elapsed,total;
+    private SeekBar progress;
+    private final Runnable tick=new Runnable(){public void run(){
+        if(player!=null&&prepared&&!tracking){
+            try{if(player.isPlaying()){int p=player.getCurrentPosition(),d=player.getDuration();progress.setProgress(d>0?p*1000/d:0);elapsed.setText(time(p));h.postDelayed(this,750);}}catch(Exception ignored){}
+        }
+    }};
+    private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
+    private void immersive(){getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|
+        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_LAYOUT_STABLE);}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);immersive();loadSongs();build();
+        String action=getIntent().getStringExtra("ali.music.action");
+        current=getPreferences(0).getInt("current_index",-1);
+        if("previous".equals(action))select(Math.max(0,current-1));
+        else if("next".equals(action))select(current<0?0:Math.min(songs.size()-1,current+1));
+        else if("play".equals(action))select(current<0?0:current);
+    }
+    private void loadSongs(){
+        String[] cols={MediaStore.Audio.Media._ID,MediaStore.Audio.Media.TITLE,MediaStore.Audio.Media.ARTIST,MediaStore.Audio.Media.DURATION};
+        Cursor c=null;
+        try{c=getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,cols,
+            MediaStore.Audio.Media.IS_MUSIC+" != 0",null,MediaStore.Audio.Media.TITLE+" COLLATE NOCASE ASC");
+            if(c!=null)while(c.moveToNext()){
+                long id=c.getLong(0);songs.add(new Song(c.getString(1)==null?"مقطع صوتي":c.getString(1),
+                    c.getString(2)==null?"فنان غير معروف":c.getString(2),
+                    ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,id),c.getInt(3)));
             }
-        }
-    };
-
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+        }catch(Exception ignored){}finally{if(c!=null)c.close();}
     }
-
-    @Override protected void onCreate(Bundle state) {
-        super.onCreate(state);
-        getWindow().setStatusBarColor(0xFF080D13);
-        getWindow().setNavigationBarColor(0xFF080D13);
-        loadSongs();
-        build();
-        IntentFilter screenFilter = new IntentFilter();
-        screenFilter.addAction(Intent.ACTION_SCREEN_OFF);
-        screenFilter.addAction(Intent.ACTION_SCREEN_ON);
-        registerReceiver(screenOff, screenFilter);
-        receiverRegistered = true;
-    }
-
-    @Override protected void onDestroy() {
-        if (receiverRegistered) {
-            try { unregisterReceiver(screenOff); } catch (RuntimeException ignored) { }
-            receiverRegistered = false;
-        }
-        release();
-        if (albumArt != null && albumArt.getDrawable() != null) {
-            albumArt.setImageDrawable(null);
-        }
-        super.onDestroy();
-    }
-
-    private void loadSongs() {
-        String[] projection = {
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.ALBUM_ID
-        };
-        String selection = MediaStore.Audio.Media.IS_MUSIC + " != 0";
-        Cursor cursor = null;
-        try {
-            cursor = getContentResolver().query(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                projection, selection, null,
-                MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC"
-            );
-            if (cursor != null) {
-                while (cursor.moveToNext()) {
-                    long id = cursor.getLong(0);
-                    String title = cursor.getString(1);
-                    String artist = cursor.getString(2);
-                    long duration = cursor.getLong(3);
-                    long albumId = cursor.getLong(4);
-                    Uri uri = ContentUris.withAppendedId(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id);
-                    songs.add(new Song(
-                        title == null ? "مقطع بدون اسم" : title,
-                        artist == null ? "فنان غير معروف" : artist,
-                        uri, duration, albumId
-                    ));
-                }
-            }
-        } catch (RuntimeException ignored) {
-            // An unavailable removable storage volume must not crash the player.
-        } finally {
-            if (cursor != null) cursor.close();
-        }
-    }
-
-    private void build() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(12), dp(18), dp(12));
-        root.setBackgroundColor(0xFF080D13);
-        root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-
-        TextView title = text("ALI MUSIC", 24, 0xFFF2F6F9, true);
-        root.addView(title, new LinearLayout.LayoutParams(-1, dp(42)));
-        TextView subtitle = text("مشغل الموسيقى المحلي", 13, 0xFF42D9D0, false);
-        root.addView(subtitle, new LinearLayout.LayoutParams(-1, dp(25)));
-
-        LinearLayout nowPlayingPanel = new LinearLayout(this);
-        nowPlayingPanel.setOrientation(LinearLayout.HORIZONTAL);
-        nowPlayingPanel.setGravity(Gravity.CENTER_VERTICAL);
-        nowPlayingPanel.setPadding(dp(12), dp(8), dp(12), dp(8));
-        nowPlayingPanel.setBackground(background(0xFF111C27, dp(18)));
-
-        FrameLayout artFrame = new FrameLayout(this);
-        artFrame.setBackground(background(0xFF172633, dp(12)));
-        albumArt = new ImageView(this);
-        albumArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        artFallback = text("♫", 42, 0xFF42D9D0, true);
-        artFallback.setGravity(Gravity.CENTER);
-        artFrame.addView(albumArt, new FrameLayout.LayoutParams(-1, -1));
-        artFrame.addView(artFallback, new FrameLayout.LayoutParams(-1, -1));
-        nowPlayingPanel.addView(artFrame, new LinearLayout.LayoutParams(dp(112), dp(112)));
-
-        nowPlaying = text("اختر أغنية للبدء", 17, 0xFFF2F6F9, true);
-        nowPlaying.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-        nowPlaying.setPadding(dp(14), 0, dp(8), 0);
-        nowPlayingPanel.addView(nowPlaying, new LinearLayout.LayoutParams(0, dp(105), 1f));
-        root.addView(nowPlayingPanel, new LinearLayout.LayoutParams(-1, dp(128)));
-
-        LinearLayout controls = new LinearLayout(this);
-        controls.setGravity(Gravity.CENTER);
-        controls.setPadding(0, dp(5), 0, dp(5));
-        TextView previous = control("السابق");
-        playButton = control("▶ تشغيل");
-        TextView next = control("التالي");
-        controls.addView(previous, new LinearLayout.LayoutParams(0, dp(55), 1f));
-        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(0, dp(55), 1.25f);
-        playParams.leftMargin = dp(6);
-        playParams.rightMargin = dp(6);
-        controls.addView(playButton, playParams);
-        controls.addView(next, new LinearLayout.LayoutParams(0, dp(55), 1f));
-        root.addView(controls, new LinearLayout.LayoutParams(-1, dp(65)));
-
-        previous.setOnClickListener(v -> playIndex(Math.max(0, current - 1)));
-        next.setOnClickListener(v -> playIndex(Math.min(songs.size() - 1, current + 1)));
-        playButton.setOnClickListener(v -> togglePlayback());
-
-        TextView listTitle = text("قائمة الأغاني", 15, 0xFFF2F6F9, true);
-        root.addView(listTitle, new LinearLayout.LayoutParams(-1, dp(30)));
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        if (songs.isEmpty()) {
-            TextView empty = text(
-                "لم يتم العثور على ملفات موسيقى. أضف ملفات MP3 أو AAC إلى الذاكرة أو بطاقة SD.",
-                14, 0xFF91A4B2, false);
-            empty.setPadding(dp(8), dp(18), dp(8), dp(18));
-            list.addView(empty);
-        }
-        for (int index = 0; index < songs.size(); index++) {
-            final int selectedIndex = index;
-            Song song = songs.get(index);
-            String rowText = (index + 1) + ".  " + song.title + "\n      " + song.artist;
-            TextView row = text(rowText, 14, 0xFFF2F6F9, false);
-            row.setPadding(dp(12), dp(7), dp(12), dp(7));
-            row.setBackgroundColor(index % 2 == 0 ? 0xFF111C27 : 0xFF172633);
-            list.addView(row, new LinearLayout.LayoutParams(-1, dp(58)));
-            row.setOnClickListener(v -> playIndex(selectedIndex));
-        }
-        scroll.addView(list);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-
-        TextView back = control("العودة إلى ALI CAR");
-        back.setOnClickListener(v -> finish());
-        root.addView(back, new LinearLayout.LayoutParams(-1, dp(45)));
+    private void build(){
+        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(14),dp(9),dp(14),dp(8));root.setBackgroundColor(0xFF050A13);
+        TextView title=label("مشغل الموسيقى",24,Color.WHITE,true);root.addView(title,new LinearLayout.LayoutParams(-1,dp(40)));
+        TextView sub=label("مشغل محلي خفيف • لا خدمات تعمل في الخلفية",12,0xFF5EDCF5,true);root.addView(sub,new LinearLayout.LayoutParams(-1,dp(23)));
+        LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setGravity(Gravity.CENTER);panel.setPadding(dp(12),dp(6),dp(12),dp(6));panel.setBackground(shape(0xFF16283B,18,0xFF46CFF5));
+        now=label("اختر أغنية من القائمة",18,Color.WHITE,true);now.setGravity(Gravity.CENTER);panel.addView(now,new LinearLayout.LayoutParams(-1,dp(48)));
+        LinearLayout buttons=new LinearLayout(this);buttons.setGravity(Gravity.CENTER);
+        TextView prev=button("⏮ السابق"),next=button("التالي ⏭");play=button("▶ تشغيل");
+        buttons.addView(prev,new LinearLayout.LayoutParams(0,dp(47),1));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(47),1.2f);cp.leftMargin=dp(5);cp.rightMargin=dp(5);buttons.addView(play,cp);buttons.addView(next,new LinearLayout.LayoutParams(0,dp(47),1));
+        panel.addView(buttons,new LinearLayout.LayoutParams(-1,dp(52)));
+        LinearLayout pr=new LinearLayout(this);pr.setGravity(Gravity.CENTER_VERTICAL);
+        elapsed=label("00:00",10,0xFFFFD78A,true);progress=new SeekBar(this);progress.setMax(1000);total=label("00:00",10,0xFFB3C8D8,true);
+        if(android.os.Build.VERSION.SDK_INT>=21)progress.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFF4B9B));
+        pr.addView(elapsed,new LinearLayout.LayoutParams(dp(42),dp(32)));pr.addView(progress,new LinearLayout.LayoutParams(0,dp(32),1));pr.addView(total,new LinearLayout.LayoutParams(dp(42),dp(32)));
+        panel.addView(pr,new LinearLayout.LayoutParams(-1,dp(33)));
+        root.addView(panel,new LinearLayout.LayoutParams(-1,dp(150)));
+        TextView heading=label("قائمة الملفات الصوتية ("+songs.size()+")",14,0xFFFFD78A,true);root.addView(heading,new LinearLayout.LayoutParams(-1,dp(30)));
+        RecyclerView recycler=new RecyclerView(this);
+        recycler.setLayoutManager(new LinearLayoutManager(this));
+        recycler.setAdapter(new SongAdapter());
+        root.addView(recycler,new LinearLayout.LayoutParams(-1,0,1));
+        TextView back=button("العودة إلى الواجهة الرئيسية");back.setOnClickListener(v->finish());root.addView(back,new LinearLayout.LayoutParams(-1,dp(42)));
+        prev.setOnClickListener(v->select(Math.max(0,current-1)));next.setOnClickListener(v->select(Math.min(songs.size()-1,current+1)));
+        play.setOnClickListener(v->toggle());progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar b,int v,boolean user){if(user&&player!=null&&prepared){try{elapsed.setText(time(player.getDuration()*v/1000));}catch(Exception ignored){}}}
+            public void onStartTrackingTouch(SeekBar b){tracking=true;}
+            public void onStopTrackingTouch(SeekBar b){tracking=false;if(player!=null&&prepared)try{player.seekTo(player.getDuration()*b.getProgress()/1000);}catch(Exception ignored){}}
+        });
         setContentView(root);
     }
-
-    private android.graphics.drawable.GradientDrawable background(int color, int radius) {
-        android.graphics.drawable.GradientDrawable drawable =
-            new android.graphics.drawable.GradientDrawable();
-        drawable.setColor(color);
-        drawable.setCornerRadius(radius);
-        drawable.setStroke(dp(1), 0xFF263B49);
-        return drawable;
-    }
-
-    private TextView text(String value, int size, int color, boolean bold) {
-        TextView view = new TextView(this);
-        view.setText(value);
-        view.setTextSize(size);
-        view.setTextColor(color);
-        view.setGravity(Gravity.CENTER_VERTICAL);
-        view.setTypeface(Typeface.create("sans-serif",
-            bold ? Typeface.BOLD : Typeface.NORMAL));
-        return view;
-    }
-
-    private TextView control(String value) {
-        TextView view = text(value, 15, 0xFF42D9D0, true);
-        view.setGravity(Gravity.CENTER);
-        view.setPadding(dp(10), dp(5), dp(10), dp(5));
-        view.setBackground(background(0xFF172633, dp(13)));
-        view.setClickable(true);
-        view.setFocusable(true);
-        return view;
-    }
-
-    private void togglePlayback() {
-        if (player == null) {
-            if (!songs.isEmpty()) playIndex(current < 0 ? 0 : current);
-            return;
+    private final class SongAdapter extends RecyclerView.Adapter<SongAdapter.Holder>{
+        @Override public Holder onCreateViewHolder(ViewGroup parent,int type){
+            LinearLayout row=new LinearLayout(MusicActivity.this);row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(12),dp(5),dp(12),dp(5));row.setBackground(shape(0xFF102338,10,0xFF28465E));
+            TextView title=label("",13,Color.WHITE,true),artist=label("",10,0xFFB3C8D8,false);
+            row.addView(title,new LinearLayout.LayoutParams(-1,dp(25)));
+            row.addView(artist,new LinearLayout.LayoutParams(-1,dp(18)));
+            return new Holder(row,title,artist);
         }
-        if (!prepared) {
-            playButton.setText("جارٍ التحميل...");
-            return;
+        @Override public void onBindViewHolder(Holder holder,int position){
+            if(songs.isEmpty()){holder.title.setText("لا توجد ملفات موسيقى في الذاكرة أو بطاقة الذاكرة.");holder.artist.setText("");holder.itemView.setOnClickListener(null);return;}
+            Song song=songs.get(position);holder.title.setText(song.title);holder.artist.setText(song.artist);
+            holder.itemView.setOnClickListener(v->{int p=holder.getAdapterPosition();if(p>=0)select(p);});
         }
-        try {
-            if (player.isPlaying()) {
-                player.pause();
-                playButton.setText("▶ متابعة");
-            } else {
-                player.start();
-                playButton.setText("Ⅱ إيقاف مؤقت");
-            }
-        } catch (IllegalStateException ignored) {
-            playButton.setText("▶ تشغيل");
+        @Override public int getItemCount(){return Math.max(1,songs.size());}
+        final class Holder extends RecyclerView.ViewHolder{
+            final TextView title,artist;
+            Holder(View v,TextView t,TextView a){super(v);title=t;artist=a;}
         }
     }
-
-    private void playIndex(int index) {
-        if (index < 0 || index >= songs.size()) return;
-        release();
-        current = index;
-        Song song = songs.get(index);
-        updateAlbumArt(song.albumId);
-        nowPlaying.setText(song.title + "\n" + song.artist);
-        playButton.setText("جارٍ التحميل...");
-        try {
-            player = new MediaPlayer();
-            prepared = false;
-            player.setOnPreparedListener(mediaPlayer -> {
-                if (isFinishing()) return;
-                prepared = true;
-                if (!screenOn) {
-                    playButton.setText("متوقف عند إطفاء الشاشة");
-                    return;
-                }
-                try {
-                    mediaPlayer.start();
-                    playButton.setText("Ⅱ إيقاف مؤقت");
-                } catch (IllegalStateException ignored) {
-                    playButton.setText("▶ تشغيل");
-                }
-            });
-            player.setOnCompletionListener(mediaPlayer -> {
-                prepared = false;
-                if (current + 1 < songs.size()) playIndex(current + 1);
-                else playButton.setText("▶ إعادة التشغيل");
-            });
-            player.setOnErrorListener((mediaPlayer, what, extra) -> {
-                release();
-                nowPlaying.setText("تعذّر تشغيل هذا الملف");
-                playButton.setText("▶ تشغيل");
-                return true;
-            });
-            player.setDataSource(this, song.uri);
-            player.prepareAsync();
-        } catch (IOException | RuntimeException error) {
-            release();
-            nowPlaying.setText("تعذّر فتح الملف الصوتي");
-            playButton.setText("▶ تشغيل");
-        }
+    private TextView label(String s,int z,int c,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextColor(c);v.setTextSize(z);v.setTypeface(Typeface.create("sans-serif",bold?1:0));v.setGravity(Gravity.CENTER_VERTICAL);return v;}
+    private android.graphics.drawable.GradientDrawable shape(int c,int r,int stroke){android.graphics.drawable.GradientDrawable d=new android.graphics.drawable.GradientDrawable();d.setColor(c);d.setCornerRadius(dp(r));d.setStroke(dp(1),stroke);return d;}
+    private TextView button(String s){TextView v=label(s,14,Color.WHITE,true);v.setGravity(Gravity.CENTER);v.setBackground(shape(0xFF15538A,12,0xFF52D9FF));v.setClickable(true);return v;}
+    private void select(int i){
+        if(i<0||i>=songs.size())return;release();current=i;Song song=songs.get(i);now.setText(song.title+"\n"+song.artist);
+        progress.setProgress(0);elapsed.setText("00:00");total.setText(time(song.duration));play.setText("جارٍ التحميل...");
+        try{player=new MediaPlayer();player.setAudioStreamType(AudioManager.STREAM_MUSIC);prepared=false;
+            player.setOnPreparedListener(mp->{if(isFinishing())return;prepared=true;try{mp.start();play.setText("Ⅱ إيقاف");h.removeCallbacks(tick);h.post(tick);}catch(Exception e){play.setText("تعذر التشغيل");}});
+            player.setOnCompletionListener(mp->{play.setText("▶ إعادة");if(current+1<songs.size())select(current+1);});
+            player.setOnErrorListener((mp,w,e)->{play.setText("خطأ في الملف");release();return true;});
+            player.setDataSource(this,song.uri);player.prepareAsync();
+        }catch(Exception e){play.setText("تعذر فتح الملف");release();}
     }
-
-    private void updateAlbumArt(long albumId) {
-        albumArt.setImageDrawable(null);
-        artFallback.setVisibility(View.VISIBLE);
-        Cursor cursor = null;
-        try {
-            Uri albumUri = ContentUris.withAppendedId(
-                MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId);
-            cursor = getContentResolver().query(
-                albumUri, new String[]{MediaStore.Audio.Albums.ALBUM_ART},
-                null, null, null);
-            if (cursor != null && cursor.moveToFirst()) {
-                String path = cursor.getString(0);
-                if (path != null && !path.trim().isEmpty()) {
-                    Bitmap bitmap = decodeSampledBitmap(path, 256, 256);
-                    if (bitmap != null) {
-                        albumArt.setImageBitmap(bitmap);
-                        artFallback.setVisibility(View.GONE);
-                    }
-                }
-            }
-        } catch (RuntimeException ignored) {
-            // Missing or unreadable art is normal for some audio files.
-        } finally {
-            if (cursor != null) cursor.close();
-        }
-    }
-
-    private Bitmap decodeSampledBitmap(String path, int targetWidth, int targetHeight) {
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inJustDecodeBounds = true;
-        BitmapFactory.decodeFile(path, options);
-        if (options.outWidth <= 0 || options.outHeight <= 0) return null;
-        int sample = 1;
-        while (options.outWidth / (sample * 2) >= targetWidth
-            && options.outHeight / (sample * 2) >= targetHeight) {
-            sample *= 2;
-        }
-        options.inSampleSize = sample;
-        options.inJustDecodeBounds = false;
-        return BitmapFactory.decodeFile(path, options);
-    }
-
-    private void pausePlayback() {
-        if (player != null && prepared) {
-            try {
-                if (player.isPlaying()) {
-                    player.pause();
-                    playButton.setText("متوقف عند إطفاء الشاشة");
-                }
-            } catch (IllegalStateException ignored) { }
-        }
-    }
-
-    private void release() {
-        prepared = false;
-        if (player != null) {
-            try { player.setOnPreparedListener(null); } catch (RuntimeException ignored) { }
-            try { player.stop(); } catch (RuntimeException ignored) { }
-            try { player.release(); } catch (RuntimeException ignored) { }
-            player = null;
-        }
-    }
-
-    private static final class Song {
-        final String title;
-        final String artist;
-        final Uri uri;
-        final long duration;
-        final long albumId;
-
-        Song(String title, String artist, Uri uri, long duration, long albumId) {
-            this.title = title;
-            this.artist = artist;
-            this.uri = uri;
-            this.duration = duration;
-            this.albumId = albumId;
-        }
-    }
+    private void toggle(){if(player==null){select(current<0?0:current);return;}if(!prepared)return;try{if(player.isPlaying()){player.pause();h.removeCallbacks(tick);play.setText("▶ متابعة");}else{player.start();play.setText("Ⅱ إيقاف");h.post(tick);}}catch(Exception ignored){}}
+    private String time(int millis){int sec=Math.max(0,millis/1000);return String.format(Locale.US,"%02d:%02d",sec/60,sec%60);}
+    private void release(){h.removeCallbacks(tick);prepared=false;if(player!=null){try{player.reset();player.release();}catch(Exception ignored){}player=null;}}
+    @Override protected void onResume(){super.onResume();immersive();}
+    @Override protected void onPause(){release();super.onPause();}
+    @Override protected void onDestroy(){release();h.removeCallbacksAndMessages(null);super.onDestroy();}
 }

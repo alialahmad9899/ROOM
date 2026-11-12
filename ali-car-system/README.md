@@ -1,39 +1,53 @@
-# ALI Car System 1.1.0
+# ALI CAR — Clean Native Android 5 Launcher
 
-واجهة قيادة عربية مدمجة لشاشة ASUS ZenPad C 7.0 Z170CG / P01Y / WW، مبنية بهدف التوافق مع Android 5.0.2 / API 21 / x86.
+This branch replaces the previous launcher implementation with a fresh, low-overhead native Android application.
 
-## ما تتضمنه النسخة
-- مشغل HOME افتراضي اختياري، مع واجهة أفقية RTL مناسبة لدقة 1024×600.
-- هوية ALI CAR، شاشة ترحيب متحركة، ساعة رقمية ومؤشر مستوى البطارية.
-- عداد سرعة GPS بالكيلومتر/ساعة؛ يعرض -- عندما لا توجد قراءة GPS.
-- خريطة OpenStreetMap داخل التطبيق، وموقع GPS، ورسم مسار قيادة وتعليمات انعطاف نصية عند توفر الإنترنت.
-- بحث وجهة مباشر من المستخدم عبر Nominatim، وطلب مسار من خدمة OSRM العامة. لا يوجد بحث تلقائي/اقتراحات؛ يتم إرسال طلب جغرافي واحد عند ضغط المستخدم. تظهر نسبة بيانات OpenStreetMap.
-- مشغل موسيقى محلي من MediaStore مع غلاف الألبوم عند توفره.
-- YouTube Lite هو WebView للموقع الرسمي المحمول. توافق YouTube الحديث على WebView المصنع القديم غير مضمون ولا يتم تجاوز إعلانات أو قيود الخدمة.
-- مفاتيح مباشرة لتشغيل/إيقاف Wi-Fi وBluetooth على Android 5، وشريط سطوع يحاول تطبيق التغيير على مستوى النظام، مع بديل لنافذة التطبيق عند غياب الإذن.
-- عند إقلاع الجهاز أو توصيل الشاحن، يحاول التطبيق إظهار الشاشة وفتح لوحة ALI مع الترحيب. هذا يعتمد على سماح البرنامج الثابت بتشغيل نشاط من مستقبل النظام.
-- لا يعمل التطبيق كخدمة CPU دائمة ولا يحتفظ بقفل يقظة مستمر؛ يتم إيقاف GPS عند مغادرة الشاشة الرئيسية.
+## Target
 
-## التوافق والبناء
-- minSdk 21، targetSdk 22، Java 8 source compatibility.
-- مكتبة الخريطة osmdroid 6.1.20 لا تحتاج AndroidX، وتعلن دعم مستويات Android القديمة. المشروع الأصلي مؤرشف منذ 2024، لذلك تم تثبيت النسخة الأخيرة بدلاً من سحب إصدار متغير.
-- Build workflow منفصل ينتج APK Debug موقّعاً وقابلاً للتثبيت للاختبار.
+- Device profile: ASUS ZenPad P01Y / 1024×600 / Intel x86 / 1 GB RAM
+- Minimum Android: 5.0 / API 21
+- Target SDK: 22
+- Application ID: `com.ali.carsystem`
+- UI: native Android Views and AndroidX RecyclerView; **no WebView source or runtime**
+- Map: OSMDroid, loaded only inside the navigation activity
+- Video: `MediaPlayer + SurfaceView`; progressive MP4 only at 360p/480p when the source backend offers it
+- Background: one small WebP file decoded with `RGB_565`
 
-## اعتماد خدمات الإنترنت
-الخريطة والبحث عن العناوين والتوجيه تحتاج اتصال Wi-Fi أو بيانات. يتم تحميل بلاطات الخريطة من OpenStreetMap؛ البحث يستخدم Nominatim عند الطلب فقط وفق حدود الخدمة، والمسار التجريبي يستخدم OSRM العام. الخدمات العامة قد تتغير أو تتوقف ولا تشكل ضمان ملاحة تجارية أو أوفلاين. لا تتضمن النسخة خرائط محلية ولا إعادة توجيه صوتية تلقائية عند الخروج عن المسار.
+## Main dashboard
 
-## الطاقة والسلامة
-عند توصيل الشاحن يحاول مستقبل الطاقة إيقاظ الشاشة (مؤقتاً) وإظهار الترحيب. لا يجبر التطبيق إطفاء الشاشة عند فصل الشاحن؛ ترك الشاشة تعمل أثناء القيادة أكثر أماناً من قفلها تلقائياً. لا يقوم البرنامج بتجميد خدمات Android أو تعطيل SIM أو البلوتوث أو الصوت أو GPS أو خدمات الجهاز الأساسية. تعطيل تطبيقات النظام يتم فقط عبر قائمة النظام المعدلة المنفصلة والقابلة للاستعادة.
+Top row: ALI CAR branding, Wi-Fi/Bluetooth states, digital clock and rounded settings shortcut.
+Center-left: GPS speed dial and previous/play/next media shortcuts.
+Center-right: large digital clock, custom analog clock and English date.
+Bottom dock contains exactly six actions: YouTube Lite, Navigation, Music, Bluetooth, Wi-Fi and Brightness. Credit text is displayed under the dock.
 
-## القيود التي تحتاج تجربة فعلية
-- يلزم اختبار الخريطة وGPS وWi-Fi وBluetooth وسطوع الشاشة والصوت على الجهاز الفعلي.
-- تشغيل وإيقاف Wi-Fi وBluetooth مباشرة مضمون على Android 5، وقد تمنعه إصدارات Android الأحدث بسياسات النظام.
-- منح Android 23+ إذن WRITE_SETTINGS قد يتطلب زيارة صفحة إعدادات خاصة.
-- لا يمكن تأكيد توافق YouTube على WebView المصنع دون اتصال وتجربة فعلية.
-- لا ندّعي نجاح تشغيل الشاشة على كل إصدارات firmware؛ بعض الشركات تمنع بدء الأنشطة في الخلفية.
+## Video search and playback
 
-## الاعتماد على OpenStreetMap
-بيانات الخريطة © OpenStreetMap contributors. يخضع خادم Nominatim العام لحد أقصى طلب واحد في الثانية، مع User-Agent مميز ونسبة واضحة للبيانات. يرجى عدم استخدامه للبحث التلقائي أو الطلبات المتكررة. يمكن تغيير مزود البحث/المسارات لاحقاً دون تغيير واجهة المستخدم.
+Search tries Piped API instances first, then the official Invidious instance registry and a small documented fallback list. Public community instances are independent services and can become unavailable, rate-limit, or change API behaviour. Piped’s documentation explicitly recommends dynamically parsing its public instance list. Playback accepts only progressive `video/mp4` 360p/480p streams; it does not silently switch to DASH/HLS, higher resolutions, or a WebView. If no compatible progressive stream is offered, the app reports that instead of pretending playback is supported.
 
-## علامة الواجهة
-أسفل الواجهة الرئيسية: تم تطوير الواجهة بواسطة : ali ahmad.
+The Android platform decoder is selected by MediaPlayer/MediaCodec where available. Smooth playback is not guaranteed by software changes alone: the selected stream, server proxy, codec support, WebView is not involved, thermal state and available RAM still matter.
+
+## Device Owner and Kiosk
+
+The admin screen can request ordinary Device Admin, display an explicit safe optional-package allowlist, and perform app hiding or kiosk allowlisting **only when Android reports this package is the Device Owner**. It does not grant itself Device Owner. Device Owner provisioning normally happens during initial device setup, commonly using ADB after a factory reset:
+
+```sh
+adb shell dpm set-device-owner com.ali.carsystem/.CarAdminReceiver
+```
+
+This is not an instruction to run on an already-configured device without checking its owner/accounts state. Hiding packages can remove features; do not hide system UI, telephony, Bluetooth, location, input, package installer, settings, Google Services Framework, or Play Services.
+
+## RAM and validation
+
+The app avoids WebView, keeps map downloads out of the home screen, uses RGB_565 for the wallpaper, limits the OSMDroid tile cache, and releases MediaPlayer/MapView resources on exit. The requested 60 MB ceiling is a **measurement target, not a guarantee**. It must be measured on the actual tablet using Android memory tools while video, map and music screens are exercised. Public API/network reliability and the device decoder cannot be proven by a successful compile.
+
+CI performs static project-contract checks, compiles the APK, verifies package metadata and APK signatures. This is a debug-signed installable build, not a production release key. No emulator/device runtime instrumentation or physical-device playback test is implied by CI success.
+
+## Network and attribution
+
+- Piped API docs: https://docs.piped.video/docs/api-documentation/
+- Invidious API and public instance list: https://docs.invidious.io/api/ and https://docs.invidious.io/instances/
+- Map tiles: © OpenStreetMap contributors
+- Geocoding: Nominatim
+- Driving route: OSRM public demo service
+
+Public endpoints are best-effort services, not an uptime guarantee. Respect their published usage policies and avoid automated high-frequency requests.
