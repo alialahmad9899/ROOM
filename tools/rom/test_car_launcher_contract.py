@@ -62,15 +62,31 @@ video_player = read("VideoPlayerActivity.java")
 music = read("MusicActivity.java")
 navigation = read("NavigationActivity.java")
 admin_src = read("AdminToolsActivity.java")
+tls = read("LegacyTls.java")
+network = read("NetworkCompat.java")
+video_adapter = read("VideoAdapter.java")
 
-for token in ("ALI CAR", "تم تطوير الواجهة بواسطة : ali ahmad", "Bitmap.Config.RGB_565",
+for token in ("ALI CAR", "تم تطوير الواجهة بواسطة: علي أحمد", "Bitmap.Config.RGB_565",
               "SYSTEM_UI_FLAG_IMMERSIVE_STICKY", "أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",
               "setWifiEnabled", "BluetoothAdapter", "90000", "LocationManager.GPS_PROVIDER"):
     require(token in main, "dashboard contract missing: " + token)
 
 require((SRC / "assets" / "dashboard.webp").is_file(), "compressed dashboard WebP asset missing")
 require("RecyclerView" in video_search and "HttpURLConnection" in video_api, "Native search stack missing")
-for token in ("pipedapi.kavin.rocks", "instances.json", "video/mp4", "360p", "480p"):
+require('URLEncoder.encode(query, "UTF-8")' in video_api, "Arabic video query must be URL-encoded using UTF-8")
+require("NetworkCompat.open(context, address)" in video_api, "Video API bypasses the TLS compatibility layer")
+require("downloadThumbnail" in video_adapter and "ImageView" in video_adapter, "Video thumbnails are not rendered")
+require('URLEncoder.encode(searchText, "UTF-8")' in navigation, "Map search must be URL-encoded using UTF-8")
+require("NetworkCompat.open(this, address)" in navigation, "Navigation bypasses the TLS compatibility layer")
+require('AliCarLauncher/2.0 (Android 5.0)' in network, "Required Nominatim User-Agent missing")
+require("setSSLSocketFactory(LegacyTls.socketFactory(context))" in network, "HTTPS does not use the API-21 TLS factory")
+require("getDefaultHostnameVerifier()" in network, "HTTPS hostname verification must remain enabled")
+require('"TLSv1.2"' in tls and "TrustManagerFactory" in tls, "TLS 1.2 trust-manager setup missing")
+require("system.checkServerTrusted" in tls and "extra.checkServerTrusted" in tls,
+        "TLS trust must combine system roots and the bundled ISRG root")
+require("trustAll" not in tls and "ALLOW_ALL" not in tls, "Trust-all certificate acceptance is prohibited")
+require((SRC / "res" / "raw" / "isrg_root_x1.pem").is_file(), "Bundled ISRG Root X1 trust anchor missing")
+for token in ("pipedapi.adminforge.de", "instances.json", "video/mp4", "360p", "480p"):
     require(token in video_api, "Piped/Invidious fallback contract missing: " + token)
 for token in ("SurfaceView", "MediaPlayer", "setDisplay", "prepareAsync", "FLAG_KEEP_SCREEN_ON"):
     require(token in video_player, "hardware video playback contract missing: " + token)
@@ -80,11 +96,11 @@ require("WebView" not in "".join(x.read_text(encoding="utf-8") for x in JAVA.glo
 for token in ("MediaStore.Audio.Media", "prepareAsync", "SeekBar", "seekTo"):
     require(token in music, "native music player contract missing: " + token)
 for token in ("MapView", "nominatim.openstreetmap.org", "router.project-osrm.org",
-              "accept-language=ar,en", "map.onDetach"):
+              "accept-language=ar,en", "map.onDetach", "map.setMapOrientation(-bearing)", "createCarArrow"):
     require(token in navigation, "navigation contract missing: " + token)
 for token in ("isDeviceOwnerApp", "setApplicationHidden", "setLockTaskPackages", "startLockTask"):
     require(token in admin_src, "Device Owner guard missing: " + token)
 require("if(!dpm.isDeviceOwnerApp(getPackageName()))" in admin_src,
         "hiding apps must be blocked unless the package is Device Owner")
 
-print("PASS: clean native API21 launcher, no WebView, MP4 SurfaceView, OSM/Nominatim, MediaStore, DPM guards.")
+print("PASS: API21 native launcher, secure TLS 1.2, UTF-8 Arabic requests, thumbnail results, car-oriented OSM, MediaStore and DPM guards.")
