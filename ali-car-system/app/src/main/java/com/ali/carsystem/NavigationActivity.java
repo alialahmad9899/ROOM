@@ -113,10 +113,16 @@ public final class NavigationActivity extends Activity implements LocationListen
     }
     private void loadLastKnownLocation(){
         try{
-            if(checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)return;
-            Location gps=locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            Location net=locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            currentLocation=gps==null?net:net==null?gps:(gps.getTime()>=net.getTime()?gps:net);
+            if(checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED
+                    &&checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED)return;
+            Location best=null;
+            for(String provider:new String[]{LocationManager.GPS_PROVIDER,LocationManager.NETWORK_PROVIDER}){
+                try{
+                    Location candidate=locationManager.getLastKnownLocation(provider);
+                    if(candidate!=null&&(best==null||candidate.getTime()>best.getTime()))best=candidate;
+                }catch(SecurityException|IllegalArgumentException ignored){}
+            }
+            if(best!=null)currentLocation=best;
         }catch(Exception ignored){}
     }
     private void searchDestination(){
@@ -148,7 +154,7 @@ public final class NavigationActivity extends Activity implements LocationListen
             }
             String name=best.optString("display_name",text);
             GeoPoint destination=new GeoPoint(best.getDouble("lat"),best.getDouble("lon"));
-            if(origin==null||(System.currentTimeMillis()-origin.getTime())>120000L)
+            if(origin==null)
                 return new NavResult(null,name,destination,null,null,"تم تحديد الوجهة. بانتظار إشارة GPS لرسم الطريق.",0,0);
             return requestRoute(origin,destination,name);
         }catch(Exception error){return NavResult.error(NetworkCompat.arabicError(error));}
@@ -278,8 +284,12 @@ public final class NavigationActivity extends Activity implements LocationListen
     }
     @Override protected void onResume(){
         super.onResume();immersive();if(map!=null)map.onResume();
-        if(locationManager!=null&&checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED){
-            try{locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1200L,1.5f,this);}catch(Exception ignored){}
+        if(locationManager!=null&&(checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED
+                ||checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED)){
+            try{locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,1f,this);}catch(Exception ignored){}
+            try{locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1800L,4f,this);}catch(Exception ignored){}
+            loadLastKnownLocation();
+            if(currentLocation!=null)onLocationChanged(currentLocation);
         }
     }
     @Override protected void onPause(){
@@ -296,7 +306,8 @@ public final class NavigationActivity extends Activity implements LocationListen
         if(location.hasAccuracy()&&location.getAccuracy()>45f)return;
         GeoPoint point=new GeoPoint(location.getLatitude(),location.getLongitude());
         ensureCarMarker();moveCarMarker(point,false);
-        if(location.hasBearing()&&location.hasSpeed()&&location.getSpeed()>1.2f){
+        if(location.hasBearing()&&location.hasSpeed()&&location.getSpeed()>0.8f){
+            carMarker.setRotation(location.getBearing());
             map.setMapOrientation(-location.getBearing());
         }
         if(waitingForGps&&pendingDestination!=null&&routeTask==null){
