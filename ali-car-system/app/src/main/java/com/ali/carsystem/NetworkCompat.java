@@ -32,17 +32,17 @@ public final class NetworkCompat {
     }
 
     public static String arabicError(Throwable error) {
-        Throwable cause = error;
-        while (cause != null && cause.getCause() != null) cause = cause.getCause();
-        if (cause instanceof java.net.UnknownHostException)
-            return "تعذر الوصول إلى الخادم. تأكد من اتصال الإنترنت.";
-        if (cause instanceof java.net.SocketTimeoutException)
-            return "استغرق الاتصال وقتاً طويلاً. حاول مرة أخرى.";
-        if (cause instanceof javax.net.ssl.SSLHandshakeException
-                || cause instanceof javax.net.ssl.SSLPeerUnverifiedException)
-            return "تعذر التحقق من شهادة أمان الخادم. تحقق من تاريخ الجهاز ووقته.";
-        if (cause instanceof java.net.ConnectException)
-            return "الخادم لا يستجيب حالياً. حاول لاحقاً.";
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof java.net.UnknownHostException)
+                return "تعذر الوصول إلى الخادم. تأكد من اتصال الإنترنت.";
+            if (cause instanceof java.net.SocketTimeoutException)
+                return "استغرق الاتصال وقتاً طويلاً. حاول مرة أخرى.";
+            if (cause instanceof javax.net.ssl.SSLHandshakeException
+                    || cause instanceof javax.net.ssl.SSLPeerUnverifiedException
+                    || cause instanceof java.security.cert.CertificateException)
+                return "تعذر التحقق من شهادة أمان الخادم. تحقق من تاريخ الجهاز ووقته.";
+            if (cause instanceof java.net.ConnectException)
+                return "الخادم لا يستجيب حالياً. حاول لاحقاً.";
+        }
         return "تعذر الاتصال بالخادم. تأكد من الإنترنت ثم أعد المحاولة.";
-    }
-}
+    }}
