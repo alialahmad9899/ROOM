@@ -83,7 +83,7 @@ public final class MusicActivity extends Activity {
         recycler.setLayoutManager(new LinearLayoutManager(this));
         recycler.setAdapter(new SongAdapter());
         root.addView(recycler,new LinearLayout.LayoutParams(-1,0,1));
-        TextView back=button("العودة إلى ALI CAR");back.setOnClickListener(v->finish());root.addView(back,new LinearLayout.LayoutParams(-1,dp(42)));
+        TextView back=button("العودة إلى الواجهة الرئيسية");back.setOnClickListener(v->finish());root.addView(back,new LinearLayout.LayoutParams(-1,dp(42)));
         prev.setOnClickListener(v->select(Math.max(0,current-1)));next.setOnClickListener(v->select(Math.min(songs.size()-1,current+1)));
         play.setOnClickListener(v->toggle());progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             public void onProgressChanged(SeekBar b,int v,boolean user){if(user&&player!=null&&prepared){try{elapsed.setText(time(player.getDuration()*v/1000));}catch(Exception ignored){}}}
