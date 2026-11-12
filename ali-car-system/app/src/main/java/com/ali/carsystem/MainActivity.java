@@ -125,14 +125,23 @@ public final class MainActivity extends Activity implements LocationListener {
         FrameLayout page=new FrameLayout(this);page.setBackgroundColor(Color.BLACK);
         ImageView background=new ImageView(this);background.setScaleType(ImageView.ScaleType.CENTER_CROP);
         int resource=getResources().getIdentifier("bg_car_dashboard","drawable",getPackageName());
+        Bitmap wallpaper=null;
         if(resource!=0){
             try(InputStream input=getResources().openRawResource(resource)){
                 BitmapFactory.Options options=new BitmapFactory.Options();
                 options.inPreferredConfig=Bitmap.Config.RGB_565;options.inDither=true;options.inScaled=false;
-                Bitmap bitmap=BitmapFactory.decodeStream(input,null,options);
-                background.setImageBitmap(bitmap);
-            }catch(Exception ignored){}
+                wallpaper=BitmapFactory.decodeStream(input,null,options);
+            }catch(Exception ignored){wallpaper=null;}
         }
+        // The bundled clean copy is the same supplied car/highway photograph, retained as a safe fallback.
+        if(wallpaper==null){
+            try(InputStream input=getAssets().open("dashboard.webp")){
+                BitmapFactory.Options options=new BitmapFactory.Options();
+                options.inPreferredConfig=Bitmap.Config.RGB_565;options.inDither=true;
+                wallpaper=BitmapFactory.decodeStream(input,null,options);
+            }catch(Exception ignored){wallpaper=null;}
+        }
+        if(wallpaper!=null)background.setImageBitmap(wallpaper);
         page.addView(background,new FrameLayout.LayoutParams(-1,-1));
 
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
