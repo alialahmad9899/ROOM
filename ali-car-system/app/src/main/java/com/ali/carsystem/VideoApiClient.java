@@ -158,7 +158,7 @@ public final class VideoApiClient {
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inPreferredConfig = Bitmap.Config.RGB_565;
-                options.inSampleSize = 2;
+                options.inSampleSize = 4;
                 return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
             }
         } catch (Exception ignored) {
