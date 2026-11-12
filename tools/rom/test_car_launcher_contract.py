@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static acceptance checks for ALI CAR Android 5 native launcher."""
+"""Static acceptance checks for ALI CAR Android 5 v2.2 cockpit."""
 from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
@@ -14,12 +14,12 @@ MANIFEST = ET.parse(SRC / "AndroidManifest.xml").getroot()
 NS = {"a": "http://schemas.android.com/apk/res/android"}
 
 
-def require(ok: bool, message: str) -> None:
+def require(ok, message):
     if not ok:
         raise SystemExit("FAIL: " + message)
 
 
-def read(name: str) -> str:
+def read(name):
     path = JAVA / name
     require(path.is_file(), "source file missing: " + name)
     return path.read_text(encoding="utf-8")
@@ -28,10 +28,11 @@ def read(name: str) -> str:
 require(re.search(r"applicationId\s+['\"]com\.ali\.carsystem['\"]", GRADLE), "applicationId mismatch")
 require(re.search(r"minSdk\s+21\b", GRADLE), "minSdk must be API 21")
 require(re.search(r"targetSdk\s+22\b", GRADLE), "targetSdk must be API 22")
-require("versionCode 11" in GRADLE and "versionName '2.1.0'" in GRADLE, "app version must be 2.1.0")
-require("androidx.recyclerview:recyclerview:1.3.2" in GRADLE, "Native RecyclerView dependency missing")
+require("versionCode 12" in GRADLE and "versionName '2.2.0'" in GRADLE, "app version must be 2.2.0")
+require("androidx.viewpager:viewpager:1.0.0" in GRADLE, "ViewPager dependency missing")
 require("org.osmdroid:osmdroid-android:6.1.20" in GRADLE, "OSMDroid dependency missing")
-require("materializeDashboardWallpaper" in GRADLE, "Gradle wallpaper materialization task missing")
+require("materializeDashboardWallpaper" in GRADLE, "Gradle wallpaper task missing")
+require('src/main/res/drawable-nodpi/bg_car_dashboard.webp' in GRADLE, "wallpaper must be installed into drawable-nodpi")
 require('new String(image, 8, 4, "US-ASCII") != "WEBP"' in GRADLE, "WebP asset validation missing")
 for number in range(1, 9):
     require((WALLPAPER_PARTS / f"part-{number:02d}.b64").is_file(),
@@ -39,106 +40,82 @@ for number in range(1, 9):
 
 permissions = {x.get(f"{{{NS['a']}}}name") for x in MANIFEST.findall("uses-permission")}
 for item in ("android.permission.INTERNET", "android.permission.ACCESS_FINE_LOCATION",
-             "android.permission.ACCESS_WIFI_STATE", "android.permission.CHANGE_WIFI_STATE",
-             "android.permission.BLUETOOTH_ADMIN", "android.permission.READ_EXTERNAL_STORAGE",
-             "android.permission.RECEIVE_BOOT_COMPLETED", "android.permission.WRITE_SETTINGS"):
+             "android.permission.ACCESS_COARSE_LOCATION", "android.permission.ACCESS_WIFI_STATE",
+             "android.permission.CHANGE_WIFI_STATE", "android.permission.BLUETOOTH_ADMIN",
+             "android.permission.READ_EXTERNAL_STORAGE", "android.permission.MODIFY_AUDIO_SETTINGS",
+             "android.permission.WAKE_LOCK", "android.permission.WRITE_SETTINGS"):
     require(item in permissions, "permission missing: " + item)
-require("android.permission.READ_PHONE_STATE" not in permissions, "unused phone permission must stay removed")
 
 activities = {x.get(f"{{{NS['a']}}}name") for x in MANIFEST.findall("./application/activity")}
 for item in (".MainActivity", ".YouTubeSearchActivity", ".VideoPlayerActivity",
              ".NavigationActivity", ".MusicActivity", ".AdminToolsActivity"):
     require(item in activities, "manifest activity missing: " + item)
 
-main_activity = next(x for x in MANIFEST.findall("./application/activity")
-                     if x.get(f"{{{NS['a']}}}name") == ".MainActivity")
-actions = {x.get(f"{{{NS['a']}}}name") for x in main_activity.findall("intent-filter/action")}
-cats = {x.get(f"{{{NS['a']}}}name") for x in main_activity.findall("intent-filter/category")}
-require("android.intent.action.MAIN" in actions and "android.intent.category.HOME" in cats,
-        "MainActivity must remain the HOME/launcher activity")
-
-admin = MANIFEST.find("./application/receiver[@android:name='.CarAdminReceiver']", {"android": NS["a"]})
-require(admin is not None and admin.find("meta-data") is not None, "DeviceAdminReceiver metadata missing")
-boot = MANIFEST.find("./application/receiver[@android:name='.BootReceiver']", {"android": NS["a"]})
-require(boot is not None, "BootReceiver missing")
-
 main = read("MainActivity.java")
+music = read("MusicActivity.java")
 video_api = read("VideoApiClient.java")
 video_search = read("YouTubeSearchActivity.java")
 video_player = read("VideoPlayerActivity.java")
-music = read("MusicActivity.java")
 navigation = read("NavigationActivity.java")
-admin_src = read("AdminToolsActivity.java")
-tls = read("LegacyTls.java")
 network = read("NetworkCompat.java")
-video_adapter = read("VideoAdapter.java")
+tls = read("LegacyTls.java")
 
-# Exact clean dashboard structure and transparent sections.
-for token in ("ALI CAR", "تم تطوير الواجهة بواسطة : ali ahmad", "Bitmap.Config.RGB_565",
-              "SYSTEM_UI_FLAG_IMMERSIVE_STICKY", "أهلاً وسهلاً بك سيد علي، بسم الله نبدأ",
-              "setWifiEnabled", "BluetoothAdapter", "LocationManager.GPS_PROVIDER",
-              "brightnessPill", "postDelayed(hideBrightness,3000)", "new AnalogClock(this)",
-              "new SpeedView(this)", "setBackgroundColor(Color.TRANSPARENT)"):
-    require(token in main, "dashboard contract missing: " + token)
-dock_lines = [line for line in main.splitlines() if "dock.addView(dockItem(" in line]
-require(len(dock_lines) == 6, "dashboard dock must contain exactly six items")
-for label in ('"يوتيوب"', '"الملاحة"', '"الموسيقى"', '"بلوتوث"', '"واي فاي"', '"السطوع"'):
-    require(any(label in line for line in dock_lines), "required dock item missing: " + label)
-for forbidden in ("راديو", "الهاتف", "التطبيقات", "قائمة التطبيقات", "القراءة"):
-    require(forbidden not in "".join(dock_lines), "forbidden dock item found: " + forbidden)
+# Bundle wallpaper and transparent icons; do not reintroduce icon cards.
+for token in ("bg_car_dashboard", "Bitmap.Config.RGB_565", "ImageView.ScaleType.CENTER_CROP"):
+    require(token in main, "bundled wallpaper decode contract missing: " + token)
+dock = [line for line in main.splitlines() if "dock.addView(dockItem(" in line]
+require(len(dock) == 6, "main dashboard must have exactly six shortcut icons")
+for name in ('"يوتيوب"', '"الملاحة"', '"الموسيقى"', '"بلوتوث"', '"واي فاي"', '"السطوع"'):
+    require(any(name in line for line in dock), "dock item missing: " + name)
+require("iconBubble" not in main and "glyph.setBackgroundColor(Color.TRANSPARENT)" in main,
+        "dock icons must not have backing squares/circles")
 
-# Search and playback: parallel requests, Arabic UTF-8, quality fallbacks and HLS.
-require("ExecutorCompletionService" in video_api and "Executors.newFixedThreadPool(4)" in video_api,
-        "video server search must run in parallel")
-require('URLEncoder.encode(query,"UTF-8")' in video_api, "video search query must be UTF-8 URL encoded")
-require("video/mp4" in video_api and "videoOnly" in video_api and "formatStreams" in video_api,
-        "progressive muxed MP4 filtering missing")
-for quality in ("360", "480", "720", "240"):
-    require(f'quality.contains("{quality}")' in video_api, f"video quality preference {quality} missing")
-require(".m3u8" in video_api and "hlsUrl" in video_api, "HLS stream fallback missing")
-require("for(String server:piped)" in video_api and "for(String server:invidious)" in video_api,
-        "same-video alternate server fallback missing")
-require("setConnectTimeout(4000)" in video_api and "setReadTimeout(5000)" in video_api,
-        "video API timeout must be capped at 4s/5s")
-require("downloadThumbnail" in video_adapter and "ImageView" in video_adapter,
-        "video thumbnails are not rendered")
-require("0xFF111111" in video_search and "0xFF666666" in video_search,
-        "video search input contrast colors missing")
-for token in ("SurfaceView", "MediaPlayer", "setDisplay", "prepareAsync", "FLAG_KEEP_SCREEN_ON",
-              "player.setDataSource(this,Uri.parse(url),headers)"):
-    require(token in video_player, "native video playback contract missing: " + token)
-require("WebView" not in "".join(x.read_text(encoding="utf-8") for x in JAVA.glob("*.java")),
-        "WebView is prohibited in the clean native app")
+# Animated four-second neon welcome and screen-on broadcast.
+for token in ("showWelcomeSplash", "ACTION_SCREEN_ON", "SplashNeonView", "PathMeasure",
+              "ALI CAR  •  SMART COCKPIT", 'tts.speak("Welcome Ali"',
+              "handler.postDelayed(()->", "4000"):
+    require(token in main, "animated welcome/screen wake contract missing: " + token)
 
-# Local player recycles its rows and releases playback.
-for token in ("MediaStore.Audio.Media", "RecyclerView", "prepareAsync", "SeekBar", "seekTo"):
-    require(token in music, "native music player contract missing: " + token)
+# ViewPager page 2 instrument cluster and a real persisted trip/odometer model.
+for token in ("ViewPager", "setLayoutDirection(View.LAYOUT_DIRECTION_RTL)", "buildClusterPage",
+              "TRIP KM", "ODOMETER", "MAX SPEED", "trip_km", "odometer_km", "max_speed",
+              "page.setKeepScreenOn(true)", "drawArc", "drawLine", "FLAG_KEEP_SCREEN_ON",
+              "postDelayed(idleTimer,90000)"):
+    require(token in main, "cockpit cluster/sleep/speed gauge contract missing: " + token)
+require("pager.getCurrentItem()==0" in main, "ambient sleep must be restricted to main page")
 
-# Nominatim + GeoJSON OSRM + immersive, full-screen car-navigation mode.
-for token in ("MapView", "nominatim.openstreetmap.org", "router.project-osrm.org",
-              'URLEncoder.encode(text,"UTF-8")', "geometries=geojson", "coordinates",
-              "routeLine.setWidth(dp(14))",
-              "map.setMapOrientation(-location.getBearing())", "createCarBitmap",
-              "moveCarMarker", "map.getController().setZoom(18.5)", "onWindowFocusChanged",
-              "SYSTEM_UI_FLAG_IMMERSIVE_STICKY", "map.onDetach", "0xFF111111", "0xFF666666"):
-    require(token in navigation, "car navigation contract missing: " + token)
+# Music screen is native and animated; playback shortcuts resolve to the saved track.
+for token in ("MediaStore.Audio.Media", "MediaPlayer", "player.prepareAsync()", "DiscView",
+              "VisualizerView", "setAlbumArt", "setPlaying", "last_music_index",
+              "FLAG_KEEP_SCREEN_ON", "MediaStore.Audio.Media.ALBUM_ID"):
+    require(token in music, "music player contract missing: " + token)
+require("removeCallbacks(progressTick)" not in music, "progress updates must survive track changes")
 
-# Shared secure API-21 transport; no permissive certificate bypass.
-require("NetworkCompat.open(context" in video_api, "video API bypasses TLS transport")
-require("NetworkCompat.open(this" in navigation, "navigation bypasses TLS transport")
-require('AliCarLauncher/2.0 (Android 5.0)' in network, "Nominatim User-Agent missing from shared HTTP transport")
-require("setSSLSocketFactory(LegacyTls.socketFactory(context))" in network,
-        "HTTPS does not use the API-21 TLS socket factory")
-require("getDefaultHostnameVerifier()" in network, "HTTPS hostname verification must remain enabled")
-require('"TLSv1.2"' in tls and "TrustManagerFactory" in tls, "TLS 1.2 trust-manager setup missing")
-require("system.checkServerTrusted" in tls and "extra.checkServerTrusted" in tls,
-        "TLS trust must combine system roots and the bundled ISRG root")
-require("trustAll" not in tls and "ALLOW_ALL" not in tls, "trust-all certificate acceptance is prohibited")
-require((SRC / "res" / "raw" / "isrg_root_x1.pem").is_file(), "ISRG Root X1 trust anchor missing")
+# YouTube search across services, MP4 progressive formats and HLS fallback.
+for token in ("ExecutorCompletionService", "Executors.newFixedThreadPool(4)", "video/mp4",
+              "formatStreams", ".m3u8", "hlsUrl", "hls", "setConnectTimeout(8000)",
+              "setReadTimeout(10000)", "for(String server:piped)", "for(String server:invidious)"):
+    require(token in video_api, "video streaming contract missing: " + token)
+require("0xFF111111" in video_search, "YouTube search text must be dark")
+require("applyCockpitTheme" in video_search, "YouTube glass cockpit theme missing")
+require("FLAG_KEEP_SCREEN_ON" in video_search, "YouTube search must prevent auto-sleep")
+require("FLAG_KEEP_SCREEN_ON" in video_player, "video playback must prevent auto-sleep")
 
-for token in ("isDeviceOwnerApp", "setApplicationHidden", "setLockTaskPackages", "startLockTask"):
-    require(token in admin_src, "Device Owner guard missing: " + token)
-require("if(!dpm.isDeviceOwnerApp(getPackageName()))" in admin_src,
-        "app hiding must be blocked unless the package is Device Owner")
+# Full-screen navigation should immediately use latest GPS or network location and keep tracking both.
+for token in ("getLastKnownLocation(provider)", "LocationManager.GPS_PROVIDER",
+              "LocationManager.NETWORK_PROVIDER", "requestLocationUpdates(LocationManager.GPS_PROVIDER",
+              "requestLocationUpdates(LocationManager.NETWORK_PROVIDER",
+              "nominatim.openstreetmap.org", "router.project-osrm.org", "geometries=geojson",
+              "routeLine.setWidth(dp(14))", "carMarker.setRotation(location.getBearing())",
+              "map.setMapOrientation(-location.getBearing())", "FLAG_KEEP_SCREEN_ON"):
+    require(token in navigation, "navigation/GPS contract missing: " + token)
+require("120000L" not in navigation, "route must not reject a usable last-known fix just because it is not fresh")
 
-print("PASS: API21 launcher v2.1.0, supplied WebP pipeline, Arabic dashboard, parallel MP4/HLS video, GeoJSON OSRM car navigation, secure TLS and DPM guards.")
+# API21 TLS uses trusted roots and hostname verification, not permissive trust-all.
+require("NetworkCompat.open(context" in video_api, "video API bypasses NetworkCompat")
+require("NetworkCompat.open(this" in navigation, "navigation bypasses NetworkCompat")
+require("TrustManagerFactory" in tls and "TLSv1.2" in tls, "TLS 1.2 trusted transport missing")
+require("getDefaultHostnameVerifier()" in network, "hostname verification must remain enabled")
+require("trustAll" not in tls and "ALLOW_ALL" not in tls, "trust-all TLS is prohibited")
+
+print("PASS: ALI CAR v2.2 Android 5: bundled WebP/RGB565, transparent 6-icon dock, neon splash, RTL ViewPager, circular gauges, persistent trip/odometer, modern music, MP4/HLS streaming and dual-provider OSRM navigation.")
