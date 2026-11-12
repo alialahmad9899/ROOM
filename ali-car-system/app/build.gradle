@@ -30,8 +30,8 @@ android {
         applicationId 'com.ali.carsystem'
         minSdk 21
         targetSdk 22
-        versionCode 12
-        versionName '2.2.0'
+        versionCode 13
+        versionName '2.2.1'
     }
 
     compileOptions {
