@@ -38,6 +38,7 @@ import java.net.HttpURLConnection;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Locale;
+import javax.net.ssl.HttpsURLConnection;
 
 public final class NavigationActivity extends Activity implements LocationListener {
     private MapView map;
@@ -69,6 +70,8 @@ public final class NavigationActivity extends Activity implements LocationListen
         super.onCreate(state);
         immersive();
         Configuration.getInstance().setUserAgentValue(NetworkCompat.USER_AGENT);
+        try { HttpsURLConnection.setDefaultSSLSocketFactory(LegacyTls.socketFactory(getApplicationContext())); }
+        catch (Exception ignored) { }
         Configuration.getInstance().setCacheMapTileCount((short) 4);
         Configuration.getInstance().setTileDownloadThreads((short) 1);
         Configuration.getInstance().setTileFileSystemThreads((short) 1);
@@ -418,7 +421,7 @@ public final class NavigationActivity extends Activity implements LocationListen
                 map.setMapOrientation(-bearing);
                 currentMarker.setRotation(0f);
             }
-            if (firstFix) {
+            if (firstFix || routeLine != null) {
                 map.getController().animateTo(new GeoPoint(location.getLatitude(), location.getLongitude()));
                 firstFix = false;
             }
