@@ -1,0 +1,96 @@
+name: ALI CAR 3.0 clean rebuild
+on:
+  push:
+    branches: ["ali-car-system/3.0.0-clean-rebuild"]
+    paths: ["ali-car-system/**","tools/rom/**",".github/workflows/build-car-app-3.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+jobs:
+  android-api21-x86:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout clean project
+        uses: actions/checkout@v4
+      - name: Install image validation dependency
+        run: python3 -m pip install --disable-pip-version-check Pillow
+      - name: Materialize and validate supplied dashboard photo
+        run: python3 tools/rom/materialize_dashboard_asset.py
+      - name: Verify static contracts
+        run: python3 tools/rom/test_clean_rebuild.py
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install API21 emulator and build tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'system-images;android-21;default;x86'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+      - name: Run unit tests and assemble API21 app
+        working-directory: ali-car-system
+        run: gradle --no-daemon clean testDebugUnitTest assembleDebug assembleAndroidTest
+      - name: Run Android 5 x86 UI smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 21
+          target: default
+          arch: x86
+          profile: Nexus 5
+          disable-animations: true
+          working-directory: ali-car-system
+          script: gradle --no-daemon connectedDebugAndroidTest
+      - name: Verify APK package, SDK levels and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="ali-car-system/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          "$AAPT" dump badging "$APK" | tee apk-badging.txt
+          grep -F "package: name='com.ali.carsystem'" apk-badging.txt
+          grep -F "sdkVersion:'21'" apk-badging.txt
+          grep -F "targetSdkVersion:'22'" apk-badging.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          mkdir -p output
+          cp "$APK" output/ALI-Car-System-3.0.0-api21-x86-debug.apk
+          sha256sum output/ALI-Car-System-3.0.0-api21-x86-debug.apk > output/SHA256SUMS.txt
+          {
+            echo "Project: ALI CAR"
+            echo "Package: com.ali.carsystem"
+            echo "Version: 3.0.0"
+            echo "Device baseline: ASUS Z170CG / P01Y, Intel SoFIA 3GR, x86 32-bit userspace"
+            echo "Minimum Android: 5.0 / API 21"
+            echo "Target SDK: 22"
+            echo "Build type: Debug-signed installation test"
+            echo "Commit: $GITHUB_SHA"
+            stat --printf='APK bytes: %s\n' output/ALI-Car-System-3.0.0-api21-x86-debug.apk
+            cat output/SHA256SUMS.txt
+          } > output/BUILD-INFO.txt
+      - name: Upload APK and metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALI-CAR-3.0.0-API21-X86-APK
+          path: |
+            output/ALI-Car-System-3.0.0-api21-x86-debug.apk
+            output/SHA256SUMS.txt
+            output/BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Delete superseded ALI CAR 2.2.1 branch and artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          curl -sS -X DELETE -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/$GITHUB_REPOSITORY/git/refs/heads/ali-car-system/2.2.1-full-repair-2026-11-13
+          curl -sS -X DELETE -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/13988414642
+          set -e
