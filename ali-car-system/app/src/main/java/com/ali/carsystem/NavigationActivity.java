@@ -273,7 +273,7 @@ public final class NavigationActivity extends Activity implements LocationListen
                 (result.start.getLatitude() + result.destination.getLatitude()) / 2.0,
                 (result.start.getLongitude() + result.destination.getLongitude()) / 2.0);
         map.getController().animateTo(center);
-        map.getController().zoomToBoundingBox(routeLine.getBounds(), true, dp(30));
+        map.zoomToBoundingBox(routeLine.getBounds(), true, dp(30));
 
         status.setText(String.format(Locale.US, "المسافة %.1f كم  •  الوقت التقريبي %.0f دقيقة",
                 result.kilometers, result.minutes));
