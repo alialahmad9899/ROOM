@@ -21,6 +21,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private EditText search;private TextView status,maneuver;
     private GeoPoint destination;private String destinationName="";private Polyline routeLine;private Marker destMarker,carMarker;
     private AsyncTask<Void,Void,RouteResult> routeTask;private AsyncTask<String,Void,GeoResult> geocodeTask;
+    private List<Maneuver> activeManeuvers=Collections.emptyList();
     private long lastSearch;private boolean waitingForFix;
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     @Override protected void onCreate(Bundle b){super.onCreate(b);
@@ -100,7 +101,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 if(routeLine!=null)map.getOverlays().remove(routeLine);routeLine=new Polyline(map);routeLine.setPoints(r.points);routeLine.setColor(0xFF00DFFF);routeLine.setWidth(dp(5));map.getOverlays().add(routeLine);
                 BoundingBox bounds=BoundingBox.fromGeoPoints(r.points);map.zoomToBoundingBox(bounds,true);
                 status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %.0f دقيقة",r.km,r.minutes));
-                updateManeuver(current,r.maneuvers);waitingForFix=false;map.invalidate();
+                activeManeuvers=r.maneuvers==null?Collections.emptyList():r.maneuvers;updateManeuver(current,activeManeuvers);waitingForFix=false;map.invalidate();
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
@@ -117,7 +118,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         maneuver.setText(next);
     }
     @Override public void onLocationChanged(Location l){
-        if(l==null)return;current=new Location(l);showCar(l);
+        if(l==null)return;current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
         if(destination!=null&&(waitingForFix||routeLine==null)&&(!l.hasAccuracy()||l.getAccuracy()<=100))drawRouteIfPossible();
     }
     @Override protected void onResume(){super.onResume();if(map!=null)map.onResume();if(lm!=null)try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,2,this);}catch(Exception ignored){}try{lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,2000,5,this);}catch(Exception ignored){}loadLastKnown();if(current!=null)showCar(current);}
