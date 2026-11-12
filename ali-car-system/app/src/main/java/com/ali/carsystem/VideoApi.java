@@ -24,6 +24,11 @@ final class VideoApi {
     private static synchronized void refresh(Context context){
         if(pipedCache!=null&&System.currentTimeMillis()-discoveryTime<20*60*1000L)return;
         List<String> p=new ArrayList<>(),v=new ArrayList<>();
+        // Known live API host aliases. The official wiki currently uses both
+        // "api.piped.*" and "piped-api.*" naming forms; keep these explicit
+        // fallbacks so a stale public-instance page cannot empty the list.
+        p.add("https://api.piped.private.coffee");
+        p.add("https://piped-api.privacy.com.de");
         try{
             String page=read(context,"https://github.com/TeamPiped/Piped/wiki/Instances");
             Matcher m=Pattern.compile("https?://[A-Za-z0-9.-]*piped-?api[A-Za-z0-9.-]*").matcher(page);
