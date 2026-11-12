@@ -16,6 +16,7 @@ import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
 import android.view.*;
 import android.widget.*;
+import javax.net.ssl.HttpsURLConnection;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -52,6 +53,8 @@ public final class MainActivity extends Activity implements LocationListener {
 
     @Override protected void onCreate(Bundle state){
         super.onCreate(state);
+        try { HttpsURLConnection.setDefaultSSLSocketFactory(LegacyTls.socketFactory(getApplicationContext())); }
+        catch (Exception ignored) { }
         immersive();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         locations=(LocationManager)getSystemService(LOCATION_SERVICE);
