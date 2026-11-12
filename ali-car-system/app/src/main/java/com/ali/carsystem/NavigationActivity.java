@@ -315,7 +315,6 @@ public final class NavigationActivity extends Activity implements LocationListen
     @Override public void onProviderEnabled(String provider){if(LocationManager.GPS_PROVIDER.equals(provider))routeStatus.setText("تم تفعيل نظام تحديد الموقع");}
     @Override public void onStatusChanged(String provider,int status,Bundle extras){}
 
-    private TextView text(String value,int size,int color,boolean bold){TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);t.setTypeface(android.graphics.Typeface.create("sans-serif",bold?1:0));t.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);return t;}
     private static final class NavResult{
         final String error,name,steps,nextInstruction;final GeoPoint destination,start;final ArrayList<GeoPoint> points;final double km,minutes;
         NavResult(String e,String n,GeoPoint d,GeoPoint s,ArrayList<GeoPoint> p,String st,double k,double m){this(e,n,d,s,p,st,k,m,"اتبع الطريق المحدد");}
