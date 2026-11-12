@@ -40,17 +40,17 @@ public final class VideoApiClient {
     private static final String[] PIPED_SERVERS={
         "https://pipedapi.kavin.rocks",
         "https://pipedapi.adminforge.de",
-        "https://pipedapi.privacy.com.de",
+        "https://piped-api.privacy.com.de",
         "https://pipedapi.nosebs.ru",
         "https://pipedapi.leptons.xyz",
         "https://pipedapi.drgns.space",
-        "https://pipedapi.private.coffee"
+        "https://api.piped.private.coffee"
     };
     private static final String[] INVIDIOUS_SERVERS={
         "https://inv.nadeko.net",
         "https://invidious.nerdvpn.de",
         "https://invidious.tiekoetter.com",
-        "https://invidious.privacyredirect.com"
+        "https://yt.chocolatemoo53.com"
     };
     private VideoApiClient(){}
 
@@ -74,10 +74,15 @@ public final class VideoApiClient {
                 }
             }));
         }
+        final long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(24);
         try{
-            for(int i=0;i<futures.size();i++){
-                Future<List<VideoItem>> finished=completions.poll(6,TimeUnit.SECONDS);
+            int completed=0;
+            while(completed<futures.size()){
+                long remaining=deadline-System.nanoTime();
+                if(remaining<=0)break;
+                Future<List<VideoItem>> finished=completions.poll(remaining,TimeUnit.NANOSECONDS);
                 if(finished==null)break;
+                completed++;
                 try{
                     List<VideoItem> result=finished.get();
                     if(result!=null&&!result.isEmpty())return result;
@@ -94,7 +99,16 @@ public final class VideoApiClient {
     }
 
     private static List<VideoItem> searchPiped(Context context,String base,String encoded)throws Exception{
-        JSONArray array=new JSONArray(request(context,base+"/search?q="+encoded+"&filter=videos&hl=ar"));
+        String body=request(context,base+"/search?q="+encoded+"&filter=videos&hl=ar");
+        JSONArray array;
+        try {
+            array=new JSONArray(body);
+        } catch(org.json.JSONException notArray) {
+            JSONObject root=new JSONObject(body);
+            array=root.optJSONArray("items");
+            if(array==null)array=root.optJSONArray("videos");
+            if(array==null)throw new java.io.IOException("استجابة Piped لا تحتوي على قائمة فيديوهات صالحة.",notArray);
+        }
         ArrayList<VideoItem> results=new ArrayList<>();
         for(int i=0;i<array.length()&&results.size()<30;i++){
             JSONObject item=array.optJSONObject(i);if(item==null)continue;
@@ -251,7 +265,13 @@ public final class VideoApiClient {
         connection.setConnectTimeout(8000);connection.setReadTimeout(10000);
         try{
             int code=connection.getResponseCode();
-            if(code<200||code>=300)throw new java.io.IOException("تعذر الوصول إلى الخادم.");
+            if(code<200||code>=300){
+                String detail="";
+                try(InputStream error=connection.getErrorStream()){
+                    if(error!=null){byte[] sample=new byte[512];int n=error.read(sample);if(n>0)detail=new String(sample,0,n,"UTF-8").replaceAll("\\s+"," ").trim();}
+                }catch(Exception ignored){}
+                throw new java.io.IOException("HTTP "+code+(detail.length()>0?": "+detail:""));
+            }
             try(InputStream in=connection.getInputStream();
                 BufferedReader reader=new BufferedReader(new InputStreamReader(in,"UTF-8"))){
                 StringBuilder result=new StringBuilder();String line;
