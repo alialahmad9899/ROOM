@@ -62,12 +62,12 @@ jobs:
           grep -F "targetSdkVersion:'22'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           mkdir -p output
-          cp "$APK" output/ALI-Car-System-2.2.0-api21-debug.apk
+          cp "$APK" output/ALI-Car-System-2.2.1-api21-debug.apk
           sha256sum output/ALI-Car-System-2.2.0-api21-debug.apk > output/SHA256SUMS.txt
           {
             echo "Project: ALI Car System"
             echo "Package: com.ali.carsystem"
-            echo "Version: 2.2.0"
+            echo "Version: 2.2.1"
             echo "Minimum Android: 5.0 / API 21"
             echo "Target SDK: 22"
             echo "Build type: Debug (automatically signed for installation/testing)"
