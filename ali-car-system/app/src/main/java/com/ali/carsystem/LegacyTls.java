@@ -20,8 +20,18 @@ public final class LegacyTls {
         if (factory != null) return factory;
         synchronized (LegacyTls.class) {
             if (factory != null) return factory;
-            KeyStore store = KeyStore.getInstance("AndroidCAStore");
+            // AndroidCAStore is read-only on Android. Copy the platform roots into a
+            // private in-memory keystore, then append ISRG Root X1 for API21 devices.
+            KeyStore platform = KeyStore.getInstance("AndroidCAStore");
+            platform.load(null, null);
+            KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
             store.load(null, null);
+            java.util.Enumeration<String> aliases = platform.aliases();
+            while (aliases.hasMoreElements()) {
+                String alias = aliases.nextElement();
+                Certificate trusted = platform.getCertificate(alias);
+                if (trusted != null) store.setCertificateEntry(alias, trusted);
+            }
             try (InputStream in = context.getAssets().open("isrg_root_x1.pem")) {
                 Certificate ca = CertificateFactory.getInstance("X.509").generateCertificate(in);
                 store.setCertificateEntry("isrg-root-x1-ali-car", ca);
