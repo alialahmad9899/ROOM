@@ -57,15 +57,15 @@ public final class MusicActivity extends Activity {
             MediaStore.Audio.Media.IS_MUSIC+" != 0",null,MediaStore.Audio.Media.TITLE+" COLLATE NOCASE ASC");
             if(c!=null)while(c.moveToNext()){
                 long id=c.getLong(0);songs.add(new Song(c.getString(1)==null?"مقطع صوتي":c.getString(1),
-                    c.getString(2)==null?"Unknown Artist":c.getString(2),
+                    c.getString(2)==null?"فنان غير معروف":c.getString(2),
                     ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,id),c.getInt(3)));
             }
         }catch(Exception ignored){}finally{if(c!=null)c.close();}
     }
     private void build(){
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(14),dp(9),dp(14),dp(8));root.setBackgroundColor(0xFF050A13);
-        TextView title=label("ALI MUSIC",24,Color.WHITE,true);root.addView(title,new LinearLayout.LayoutParams(-1,dp(40)));
-        TextView sub=label("مشغل محلي خفيف • لا خدمات تعمل بالخلفية",12,0xFF5EDCF5,true);root.addView(sub,new LinearLayout.LayoutParams(-1,dp(23)));
+        TextView title=label("مشغل الموسيقى",24,Color.WHITE,true);root.addView(title,new LinearLayout.LayoutParams(-1,dp(40)));
+        TextView sub=label("مشغل محلي خفيف • لا خدمات تعمل في الخلفية",12,0xFF5EDCF5,true);root.addView(sub,new LinearLayout.LayoutParams(-1,dp(23)));
         LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setGravity(Gravity.CENTER);panel.setPadding(dp(12),dp(6),dp(12),dp(6));panel.setBackground(shape(0xFF16283B,18,0xFF46CFF5));
         now=label("اختر أغنية من القائمة",18,Color.WHITE,true);now.setGravity(Gravity.CENTER);panel.addView(now,new LinearLayout.LayoutParams(-1,dp(48)));
         LinearLayout buttons=new LinearLayout(this);buttons.setGravity(Gravity.CENTER);
@@ -102,7 +102,7 @@ public final class MusicActivity extends Activity {
             return new Holder(row,title,artist);
         }
         @Override public void onBindViewHolder(Holder holder,int position){
-            if(songs.isEmpty()){holder.title.setText("لا توجد ملفات موسيقى في الذاكرة أو بطاقة SD.");holder.artist.setText("");holder.itemView.setOnClickListener(null);return;}
+            if(songs.isEmpty()){holder.title.setText("لا توجد ملفات موسيقى في الذاكرة أو بطاقة الذاكرة.");holder.artist.setText("");holder.itemView.setOnClickListener(null);return;}
             Song song=songs.get(position);holder.title.setText(song.title);holder.artist.setText(song.artist);
             holder.itemView.setOnClickListener(v->{int p=holder.getAdapterPosition();if(p>=0)select(p);});
         }
