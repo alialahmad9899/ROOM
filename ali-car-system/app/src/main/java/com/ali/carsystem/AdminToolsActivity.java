@@ -26,7 +26,7 @@ private void hideSelected(){if(!dpm.isDeviceOwnerApp(getPackageName())){new Aler
 int done=0,failed=0;for(CheckBox c:checks)if(c.isChecked()){String pkg=(String)c.getTag();try{getPackageManager().getApplicationInfo(pkg,0);if(dpm.setApplicationHidden(admin,pkg,true))done++;else failed++;}catch(Exception e){failed++;}}
 Toast.makeText(this,"تم الإخفاء: "+done+" • تعذر: "+failed,Toast.LENGTH_LONG).show();}
 private void startKiosk(){if(!dpm.isDeviceOwnerApp(getPackageName())){Toast.makeText(this,"يجب تسجيل التطبيق مالكاً للجهاز لتفعيل وضع القيادة المقفل.",Toast.LENGTH_LONG).show();return;}
-try{dpm.setLockTaskPackages(admin,new String[]{getPackageName()});startLockTask();}catch(Exception e){Toast.makeText(this,"تعذر تفعيل وضع القيادة المقفل.,Toast.LENGTH_LONG).show();}}
+try{dpm.setLockTaskPackages(admin,new String[]{getPackageName()});startLockTask();}catch(Exception e){Toast.makeText(this,"تعذر تفعيل وضع القيادة المقفل.",Toast.LENGTH_LONG).show();}}
 private TextView text(String s,int z,int c,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextColor(c);t.setTextSize(z);t.setGravity(Gravity.CENTER_VERTICAL);t.setTypeface(android.graphics.Typeface.create("sans-serif",bold?1:0));return t;}
 private Button btn(String s){Button b=new Button(this);b.setText(s);return b;}
 @Override protected void onResume(){super.onResume();immersive();}
