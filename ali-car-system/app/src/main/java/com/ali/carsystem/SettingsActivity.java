@@ -1,5 +1,7 @@
 package com.ali.carsystem;
 
+import android.app.ActivityManager;
+import android.app.AlertDialog;
 import android.app.admin.DevicePolicyManager;
 import android.content.*;
 import android.os.*;
