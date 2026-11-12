@@ -95,7 +95,7 @@ public final class MainActivity extends Activity implements LocationListener {
         root=new FrameLayout(this);root.setBackgroundColor(Color.BLACK);root.setClipChildren(false);
         pager=new ViewPager(this);
         pager.setId(View.generateViewId());
-        pager.setOffscreenPageLimit(1);
+        pager.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);\n        pager.setOffscreenPageLimit(1);
         pager.setAdapter(new CockpitPagerAdapter());
         pager.addOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener(){
             @Override public void onPageSelected(int position){
@@ -419,8 +419,8 @@ public final class MainActivity extends Activity implements LocationListener {
                 paint.setShadowLayer(dp(12),0,0,CYAN);
                 paint.setAlpha((int)(255*Math.min(1f,(fraction-.76f)/.16f)));
                 canvas.drawText("Ali Ahmed",0,dp(17),paint);paint.setShader(null);paint.clearShadowLayer();
-                paint.setAlpha(255);paint.setTextSize(dp(13));paint.setTextColor(0xFFDAF8FF);
-                paint.setLetterSpacingCompat(); // intentional no-op helper for API21 compatibility
+                paint.setAlpha(255);paint.setTextSize(dp(13));paint.setColor(0xFFDAF8FF);
+                
                 canvas.drawText("ALI CAR  •  SMART COCKPIT",0,dp(57),paint);
             }
             canvas.restore();
