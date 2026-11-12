@@ -20,7 +20,6 @@ public final class CarApplication extends Application implements ComponentCallba
         return b == null || b.isRecycled() ? null : b;
     }
     public static void clearBitmapCache() {
-        for (Bitmap b : BITMAPS.values()) if (b != null && !b.isRecycled()) b.recycle();
         BITMAPS.clear();
     }
     public static long availableMemoryMb(Context c) {
@@ -30,7 +29,8 @@ public final class CarApplication extends Application implements ComponentCallba
     }
     @Override public void onCreate() { super.onCreate(); registerComponentCallbacks(this); }
     @Override public void onTrimMemory(int level) {
-        if (level >= TRIM_MEMORY_RUNNING_LOW) clearBitmapCache();
+        if (level >= TRIM_MEMORY_UI_HIDDEN) clearBitmapCache();
+        else if (level >= TRIM_MEMORY_RUNNING_LOW) BITMAPS.clear();
     }
     @Override public void onLowMemory() { clearBitmapCache(); }
     @Override public void onConfigurationChanged(Configuration c) {}
