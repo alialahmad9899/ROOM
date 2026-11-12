@@ -91,7 +91,7 @@ for forbidden in ("راديو", "الهاتف", "التطبيقات", "قائم�
 require("ExecutorCompletionService" in video_api and "Executors.newFixedThreadPool(4)" in video_api,
         "video server search must run in parallel")
 require('URLEncoder.encode(query,"UTF-8")' in video_api, "video search query must be UTF-8 URL encoded")
-require("video/mp4" in video_api and "!item.optBoolean(\"videoOnly\",true)" in video_api,
+require("video/mp4" in video_api and "videoOnly" in video_api and "formatStreams" in video_api,
         "progressive muxed MP4 filtering missing")
 for quality in ("360", "480", "720", "240"):
     require(f'quality.contains("{quality}")' in video_api, f"video quality preference {quality} missing")
