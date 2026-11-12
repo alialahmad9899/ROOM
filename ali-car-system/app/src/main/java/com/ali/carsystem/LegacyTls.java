@@ -1,0 +1,45 @@
+package com.ali.carsystem;
+
+import android.content.Context;
+import android.util.Base64;
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.SSLSocketFactory;
+import java.net.HttpURLConnection;
+import javax.net.ssl.HttpsURLConnection;
+
+public final class LegacyTls {
+    private static volatile SSLSocketFactory factory;
+    private LegacyTls() {}
+    public static SSLSocketFactory factory(Context context) throws Exception {
+        if (factory != null) return factory;
+        synchronized (LegacyTls.class) {
+            if (factory != null) return factory;
+            KeyStore store = KeyStore.getInstance("AndroidCAStore");
+            store.load(null, null);
+            try (InputStream in = context.getAssets().open("isrg_root_x1.pem")) {
+                Certificate ca = CertificateFactory.getInstance("X.509").generateCertificate(in);
+                store.setCertificateEntry("isrg-root-x1-ali-car", ca);
+            }
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(store);
+            SSLContext ssl = SSLContext.getInstance("TLSv1.2");
+            ssl.init(null, tmf.getTrustManagers(), null);
+            factory = ssl.getSocketFactory();
+            return factory;
+        }
+    }
+    public static HttpURLConnection open(Context context, String url) throws Exception {
+        HttpURLConnection c = (HttpURLConnection)new java.net.URL(url).openConnection();
+        c.setConnectTimeout(8000); c.setReadTimeout(10000);
+        c.setRequestProperty("User-Agent", "ALI-CAR/3.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
+        c.setRequestProperty("Accept", "application/json,text/plain,*/*");
+        if (c instanceof HttpsURLConnection) ((HttpsURLConnection)c).setSSLSocketFactory(factory(context));
+        return c;
+    }
+}

@@ -1,0 +1,2 @@
+-keep class org.osmdroid.** { *; }
+-keep class com.ali.carsystem.CarAdminReceiver { *; }
