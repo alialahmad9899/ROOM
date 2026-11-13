@@ -45,11 +45,22 @@ public final class LegacyTls {
         }
     }
     public static HttpURLConnection open(Context context, String url) throws Exception {
+        return open(context, url, "GET", 8000, 10000);
+    }
+
+    public static HttpURLConnection open(Context context, String url, String method,
+                                         int connectTimeoutMs, int readTimeoutMs) throws Exception {
         HttpURLConnection c = (HttpURLConnection)new java.net.URL(url).openConnection();
-        c.setConnectTimeout(8000); c.setReadTimeout(10000);
-        c.setRequestProperty("User-Agent", "ALI-CAR/3.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
+        c.setConnectTimeout(Math.max(1000, connectTimeoutMs));
+        c.setReadTimeout(Math.max(1000, readTimeoutMs));
+        c.setUseCaches(false);
+        c.setRequestMethod(method == null ? "GET" : method);
+        c.setRequestProperty("User-Agent", "ALI-CAR/3.5.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
         c.setRequestProperty("Accept", "application/json,text/plain,*/*");
-        if (c instanceof HttpsURLConnection) ((HttpsURLConnection)c).setSSLSocketFactory(factory(context));
+        c.setRequestProperty("Accept-Encoding", "identity");
+        if (c instanceof HttpsURLConnection) {
+            ((HttpsURLConnection)c).setSSLSocketFactory(factory(context));
+        }
         return c;
     }
 }
