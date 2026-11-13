@@ -382,7 +382,7 @@ public final class MainActivity extends Activity implements LocationListener {
 
     private void enterAutomaticSleepIfAllowed(){
         if(root==null||pager==null||pager.getCurrentItem()!=0||isAmbientShowing()||!isResumed)return;
-        if(isCharging()||isMusicActive()||isNavigationActive()){
+        if(!SleepPolicy.mayEnterAutomaticSleep(isCharging(),isMusicActive(),isNavigationActive())){
             scheduleIdleForMainPage();
             return;
         }
@@ -392,7 +392,7 @@ public final class MainActivity extends Activity implements LocationListener {
     private void applySleepPowerPolicy(){
         // The navigation foreground service has its own GPS client and stays alive.
         stopGps();
-        if(isCharging()||isMusicActive()||isNavigationActive())return;
+        if(!SleepPolicy.mayDisableConnectivity(isCharging(),isMusicActive(),isNavigationActive()))return;
 
         SharedPreferences state=getSharedPreferences("ali_car_sleep_state",MODE_PRIVATE);
         SharedPreferences.Editor edit=state.edit();
