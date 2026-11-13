@@ -510,7 +510,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     @Override protected void onResume(){
         super.onResume();if(map!=null)map.onResume();
         requestLocationSources();if(current!=null)showCar(current);
-        if(destination!=null){waitingForFix=true;drawRouteIfPossible();}
+        if(destination!=null&&!routeAttemptedForDestination){waitingForFix=true;drawRouteIfPossible();}
         locationHandler.removeCallbacks(locationStatusTicker);locationHandler.post(locationStatusTicker);
     }
     @Override protected void onPause(){
