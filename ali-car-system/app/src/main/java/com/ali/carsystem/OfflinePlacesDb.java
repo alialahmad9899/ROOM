@@ -18,7 +18,7 @@ final class OfflinePlacesDb {
         Place(String n, String c, double lat, double lon) {
             name = n; category = c; point = new GeoPoint(lat, lon);
         }
-        String label() { return category == null || category.isEmpty() ? name : name + " • " + translateCategory(category); }
+        String label() { String translated=translateCategory(category);return translated.isEmpty()||name.equals(translated)?name:name + " • " + translated; }
         private static String translateCategory(String value) {
             if (value == null) return "";
             String[] pair = value.split(":", 2);
@@ -94,14 +94,25 @@ final class OfflinePlacesDb {
             db = SQLiteDatabase.openDatabase(file.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
             String pattern = "%" + query.trim().replace("%", "\\%").replace("_", "\\_") + "%";
             String categoryPattern = categoryPattern(query.trim().toLowerCase(java.util.Locale.ROOT));
-            cursor = db.rawQuery(
-                    "SELECT name, category, lat, lon FROM places "
+            android.content.SharedPreferences prefs=context.getSharedPreferences("ali_car_v3",Context.MODE_PRIVATE);
+            boolean hasLocation=prefs.contains("last_latitude")&&prefs.contains("last_longitude");
+            float nearLat=prefs.getFloat("last_latitude",0f),nearLon=prefs.getFloat("last_longitude",0f);
+            float longitudeScale=(float)Math.cos(Math.toRadians(nearLat));
+            String sql="SELECT name, category, lat, lon FROM places "
                     + "WHERE name LIKE ? ESCAPE '\\' COLLATE NOCASE "
                     + "OR name_ar LIKE ? ESCAPE '\\' COLLATE NOCASE "
                     + "OR category LIKE ? COLLATE NOCASE "
-                    + "ORDER BY CASE WHEN name = ? OR name_ar = ? THEN 0 ELSE 1 END, name LIMIT ?",
-                    new String[]{pattern, pattern, categoryPattern, query.trim(), query.trim(),
-                            String.valueOf(Math.max(1, Math.min(limit, 20)))});
+                    + "ORDER BY CASE WHEN name = ? OR name_ar = ? THEN 0 ELSE 1 END";
+            ArrayList<String> args=new ArrayList<>();
+            args.add(pattern);args.add(pattern);args.add(categoryPattern);args.add(query.trim());args.add(query.trim());
+            if(hasLocation){
+                sql+=", ((lat-?)*(lat-?) + ((lon-?)*(lon-?)*?)) ASC";
+                args.add(String.valueOf(nearLat));args.add(String.valueOf(nearLat));
+                args.add(String.valueOf(nearLon));args.add(String.valueOf(nearLon));args.add(String.valueOf(longitudeScale*longitudeScale));
+            }
+            sql+=", name LIMIT ?";
+            args.add(String.valueOf(Math.max(1,Math.min(limit,20))));
+            cursor=db.rawQuery(sql,args.toArray(new String[0]));
             while (cursor.moveToNext()) {
                 String name = cursor.getString(0);
                 String category = cursor.getString(1);
