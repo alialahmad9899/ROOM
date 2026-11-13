@@ -30,8 +30,8 @@ android {
         applicationId 'com.ali.carsystem'
         minSdk 21
         targetSdk 22
-        versionCode 14
-        versionName '2.3.0'
+        versionCode 15
+        versionName '2.4.0'
     }
 
     compileOptions {
@@ -55,4 +55,5 @@ dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.viewpager:viewpager:1.0.0'
     implementation 'org.osmdroid:osmdroid-android:6.1.20'
+    testImplementation 'junit:junit:4.13.2'
 }
