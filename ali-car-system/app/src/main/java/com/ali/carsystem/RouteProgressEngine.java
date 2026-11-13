@@ -111,16 +111,21 @@ public final class RouteProgressEngine {
         int last = points.size() - 2;
         int from = hasFix ? Math.max(0, lastSegmentIndex - 3) : 0;
         int to = hasFix ? Math.min(last, lastSegmentIndex + 300) : last;
+        // Permit short backwards GPS jitter for map matching, but clamp the
+        // reported route progress below so the journey counter never regresses.
+        double minimumProgressMeters = hasFix
+                ? lastProgressMeters - Math.max(60.0, allowedSnapDistance(horizontalAccuracyMeters) * 1.5)
+                : 0.0;
         Candidate best = findNearest(latitude, longitude, from, to,
-                hasFix ? lastProgressMeters - 20.0 : 0.0, useHeading, bearingDegrees);
+                minimumProgressMeters, useHeading, bearingDegrees);
 
         // A GPS fix can jump several route vertices between updates. Expand the
-        // search once, but still reject backwards route progress.
+        // search once, while still rejecting stale positions far behind the car.
         if (best == null || best.distanceMeters > allowedSnapDistance(horizontalAccuracyMeters)) {
             int expandedFrom = hasFix ? Math.max(0, lastSegmentIndex - 2) : 0;
             int expandedTo = last;
             Candidate expanded = findNearest(latitude, longitude, expandedFrom, expandedTo,
-                    hasFix ? lastProgressMeters - 20.0 : 0.0, useHeading, bearingDegrees);
+                    minimumProgressMeters, useHeading, bearingDegrees);
             if (expanded != null && (best == null || expanded.score < best.score)) {
                 best = expanded;
             }
