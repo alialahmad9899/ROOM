@@ -77,14 +77,25 @@ final class AnalogClockView extends View {
 }
 
 final class NeonSplashView extends View {
-    private final Paint p=new Paint(3);private final Path path=new Path();private final PathMeasure measure;
+    private final Paint p=new Paint(3);
     private final long start=android.os.SystemClock.uptimeMillis();
-    NeonSplashView(Context c){super(c);setLayerType(View.LAYER_TYPE_SOFTWARE,null);Paint tp=new Paint(3);tp.setTypeface(Typeface.create("cursive",Typeface.BOLD));tp.setTextSize(62);String text="Ali Ahmed";float width=tp.measureText(text);tp.getTextPath(text,0,text.length(),-width/2,0,path);measure=new PathMeasure(path,false);}
-    @Override protected void onDraw(Canvas c){super.onDraw(c);float f=Math.min(1,(android.os.SystemClock.uptimeMillis()-start)/4000f),cx=getWidth()/2f,cy=getHeight()/2f;
-        p.setStyle(Paint.Style.FILL);p.setShader(new RadialGradient(cx,cy,Math.max(getWidth(),getHeight())*.75f,new int[]{0xFF14334A,0xFF050C15,Color.BLACK},null,Shader.TileMode.CLAMP));c.drawRect(0,0,getWidth(),getHeight(),p);p.setShader(null);
-        for(int i=0;i<14;i++){float x=(i*137f+f*getWidth()*1.4f)%(getWidth()+80)-40;p.setColor(i%2==0?0x6645DFFF:0x6679AFFF);p.setStrokeWidth(1.5f);c.drawLine(x,0,x+120,getHeight(),p);}
-        c.save();c.translate(cx,cy);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(4);p.setStrokeCap(Paint.Cap.ROUND);p.setColor(0xFF8CEFFF);p.setShadowLayer(18,0,0,0xFF1AAFFF);Path seg=new Path();measure.getSegment(0,measure.getLength()*f,seg,true);c.drawPath(seg,p);p.clearShadowLayer();c.restore();
-        p.setStyle(Paint.Style.FILL);p.setColor(Color.WHITE);p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));p.setTextSize(20);p.setAlpha((int)(255*f));c.drawText("ALI CAR  •  SMART COCKPIT",cx,cy+100,p);
-        if(f<1)postInvalidateDelayed(16);
+    NeonSplashView(Context c){super(c);setLayerType(View.LAYER_TYPE_SOFTWARE,null);}
+    @Override protected void onDraw(Canvas c){
+        super.onDraw(c);float elapsed=android.os.SystemClock.uptimeMillis()-start;
+        float f=Math.min(1f,elapsed/4300f),cx=getWidth()/2f,cy=getHeight()/2f;
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(new RadialGradient(cx,cy,Math.max(getWidth(),getHeight())*.78f,new int[]{0xFF153E59,0xFF071522,0xFF02060C},null,Shader.TileMode.CLAMP));
+        c.drawRect(0,0,getWidth(),getHeight(),p);p.setShader(null);
+        for(int i=0;i<28;i++){float phase=(elapsed*.035f+i*137f)%(getWidth()+100);float x=phase-50,y=(i*83f)%Math.max(1,getHeight());p.setColor(i%3==0?0x8858E8FF:0x44669CB8);p.setStrokeWidth(i%4==0?2.2f:1f);c.drawCircle(x,y,i%4==0?2.5f:1.2f,p);}
+        float pulse=.5f+.5f*(float)Math.sin(elapsed*.003);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(3.5f);p.setColor(0xFF58DFFF);p.setShadowLayer(22,0,0,0xFF169EFF);
+        c.drawRoundRect(cx-130,cy-112,cx+130,cy+112,38,38,p);p.clearShadowLayer();
+        p.setStrokeWidth(7);p.setStrokeCap(Paint.Cap.ROUND);p.setColor(0xFFB4F4FF);c.drawArc(cx-105,cy-87,cx+105,cy+87,200,140*f,false,p);
+        p.setStyle(Paint.Style.FILL);p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.create("sans-serif-black",Typeface.BOLD));
+        p.setTextSize(46);p.setColor(Color.WHITE);p.setShadowLayer(14,0,0,0xFF24BAFF);c.drawText("ALI CAR",cx,cy-5,p);p.clearShadowLayer();
+        p.setTextSize(15);p.setColor(0xFF9CD8EF);p.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));c.drawText("SMART COCKPIT",cx,cy+31,p);
+        p.setColor(0xFF314D61);c.drawRoundRect(cx-140,cy+142,cx+140,cy+148,4,4,p);
+        p.setColor(0xFF56E4FF);c.drawRoundRect(cx-140,cy+142,cx-140+280*f,cy+148,4,4,p);
+        p.setTextSize(12);p.setColor(0xFF8CAFC2);p.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));c.drawText("WELCOME  •  ENJOY THE DRIVE",cx,cy+182,p);
+        p.setAlpha((int)(255*(.65f+.35f*pulse)));if(f<1)postInvalidateDelayed(16);
     }
 }
