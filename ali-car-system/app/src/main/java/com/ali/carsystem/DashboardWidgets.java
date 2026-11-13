@@ -7,42 +7,84 @@ import android.view.*;
 import android.widget.*;
 
 final class NeonIconView extends View {
-    private final Paint p=new Paint(3);
+    private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final int type,color;
     private float pressed=1f;
-    NeonIconView(Context c,int type,int color){super(c);this.type=type;this.color=color;setLayerType(View.LAYER_TYPE_SOFTWARE,null);setFocusable(true);}
-    @Override public boolean onTouchEvent(android.view.MotionEvent e){
-        if(e.getAction()==MotionEvent.ACTION_DOWN){animateScale(.92f);return true;}
+    NeonIconView(Context c,int type,int color){super(c);this.type=type;this.color=color;setFocusable(true);}
+    @Override public boolean onTouchEvent(MotionEvent e){
+        if(e.getAction()==MotionEvent.ACTION_DOWN){animateScale(.94f);return true;}
         if(e.getAction()==MotionEvent.ACTION_UP){animateScale(1f);performClick();return true;}
         if(e.getAction()==MotionEvent.ACTION_CANCEL){animateScale(1f);return true;}return true;
     }
-    private void animateScale(float v){ValueAnimator a=ValueAnimator.ofFloat(pressed,v);a.setDuration(130);a.addUpdateListener(x->{pressed=(Float)x.getAnimatedValue();invalidate();});a.start();}
+    private void animateScale(float value){
+        ValueAnimator animator=ValueAnimator.ofFloat(pressed,value);animator.setDuration(120);
+        animator.addUpdateListener(a->{pressed=(Float)a.getAnimatedValue();invalidate();});animator.start();
+    }
     @Override public boolean performClick(){super.performClick();return true;}
-    @Override protected void onDraw(Canvas c){
-        super.onDraw(c);c.save();c.scale(pressed,pressed,getWidth()/2f,getHeight()/2f);
-        float cx=getWidth()/2f,cy=getHeight()/2f,s=Math.min(getWidth(),getHeight())*.34f;
-        p.setStyle(Paint.Style.STROKE);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);
-        p.setStrokeWidth(Math.max(3,s*.12f));p.setColor(color);p.setShadowLayer(s*.28f,0,0,color);
+    private int blend(int a,int b,float t){
+        int aa=(a>>>24)&255,ar=(a>>>16)&255,ag=(a>>>8)&255,ab=a&255;
+        int ba=(b>>>24)&255,br=(b>>>16)&255,bg=(b>>>8)&255,bb=b&255;
+        return ((int)(aa+(ba-aa)*t)<<24)|((int)(ar+(br-ar)*t)<<16)|
+               ((int)(ag+(bg-ag)*t)<<8)|(int)(ab+(bb-ab)*t);
+    }
+    @Override protected void onDraw(Canvas canvas){
+        super.onDraw(canvas);
+        canvas.save();canvas.scale(pressed,pressed,getWidth()/2f,getHeight()/2f);
+        float cx=getWidth()/2f,cy=getHeight()/2f,r=Math.min(getWidth(),getHeight())*.43f;
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(new LinearGradient(cx-r,cy-r,cx+r,cy+r,blend(color,Color.WHITE,.27f),
+                blend(color,0xFF07111D,.30f),Shader.TileMode.CLAMP));
+        canvas.drawRoundRect(cx-r,cy-r,cx+r,cy+r,r*.48f,r*.48f,p);p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(Math.max(1.2f,r*.055f));p.setColor(0x88FFFFFF);
+        canvas.drawRoundRect(cx-r,cy-r,cx+r,cy+r,r*.48f,r*.48f,p);
+        p.setStrokeWidth(Math.max(2.2f,r*.11f));p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);
+        p.setColor(Color.WHITE);p.setStyle(Paint.Style.FILL);
         switch(type){
-            case 0: // YouTube play
-                p.setStyle(Paint.Style.FILL);p.setShader(new LinearGradient(cx-s,cy-s,cx+s,cy+s,0xFFFF365E,0xFFFF9A70,Shader.TileMode.CLAMP));
-                c.drawRoundRect(cx-s,cy-s*.66f,cx+s,cy+s*.66f,s*.36f,s*.36f,p);p.setShader(null);
-                p.setColor(Color.WHITE);Path tri=new Path();tri.moveTo(cx-s*.22f,cy-s*.36f);tri.lineTo(cx+s*.42f,cy);tri.lineTo(cx-s*.22f,cy+s*.36f);tri.close();c.drawPath(tri,p);break;
-            case 1: // compass pointer
-                p.setStyle(Paint.Style.STROKE);c.drawCircle(cx,cy,s*.88f,p);Path nav=new Path();nav.moveTo(cx+s*.62f,cy-s*.72f);nav.lineTo(cx-s*.52f,cy+s*.72f);nav.lineTo(cx+s*.02f,cy+s*.16f);nav.close();p.setStyle(Paint.Style.FILL);p.setShader(new LinearGradient(cx,cy-s,cx,cy+s,0xFFB5FFFF,color,Shader.TileMode.CLAMP));c.drawPath(nav,p);p.setShader(null);break;
-            case 2: // music note
-                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(s*.17f);Path note=new Path();note.moveTo(cx+s*.20f,cy-s*.64f);note.lineTo(cx+s*.20f,cy+s*.32f);note.lineTo(cx+s*.74f,cy+s*.18f);note.lineTo(cx+s*.74f,cy-s*.76f);note.lineTo(cx+s*.20f,cy-s*.64f);c.drawPath(note,p);p.setStyle(Paint.Style.FILL);c.drawCircle(cx-s*.03f,cy+s*.45f,s*.30f,p);c.drawCircle(cx+s*.50f,cy+s*.30f,s*.30f,p);break;
-            case 3: // bluetooth
-                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(s*.17f);Path bt=new Path();bt.moveTo(cx,cy-s);bt.lineTo(cx+s*.55f,cy-s*.48f);bt.lineTo(cx-s*.52f,cy+s*.48f);bt.lineTo(cx,cy+s);bt.lineTo(cx,cy-s);bt.lineTo(cx-s*.52f,cy-s*.48f);bt.lineTo(cx+s*.55f,cy+s*.48f);c.drawPath(bt,p);break;
-            case 4: // wifi
-                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(s*.16f);RectF r=new RectF(cx-s,cy-s*.95f,cx+s,cy+s*.88f);c.drawArc(r,225,90,false,p);r.inset(s*.28f,s*.28f);c.drawArc(r,225,90,false,p);r.inset(s*.28f,s*.28f);c.drawArc(r,225,90,false,p);p.setStyle(Paint.Style.FILL);c.drawCircle(cx,cy+s*.60f,s*.14f,p);break;
-            default: // sun
-                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(s*.14f);c.drawCircle(cx,cy,s*.40f,p);for(int i=0;i<8;i++){double a=Math.PI*i/4;float x1=cx+(float)Math.cos(a)*s*.62f,y1=cy+(float)Math.sin(a)*s*.62f,x2=cx+(float)Math.cos(a)*s*.90f,y2=cy+(float)Math.sin(a)*s*.90f;c.drawLine(x1,y1,x2,y2,p);}
+            case 0:{
+                RectF box=new RectF(cx-r*.70f,cy-r*.48f,cx+r*.70f,cy+r*.48f);
+                p.setColor(0xFFF5F8FF);canvas.drawRoundRect(box,r*.20f,r*.20f,p);
+                Path triangle=new Path();triangle.moveTo(cx-r*.18f,cy-r*.27f);
+                triangle.lineTo(cx+r*.33f,cy);triangle.lineTo(cx-r*.18f,cy+r*.27f);triangle.close();
+                p.setColor(color);canvas.drawPath(triangle,p);break;
+            }
+            case 1:{
+                Path pin=new Path();pin.moveTo(cx,cy+r*.76f);pin.cubicTo(cx-r*.20f,cy+r*.35f,cx-r*.68f,cy-r*.06f,cx-r*.68f,cy-r*.36f);
+                pin.cubicTo(cx-r*.68f,cy-r*.79f,cx+r*.68f,cy-r*.79f,cx+r*.68f,cy-r*.36f);
+                pin.cubicTo(cx+r*.68f,cy-r*.06f,cx+r*.20f,cy+r*.35f,cx,cy+r*.76f);pin.close();
+                canvas.drawPath(pin,p);p.setColor(color);canvas.drawCircle(cx,cy-r*.36f,r*.20f,p);break;
+            }
+            case 2:{
+                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(r*.17f);
+                Path note=new Path();note.moveTo(cx+r*.12f,cy-r*.62f);note.lineTo(cx+r*.12f,cy+r*.30f);
+                note.lineTo(cx+r*.62f,cy+r*.18f);note.lineTo(cx+r*.62f,cy-r*.77f);
+                note.lineTo(cx+r*.12f,cy-r*.62f);canvas.drawPath(note,p);
+                p.setStyle(Paint.Style.FILL);canvas.drawCircle(cx-r*.08f,cy+r*.40f,r*.24f,p);
+                canvas.drawCircle(cx+r*.42f,cy+r*.28f,r*.24f,p);break;
+            }
+            case 3:{
+                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(r*.15f);
+                Path bt=new Path();bt.moveTo(cx,cy-r*.76f);bt.lineTo(cx+r*.48f,cy-r*.34f);
+                bt.lineTo(cx-r*.46f,cy+r*.34f);bt.lineTo(cx,cy+r*.76f);bt.lineTo(cx,cy-r*.76f);
+                bt.lineTo(cx-r*.46f,cy-r*.34f);bt.lineTo(cx+r*.48f,cy+r*.34f);
+                canvas.drawPath(bt,p);break;
+            }
+            case 4:{
+                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(r*.14f);
+                for(int i=0;i<3;i++){RectF arc=new RectF(cx-r*(.74f-i*.22f),cy-r*(.72f-i*.18f),cx+r*(.74f-i*.22f),cy+r*(.72f-i*.18f));canvas.drawArc(arc,225,90,false,p);}
+                p.setStyle(Paint.Style.FILL);canvas.drawCircle(cx,cy+r*.42f,r*.12f,p);break;
+            }
+            default:{
+                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(r*.105f);
+                canvas.drawCircle(cx,cy,r*.34f,p);
+                for(int i=0;i<8;i++){double a=Math.PI*i/4;float x1=cx+(float)Math.cos(a)*r*.53f,y1=cy+(float)Math.sin(a)*r*.53f,x2=cx+(float)Math.cos(a)*r*.78f,y2=cy+(float)Math.sin(a)*r*.78f;canvas.drawLine(x1,y1,x2,y2,p);}
+                p.setStyle(Paint.Style.FILL);canvas.drawCircle(cx,cy,r*.10f,p);
+            }
         }
-        p.clearShadowLayer();c.restore();
+        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(r*.045f);p.setColor(0x55FFFFFF);
+        canvas.drawArc(cx-r*.80f,cy-r*.80f,cx+r*.80f,cy+r*.80f,205,130,false,p);
+        canvas.restore();
     }
 }
-
 final class SpeedometerView extends View {
     private final Paint p=new Paint(3);private float speed;
     SpeedometerView(Context c){super(c);}
