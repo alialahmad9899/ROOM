@@ -40,7 +40,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private MapView map;private LocationManager lm;private Location current;
     private FusedLocationProviderClient fusedClient;private LocationCallback fusedCallback;
     private boolean fusedRegistered,fusedRequestPending;private int gmsAvailabilityCode=-1;
-    private String gmsLocationStatus="لم يبدأ اتصال Google Fused";private Button googleNavigationButton;
+    private String gmsLocationStatus="لم يبدأ اتصال Google Fused";
     private EditText search;private TextView status,maneuver,trafficInfo;private LinearLayout routeChoices;
     private Button googleNavigationButton,freeModeButton,guidedModeButton,followButton;
     private GeoPoint destination;private String destinationName="";private Polyline routeLine;private Marker destMarker,carMarker;
@@ -167,7 +167,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
     private void searchDestination(){
         String q=search.getText().toString().trim();if(q.length()<2){search.setError("أدخل اسم وجهة");return;}
-        long now=SystemClock.elapsedRealtime();if(now-lastSearch<500){status.setText("جارٍ تنفيذ البحث السابق...");return;}lastSearch=now;
+        long now=SystemClock.elapsedRealtime();if(now-lastSearch<1100){status.setText("انتظر لحظة بين عمليات البحث");return;}lastSearch=now;
         InputMethodManager keyboard=(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
         if(keyboard!=null)keyboard.hideSoftInputFromWindow(search.getWindowToken(),0);search.clearFocus();
         if(geocodeTask!=null)geocodeTask.cancel(true);final int requestId=++geocodeRequestId;
