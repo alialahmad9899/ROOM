@@ -95,6 +95,16 @@ jobs:
           test -s "$JAR"
           mkdir -p "$GITHUB_WORKSPACE/offline-map-build"
           cp "$JAR" "$GITHUB_WORKSPACE/offline-map-build/mapsforge-map-writer.jar"
+      - name: Switch to Java 21 for OSM PBF conversion
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Build Syria map, places, and offline car routes
+        env:
+          JAVACMD_OPTIONS: "-Xmx4G"
+        run: |
+          set -euo pipefail
           cd "$GITHUB_WORKSPACE"
           bash tools/maps/build_syria_offline_package.sh
           mkdir -p ali-car-system/app/src/main/assets/offline
@@ -103,6 +113,12 @@ jobs:
           test -s ali-car-system/app/src/main/assets/offline/syria-places.sqlite
           test -s ali-car-system/app/src/main/assets/offline/brouter/segments4/E35_N30.rd5
           du -sh ali-car-system/app/src/main/assets/offline
+
+      - name: Restore Java 17 for Android Gradle build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
       - name: Resize and verify dashboard photo
         run: python tools/rom/materialize_dashboard_asset.py
