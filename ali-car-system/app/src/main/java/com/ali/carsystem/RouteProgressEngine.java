@@ -177,8 +177,9 @@ public final class RouteProgressEngine {
     }
 
     private double allowedSnapDistance(float accuracy) {
-        if (accuracy <= 0 || Float.isNaN(accuracy) || Float.isInfinite(accuracy)) return 55.0;
-        return Math.max(45.0, Math.min(90.0, accuracy * 2.0));
+        if (accuracy <= 0 || Float.isNaN(accuracy) || Float.isInfinite(accuracy)) return 45.0;
+        // Prefer suppressing guidance over matching an imprecise fix to a nearby road.
+        return Math.max(25.0, Math.min(45.0, accuracy * 1.8));
     }
 
     private static double distanceMeters(Point a, Point b) {
