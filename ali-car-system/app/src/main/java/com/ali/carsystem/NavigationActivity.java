@@ -627,7 +627,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private static String instruction(JSONObject step){
         JSONObject m=step.optJSONObject("maneuver");String type=m==null?"":m.optString("type","");String mod=m==null?"":m.optString("modifier","");
         String road=step.optString("name","");String dir=mod.contains("left")?"يسار":mod.contains("right")?"يمين":mod.contains("uturn")?"استدر":"مباشرة";
-        String action="arrive".equals(type)?"وصلت إلى الوجهة":"roundabout".equals(type)?"ادخل الدوار":"تابع "+dir;
+        int exit=m==null?0:m.optInt("exit",0);
+        String action="arrive".equals(type)?"وصلت إلى الوجهة"
+                :"roundabout".equals(type)?(exit>0?"ادخل الدوار وخذ المخرج رقم "+exit:"ادخل الدوار")
+                :"تابع "+dir;
         return action+(road.isEmpty()?"":" باتجاه "+road);
     }
     private void updateManeuver(Location l,List<Maneuver> steps){
