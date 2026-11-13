@@ -208,6 +208,9 @@ public final class MusicPlaybackService extends Service implements AudioManager.
         getPrefs().edit().putBoolean("is_playing", false)
                 .putBoolean("resume_after_process_restart", false)
                 .putInt("position_ms", lastPosition).apply();
+        if (audioManager != null) {
+            try { audioManager.abandonAudioFocus(this); } catch (Exception ignored) { }
+        }
         publishState();
         updateNotification();
     }
