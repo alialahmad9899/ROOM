@@ -43,7 +43,7 @@ public final class NavigationService extends Service implements LocationListener
     private static final String KEY_STATE = "last_state";
     private static final int NOTIFICATION_ID = 2304;
     private static final long GOOD_FIX_MAX_AGE_MS = 15000L;
-    private static final float VOICE_MAX_ACCURACY_METERS = 30f;
+    private static final float VOICE_MAX_ACCURACY_METERS = 25f;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private LocationManager locationManager;
@@ -61,6 +61,8 @@ public final class NavigationService extends Service implements LocationListener
     private boolean locationRegistered;
     private boolean routeActive;
     private boolean arrived;
+    private int stableVoiceFixes;
+    private String pendingStartAnnouncement = "";
     private int currentTurnIndex = -1;
     private int spokenStage;
     private int offRouteFixes;
@@ -109,7 +111,11 @@ public final class NavigationService extends Service implements LocationListener
         acquireNavigationWakeLock();
         startGpsUpdates();
         if (suppliedRoute != null) {
-            speak("بدأ التوجيه إلى " + destination);
+            pendingStartAnnouncement = "بدأ التوجيه إلى " + destination;
+            if (arabicVoiceReady) {
+                speak(pendingStartAnnouncement);
+                pendingStartAnnouncement = "";
+            }
         }
         broadcastState(true, null, 0, totalDistanceMeters, 0, statusText);
         return START_STICKY;
@@ -164,6 +170,7 @@ public final class NavigationService extends Service implements LocationListener
             offRouteFixes = 0;
             arrived = false;
             routeActive = true;
+            stableVoiceFixes = 0;
             startProgressMeters = 0;
             statusText = "جارٍ تحديد موقع السيارة";
             return true;
@@ -223,10 +230,21 @@ public final class NavigationService extends Service implements LocationListener
             return;
         }
 
+        // Do not advance route progress with a stale/weak fix: that could skip a turn.
+        if (accuracy > VOICE_MAX_ACCURACY_METERS) {
+            stableVoiceFixes = 0;
+            statusText = "دقة GPS ضعيفة ±" + Math.round(accuracy)
+                    + " متر؛ تم تعليق التعليمات الصوتية حتى تتحسن الإشارة";
+            broadcastState(true, null, 0, totalDistanceMeters, totalDurationMinutes, statusText);
+            updateNotification(statusText);
+            return;
+        }
+
         RouteProgressEngine.Progress progress =
                 progressEngine.update(location.getLatitude(), location.getLongitude(), accuracy);
 
         if (!progress.onRoute) {
+            stableVoiceFixes = 0;
             offRouteFixes++;
             statusText = "لم نتمكن من مطابقة موقع GPS مع الطريق؛ تم تعليق التعليمات الصوتية";
             publishStatus();
@@ -237,9 +255,9 @@ public final class NavigationService extends Service implements LocationListener
             return;
         }
         offRouteFixes = 0;
-
-        if (accuracy > VOICE_MAX_ACCURACY_METERS) {
-            statusText = "دقة GPS ضعيفة ±" + Math.round(accuracy) + " متر؛ التعليمات الصوتية متوقفة مؤقتاً";
+        stableVoiceFixes++;
+        if (stableVoiceFixes < 2) {
+            statusText = "تم تثبيت قراءة GPS أولية؛ نتحقق من القراءة التالية قبل التوجيه";
             publishProgress(progress, accuracy, statusText);
             return;
         }
@@ -359,6 +377,7 @@ public final class NavigationService extends Service implements LocationListener
                 .putFloat("eta_minutes", (float) Math.max(0, etaMinutes))
                 .putBoolean("voice_ready", arabicVoiceReady)
                 .putBoolean("arrived", arrived)
+                .putLong("last_state_update_ms", System.currentTimeMillis())
                 .apply();
     }
 
@@ -426,9 +445,17 @@ public final class NavigationService extends Service implements LocationListener
                 ? "التوجيه الصوتي العربي جاهز"
                 : "الصوت العربي غير مثبت؛ افتح إعدادات تحويل النص إلى كلام وثبّت العربية";
         publishStatus();
+        if (arabicVoiceReady && routeActive && !pendingStartAnnouncement.isEmpty()) {
+            speak(pendingStartAnnouncement);
+            pendingStartAnnouncement = "";
+        }
     }
 
     private void finishArrivedSession() {
+        routeActive = false;
+        statusText = "انتهت الملاحة بعد الوصول إلى الوجهة";
+        broadcastState(false, null, 0, 0, 0, statusText);
+        getPreferences().edit().putBoolean(KEY_ACTIVE, false).putString(KEY_STATE, statusText).remove(KEY_ROUTE).apply();
         stopForeground(true);
         stopSelf();
     }
