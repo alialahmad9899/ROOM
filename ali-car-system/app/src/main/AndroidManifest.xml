@@ -37,6 +37,7 @@
         <activity android:name=".VideoPlayerActivity" android:screenOrientation="landscape" android:exported="false"/>
         <activity android:name=".NavigationActivity" android:screenOrientation="landscape" android:exported="false"/>
         <activity android:name=".MusicActivity" android:screenOrientation="landscape" android:exported="false"/>
+        <service android:name=".MusicPlaybackService" android:exported="false"/>
         <activity android:name=".SettingsActivity" android:screenOrientation="landscape" android:exported="false"/>
         <receiver android:name=".CarAdminReceiver" android:permission="android.permission.BIND_DEVICE_ADMIN" android:exported="true">
             <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin"/>
