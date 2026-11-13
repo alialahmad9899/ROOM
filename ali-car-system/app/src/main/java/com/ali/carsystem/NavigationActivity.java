@@ -42,12 +42,13 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private boolean fusedRegistered,fusedRequestPending;private int gmsAvailabilityCode=-1;
     private String gmsLocationStatus="لم يبدأ اتصال Google Fused";
     private EditText search;private TextView status,maneuver,trafficInfo;private LinearLayout routeChoices;
-    private Button googleNavigationButton,freeModeButton,guidedModeButton,followButton;
+    private Button googleNavigationButton,freeModeButton,guidedModeButton,followButton,retryRouteButton;
     private GeoPoint destination;private String destinationName="";private Polyline routeLine;private Marker destMarker,carMarker;
     private AsyncTask<Void,Void,RouteResult> routeTask;private AsyncTask<String,Void,GeoResult> geocodeTask;
     private List<Maneuver> activeManeuvers=Collections.emptyList();private List<RouteOption> routeOptions=Collections.emptyList();
     private int selectedRouteIndex=-1,routeRequestId,geocodeRequestId;private boolean guidedMode=true,followCar=true,routeAttemptedForDestination;
-    private GeoPoint lastFollowPoint;private long lastFollowAt;
+    private GeoPoint lastFollowPoint,previousCarPoint;private long lastFollowAt;
+    private float lastCarHeading;
     private long lastSearch;private boolean waitingForFix;
     private boolean gpsRegistered,networkRegistered,criteriaRegistered,gpsStatusRegistered,gpsEngineStarted;
     private String providerError="",criteriaProvider="لم يتم اختياره",lastFixProvider="لا يوجد";
@@ -93,14 +94,21 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(enabled&&current!=null&&followCar)centerOnCar(current);updateManeuver(current,activeManeuvers);map.invalidate();}
     private void updateFollowButton(){if(followButton!=null)styleButton(followButton,followCar?"تتبّع السيارة ✓":"تتبّع السيارة",followCar?0xFF087FA4:0xF20A1B2A);}
     private void centerOnCar(Location l){if(map==null||l==null)return;GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());map.getController().animateTo(p);lastFollowPoint=p;lastFollowAt=SystemClock.elapsedRealtime();}
-    private BitmapDrawable createCarIcon(){int w=dp(42),h=dp(58);Bitmap bitmap=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(bitmap);Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);float x=w/2f;
-        p.setColor(0x55000000);c.drawRoundRect(new RectF(x-dp(11),dp(9),x+dp(15),h-dp(2)),dp(8),dp(8),p);
-        p.setColor(0xFF08A9D0);c.drawRoundRect(new RectF(x-dp(13),dp(6),x+dp(13),h-dp(7)),dp(9),dp(9),p);
-        p.setColor(0xFF083044);c.drawRoundRect(new RectF(x-dp(9),dp(14),x+dp(9),dp(27)),dp(5),dp(5),p);
-        p.setColor(0xFFBFEFFF);c.drawRoundRect(new RectF(x-dp(9),dp(31),x+dp(9),dp(40)),dp(4),dp(4),p);
-        p.setColor(0xFF101820);c.drawRoundRect(new RectF(x-dp(16),dp(14),x-dp(11),dp(25)),dp(2),dp(2),p);c.drawRoundRect(new RectF(x+dp(11),dp(14),x+dp(16),dp(25)),dp(2),dp(2),p);
-        c.drawRoundRect(new RectF(x-dp(16),dp(39),x-dp(11),dp(50)),dp(2),dp(2),p);c.drawRoundRect(new RectF(x+dp(11),dp(39),x+dp(16),dp(50)),dp(2),dp(2),p);
-        p.setColor(Color.WHITE);c.drawCircle(x,dp(9),dp(2),p);return new BitmapDrawable(getResources(),bitmap);}
+    private BitmapDrawable createCarIcon(){
+        int size=dp(36);Bitmap bitmap=Bitmap.createBitmap(size,size,Bitmap.Config.ARGB_8888);
+        Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        float center=size/2f;
+        paint.setColor(0x66000000);canvas.drawCircle(center,center+dp(1),dp(16),paint);
+        paint.setColor(Color.WHITE);canvas.drawCircle(center,center,dp(15),paint);
+        paint.setColor(0xFF168BFF);canvas.drawCircle(center,center,dp(12),paint);
+        // Small red pointer rotates with GPS bearing; the marker itself is a dot, not a car graphic.
+        Path pointer=new Path();pointer.moveTo(center,center-dp(9));
+        pointer.lineTo(center+dp(4),center+dp(4));pointer.lineTo(center,center+dp(2));
+        pointer.lineTo(center-dp(4),center+dp(4));pointer.close();
+        paint.setColor(0xFFFF5866);canvas.drawPath(pointer,paint);
+        paint.setColor(0xFFFFFFFF);canvas.drawCircle(center,center,dp(2),paint);
+        return new BitmapDrawable(getResources(),bitmap);
+    }
     private void addRouteChoice(String label,int index,boolean selected){Button b=new Button(this);styleButton(b,label,selected?0xFF087FA4:0xFF183447);b.setTextSize(11);b.setTag("route_"+index);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,dp(40));lp.setMargins(0,0,dp(7),0);routeChoices.addView(b,lp);b.setOnClickListener(v->selectRoute(index));}
     private void rebuildRouteChoices(){if(routeChoices==null)return;routeChoices.removeAllViews();if(routeOptions==null||routeOptions.isEmpty())return;int n=routeOptions.size();
@@ -148,6 +156,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         modes.addView(freeModeButton,new LinearLayout.LayoutParams(0,dp(42),1));
         LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(0,dp(42),1);glp.setMargins(dp(7),0,0,0);modes.addView(guidedModeButton,glp);panel.addView(modes);
         status=new TextView(this);status.setTextColor(0xFFD5E5EC);status.setTextSize(12);status.setGravity(Gravity.RIGHT);status.setText("جارٍ تحديد موقعك...");status.setPadding(0,dp(4),0,dp(3));panel.addView(status);
+        retryRouteButton=new Button(this);retryRouteButton.setTag("navigation_retry_route");
+        styleButton(retryRouteButton,"إعادة محاولة حساب المسار",0xFF087FA4);retryRouteButton.setTextSize(12);
+        retryRouteButton.setVisibility(View.GONE);panel.addView(retryRouteButton,new LinearLayout.LayoutParams(-1,dp(38)));
         googleNavigationButton=new Button(this);styleButton(googleNavigationButton,"فتح التوجيه الصوتي في Google Maps",0xFF244B61);googleNavigationButton.setTextSize(12);panel.addView(googleNavigationButton,new LinearLayout.LayoutParams(-1,dp(40)));
         FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(dp(560),-2,Gravity.TOP|Gravity.LEFT);pp.setMargins(dp(16),dp(16),dp(16),0);root.addView(panel,pp);
         followButton=new Button(this);styleButton(followButton,"تتبّع السيارة ✓",0xF20A1B2A);FrameLayout.LayoutParams flp=new FrameLayout.LayoutParams(dp(150),dp(44),Gravity.TOP|Gravity.RIGHT);flp.setMargins(0,dp(18),dp(18),0);root.addView(followButton,flp);
@@ -163,6 +174,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         freeModeButton.setOnClickListener(v->setGuidedMode(false));guidedModeButton.setOnClickListener(v->setGuidedMode(true));
         followButton.setOnClickListener(v->{followCar=!followCar;updateFollowButton();if(followCar&&current!=null)centerOnCar(current);});
         googleNavigationButton.setOnClickListener(v->launchGoogleMapsNavigation());
+        retryRouteButton.setOnClickListener(v->{if(current!=null&&destination!=null)requestRoute(current,destination,destinationName);else drawRouteIfPossible();});
         loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());setGuidedMode(true);
     }
     private void searchDestination(){
@@ -442,7 +454,26 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         else map.invalidate();
     }
     private void showCar(Location l){
-        GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());if(carMarker==null){carMarker=new Marker(map);carMarker.setTitle("موقع السيارة");carMarker.setIcon(createCarIcon());carMarker.setAnchor(Marker.ANCHOR_CENTER,Marker.ANCHOR_CENTER);map.getOverlays().add(carMarker);}carMarker.setPosition(p);if(l.hasBearing())carMarker.setRotation(l.getBearing());map.invalidate();
+        GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());
+        if(carMarker==null){
+            carMarker=new Marker(map);carMarker.setTitle("الموقع الحالي واتجاه الحركة");
+            carMarker.setIcon(createCarIcon());carMarker.setAnchor(Marker.ANCHOR_CENTER,Marker.ANCHOR_CENTER);
+            map.getOverlays().add(carMarker);
+        }
+        if(l.hasBearing()&&(!l.hasSpeed()||l.getSpeed()>0.5f)){
+            lastCarHeading=l.getBearing();
+        }else if(previousCarPoint!=null
+                &&GeoMath.distanceMeters(previousCarPoint.getLatitude(),previousCarPoint.getLongitude(),
+                    p.getLatitude(),p.getLongitude())>4.0){
+            double lat1=Math.toRadians(previousCarPoint.getLatitude());
+            double lat2=Math.toRadians(p.getLatitude());
+            double dLon=Math.toRadians(p.getLongitude()-previousCarPoint.getLongitude());
+            double y=Math.sin(dLon)*Math.cos(lat2);
+            double x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
+            lastCarHeading=(float)((Math.toDegrees(Math.atan2(y,x))+360.0)%360.0);
+        }
+        carMarker.setPosition(p);carMarker.setRotation(lastCarHeading);
+        previousCarPoint=p;map.invalidate();
     }
     private void drawRouteIfPossible(){
         if(destination==null)return;
@@ -452,11 +483,11 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private void requestRoute(Location start,GeoPoint end,String name){
         // Keep one request in flight; failed requests are not restarted by GPS callbacks.
         if(routeTask!=null)return;routeAttemptedForDestination=true;final int requestId=++routeRequestId;
-        final Location routeStart=new Location(start);final GeoPoint routeEnd=end;status.setText("جارٍ حساب المسارات البديلة...");
+        final Location routeStart=new Location(start);final GeoPoint routeEnd=end;status.setText("جارٍ الاتصال بمحركات المسارات...");
+        if(retryRouteButton!=null)retryRouteButton.setVisibility(View.GONE);
         routeTask=new AsyncTask<Void,Void,RouteResult>(){
             protected RouteResult doInBackground(Void...v){try{
-                String u=String.format(Locale.US,"https://router.project-osrm.org/route/v1/driving/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=geojson&steps=true&alternatives=3",routeStart.getLongitude(),routeStart.getLatitude(),routeEnd.getLongitude(),routeEnd.getLatitude());
-                JSONObject root=new JSONObject(VideoApi.read(getApplicationContext(),u));
+                JSONObject root=RouteNetworkClient.requestRoutes(getApplicationContext(),routeStart,routeEnd);
                 if(!"Ok".equals(root.optString("code")))return new RouteResult("محرك المسارات رفض الطلب: "+root.optString("message",root.optString("code","خطأ غير معروف")));
                 JSONArray routes=root.getJSONArray("routes");if(routes.length()==0)return new RouteResult("لم يعثر محرك المسارات على طريق قيادة");
                 ArrayList<RouteOption> options=new ArrayList<>();
@@ -472,15 +503,23 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                     }
                     if(points.size()>1)options.add(new RouteOption(points,route.optDouble("distance")/1000,route.optDouble("duration")/60,maneuvers,turns));
                 }
-                return options.isEmpty()?new RouteResult("وصل رد المسارات دون هندسة صالحة"):new RouteResult(options);
+                return options.isEmpty()?new RouteResult("وصل رد المسارات دون هندسة صالحة"):new RouteResult(options,root.optString("_ali_provider",""));
             }catch(Exception e){String detail=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();return new RouteResult("تعذر الاتصال بخدمة المسارات: "+detail);}}
             protected void onPostExecute(RouteResult r){
                 if(requestId!=routeRequestId||isFinishing())return;routeTask=null;
-                if(r.error!=null){waitingForFix=false;routeAttemptedForDestination=true;status.setText(r.error+" — اضغط «ابحث» لإعادة المحاولة");maneuver.setText("لم يتم تحميل المسار");return;}
+                if(r.error!=null){
+                    waitingForFix=false;routeAttemptedForDestination=true;
+                    status.setText(r.error);maneuver.setText("لم يتم تحميل المسار");
+                    if(retryRouteButton!=null)retryRouteButton.setVisibility(View.VISIBLE);
+                    trafficInfo.setText("تحقق من الإنترنت أو أعد المحاولة • بيانات الازدحام المباشر غير متاحة");
+                    return;
+                }
+                if(retryRouteButton!=null)retryRouteButton.setVisibility(View.GONE);
                 routeOptions=r.options;selectedRouteIndex=RouteChoiceLogic.shortestIndex(routeDistances(routeOptions));if(selectedRouteIndex<0)selectedRouteIndex=0;
                 rebuildRouteChoices();selectRoute(selectedRouteIndex);BoundingBox bounds=BoundingBox.fromGeoPoints(routeOptions.get(selectedRouteIndex).points);
                 map.zoomToBoundingBox(bounds,true);waitingForFix=false;map.invalidate();
-                if(routeOptions.size()>1)trafficInfo.setText("تم توفير "+routeOptions.size()+" بدائل • لا تتوفر بيانات ازدحام مباشر");
+                String providerName="valhalla".equals(r.provider)?"Valhalla":"fossgis".equals(r.provider)?"FOSSGIS OSRM":"OSRM";
+                trafficInfo.setText(providerName+" • "+routeOptions.size()+" مسار/مسارات متاحة • لا تتوفر بيانات ازدحام مباشر");
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
@@ -557,5 +596,5 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private static final class GeoResult{final GeoPoint point;final String name,error;GeoResult(String e){point=null;name="";error=e;}GeoResult(GeoPoint p,String n){point=p;name=n;error=null;}}
     private static final class Maneuver{final GeoPoint point;final String text;Maneuver(GeoPoint p,String t){point=p;text=t;}}
     private static final class RouteOption{final ArrayList<GeoPoint> points;final double km,minutes;final List<Maneuver> maneuvers;final int turns;RouteOption(ArrayList<GeoPoint> p,double k,double m,List<Maneuver> n,int t){points=p;km=k;minutes=m;maneuvers=n;turns=t;}}
-    private static final class RouteResult{final List<RouteOption> options;final String error;RouteResult(String e){options=Collections.emptyList();error=e;}RouteResult(List<RouteOption> o){options=o;error=null;}}
+    private static final class RouteResult{final List<RouteOption> options;final String error,provider;RouteResult(String e){options=Collections.emptyList();error=e;provider="";}RouteResult(List<RouteOption> o,String p){options=o;error=null;provider=p;}}
 }
