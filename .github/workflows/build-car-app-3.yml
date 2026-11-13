@@ -1,7 +1,7 @@
-name: ALI CAR 3.0 clean rebuild
+name: ALI CAR 3.1 API21 x86 clean rebuild
 on:
   push:
-    branches: ["ali-car-system/3.0.0-clean-rebuild"]
+    branches: ["ali-car-system/3.1.0-clean-rebuild"]
     paths: ["ali-car-system/**","tools/rom/**",".github/workflows/build-car-app-3.yml"]
   workflow_dispatch:
 concurrency:
@@ -71,26 +71,26 @@ jobs:
           grep -F "targetSdkVersion:'22'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           mkdir -p output
-          cp "$APK" output/ALI-Car-System-3.0.0-api21-x86-debug.apk
-          sha256sum output/ALI-Car-System-3.0.0-api21-x86-debug.apk > output/SHA256SUMS.txt
+          cp "$APK" output/ALI-Car-System-3.1.0-api21-x86-debug.apk
+          sha256sum output/ALI-Car-System-3.1.0-api21-x86-debug.apk > output/SHA256SUMS.txt
           {
             echo "Project: ALI CAR"
             echo "Package: com.ali.carsystem"
-            echo "Version: 3.0.0"
+            echo "Version: 3.1.0"
             echo "Device baseline: ASUS Z170CG / P01Y, Intel SoFIA 3GR, x86 32-bit"
             echo "Minimum Android: 5.0 / API 21"
             echo "Target SDK: 22"
             echo "Build type: Debug-signed testing APK"
             echo "Commit: $GITHUB_SHA"
-            stat --printf='APK bytes: %s\\n' output/ALI-Car-System-3.0.0-api21-x86-debug.apk
+            stat --printf='APK bytes: %s\\n' output/ALI-Car-System-3.1.0-api21-x86-debug.apk
             cat output/SHA256SUMS.txt
           } > output/BUILD-INFO.txt
       - name: Upload APK and metadata
         uses: actions/upload-artifact@v4
         with:
-          name: ALI-CAR-3.0.0-API21-X86-APK
+          name: ALI-CAR-3.1.0-API21-X86-APK
           path: |
-            output/ALI-Car-System-3.0.0-api21-x86-debug.apk
+            output/ALI-Car-System-3.1.0-api21-x86-debug.apk
             output/SHA256SUMS.txt
             output/BUILD-INFO.txt
           if-no-files-found: error
@@ -116,16 +116,14 @@ jobs:
             adb devices -l > emulator-diagnostics/adb-devices.txt 2>&1
             adb logcat -d -v time > emulator-diagnostics/logcat.txt 2>&1
             adb shell dumpsys activity activities > emulator-diagnostics/activities.txt 2>&1
-            if [ -d app/build/reports/androidTests/connected/debug ]; then
-              cp -R app/build/reports/androidTests/connected/debug emulator-diagnostics/android-test-report
-            fi
+            test -d app/build/reports/androidTests/connected/debug && cp -R app/build/reports/androidTests/connected/debug emulator-diagnostics/android-test-report || true
             echo "$test_rc" > emulator-diagnostics/exit-code.txt
             exit "$test_rc"
       - name: Upload emulator diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ALI-CAR-3.0.0-API21-X86-DIAGNOSTICS
+          name: ALI-CAR-3.1.0-API21-X86-DIAGNOSTICS
           path: ali-car-system/emulator-diagnostics/
           if-no-files-found: ignore
           retention-days: 30
