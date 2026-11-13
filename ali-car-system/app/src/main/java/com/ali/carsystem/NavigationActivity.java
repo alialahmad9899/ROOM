@@ -196,12 +196,101 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         }catch(SecurityException e){if(providerError.isEmpty())providerError="رفض النظام إذن خدمة الموقع المدمجة";}
          catch(Exception e){if(providerError.isEmpty())providerError="خدمة الموقع المدمجة غير متاحة: "+e.getClass().getSimpleName();}
 
+        startGoogleFusedLocation();
         loadLastKnown();
-        if(!gpsOn&&!networkOn)status.setText("خدمة الموقع مغلقة — اضغط لعرض التشخيص");
+        if(!gpsOn&&!networkOn&&gmsAvailabilityCode!=ConnectionResult.SUCCESS)status.setText("خدمات الموقع متوقفة — اضغط لعرض التشخيص");
         else if(current!=null&&isNavigationFixUsable(current))
             status.setText("تم استقبال موقع حديث من "+lastFixProvider+" — دقة ±"+Math.round(lastFixAccuracy)+" متر");
         else if(!providerError.isEmpty())status.setText(providerError+" — اضغط لعرض التشخيص");
         else status.setText(gpsStatusText());
+    }
+    private void startGoogleFusedLocation(){
+        if(!hasLocationPermission()){
+            gmsLocationStatus="لم يبدأ: إذن الموقع غير ممنوح";return;
+        }
+        if(fusedClient==null){
+            try{fusedClient=LocationServices.getFusedLocationProviderClient(this);}
+            catch(Exception e){gmsLocationStatus="تعذر إنشاء Google Fused: "+e.getClass().getSimpleName();return;}
+        }
+        gmsAvailabilityCode=GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this);
+        if(gmsAvailabilityCode!=ConnectionResult.SUCCESS){
+            String reason=GoogleApiAvailability.getInstance().getErrorString(gmsAvailabilityCode);
+            gmsLocationStatus="Google Play services غير جاهزة (code "+gmsAvailabilityCode+") "+reason;
+            return;
+        }
+        if(fusedRegistered||fusedRequestPending)return;
+        fusedRequestPending=true;gmsLocationStatus="Google Fused يتصل ويطلب موقعاً حديثاً";
+        try{
+            fusedClient.getLocationAvailability()
+                    .addOnSuccessListener(availability->{
+                        if(availability==null)gmsLocationStatus="Google Fused: لم يُرجع حالة التوفر";
+                        else gmsLocationStatus="Google Fused متاح="+availability.isLocationAvailable();
+                    })
+                    .addOnFailureListener(error->gmsLocationStatus="LocationAvailability: "+error.getClass().getSimpleName());
+            fusedClient.getLastLocation()
+                    .addOnSuccessListener(location->{
+                        if(location!=null){
+                            onLocationChanged(location);
+                            gmsLocationStatus="استلمنا موقعاً محفوظاً من Google Fused";
+                        }else gmsLocationStatus="Google Fused لا يملك موقعاً محفوظاً؛ ننتظر تحديد موقع جديد";
+                    })
+                    .addOnFailureListener(error->gmsLocationStatus="قراءة آخر موقع فشلت: "+error.getClass().getSimpleName());
+            LocationRequest request=LocationRequest.create();
+            request.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+            request.setInterval(1000);
+            request.setFastestInterval(500);
+            request.setSmallestDisplacement(0);
+            fusedClient.requestLocationUpdates(request,fusedCallback,Looper.getMainLooper())
+                    .addOnSuccessListener(ignored->{
+                        fusedRequestPending=false;fusedRegistered=true;
+                        gmsLocationStatus="Google Fused يسجّل تحديثات الموقع عالية الدقة";
+                        if(status!=null&&destination!=null&&waitingForFix)status.setText(gpsStatusText());
+                    })
+                    .addOnFailureListener(error->{
+                        fusedRequestPending=false;fusedRegistered=false;
+                        gmsLocationStatus="فشل طلب Google Fused: "+error.getClass().getSimpleName()+" — "+error.getMessage();
+                        if(status!=null)status.setText("فشل محرك Google للموقع؛ GPS المباشر ما زال يعمل");
+                    });
+        }catch(SecurityException e){
+            fusedRequestPending=false;gmsRegisteredFailure("صلاحية الموقع مرفوضة: "+e.getMessage());
+        }catch(Exception e){
+            fusedRequestPending=false;gmsRegisteredFailure(e.getClass().getSimpleName()+": "+e.getMessage());
+        }
+    }
+    private void gmsRegisteredFailure(String reason){
+        fusedRegistered=false;gmsLocationStatus="Google Fused: "+reason;
+    }
+    private void stopGoogleFusedLocation(){
+        if(fusedClient!=null&&fusedCallback!=null){
+            try{fusedClient.removeLocationUpdates(fusedCallback);}catch(Exception ignored){}
+        }
+        fusedRegistered=false;fusedRequestPending=false;
+    }
+    private void restartGoogleFusedLocation(){
+        if(fusedClient==null||fusedCallback==null){startGoogleFusedLocation();return;}
+        try{
+            fusedClient.removeLocationUpdates(fusedCallback).addOnCompleteListener(task->{
+                fusedRegistered=false;fusedRequestPending=false;startGoogleFusedLocation();
+            });
+        }catch(Exception e){fusedRegistered=false;fusedRequestPending=false;startGoogleFusedLocation();}
+    }
+    private void launchGoogleMapsNavigation(){
+        if(destination==null){
+            Toast.makeText(this,"ابحث عن وجهتك أولاً ثم ابدأ التوجيه الصوتي",Toast.LENGTH_LONG).show();return;
+        }
+        String coordinates=String.format(Locale.US,"%.6f,%.6f",destination.getLatitude(),destination.getLongitude());
+        Uri googleUri=Uri.parse("google.navigation:q="+Uri.encode(coordinates)+"&mode=d");
+        Intent googleIntent=new Intent(Intent.ACTION_VIEW,googleUri);
+        googleIntent.setPackage("com.google.android.apps.maps");
+        try{
+            startActivity(googleIntent);
+        }catch(ActivityNotFoundException noMaps){
+            String webUrl="https://www.google.com/maps/dir/?api=1&destination="+Uri.encode(coordinates)+"&travelmode=driving";
+            try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(webUrl)));}
+            catch(Exception e){Toast.makeText(this,"تعذر فتح Google Maps أو المتصفح",Toast.LENGTH_LONG).show();}
+        }catch(Exception e){
+            Toast.makeText(this,"تعذر تشغيل الملاحة: "+e.getClass().getSimpleName(),Toast.LENGTH_LONG).show();
+        }
     }
     private String gpsStatusText(){
         String satelliteState;
@@ -246,7 +335,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         b.append("GPS: ").append(providerReport(LocationManager.GPS_PROVIDER)).append(" • حالة المزود: ").append(gpsProviderStatus).append("\n");
         b.append("الشبكة: ").append(providerReport(LocationManager.NETWORK_PROVIDER)).append(" • حالة المزود: ").append(networkProviderStatus).append("\n");
         b.append("Passive: ").append(providerReport(LocationManager.PASSIVE_PROVIDER)).append("\n");
-        b.append("مسار Criteria/Fused: ").append(criteriaRegistered?"تم تسجيل الطلب":"لم يتم تسجيل الطلب").append(" • أفضل مزود: ").append(criteriaProvider).append("\n");
+        b.append("مسار Android Criteria: ").append(criteriaRegistered?"تم تسجيل الطلب":"لم يتم تسجيل الطلب").append(" • أفضل مزود: ").append(criteriaProvider).append("\n");
+        b.append("Google Play services availability: ").append(gmsAvailabilityCode==ConnectionResult.SUCCESS?"متاحة":gmsAvailabilityCode<0?"لم يتم الفحص":gmsAvailabilityCode+" ("+GoogleApiAvailability.getInstance().getErrorString(gmsAvailabilityCode)+")").append("\n");
+        b.append("Google Fused Location: ").append(fusedRegistered?"يستقبل تحديثات":fusedRequestPending?"طلب الموقع قيد التنفيذ":"غير مسجّل").append(" • ").append(gmsLocationStatus).append("\n");
         b.append("محرك GPS: ").append(gpsEngineStarted?"بدأ":"لم يبدأ / لا توجد إشارة حالة").append("\n");
         b.append("A-GPS/XTRA: ").append(assistanceResult).append("\n");
         b.append("الأقمار: مرئية ").append(satellitesVisible).append(" • مستخدمة ").append(satellitesUsed);
@@ -270,7 +361,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 .setTitle("تشخيص الموقع و GPS")
                 .setMessage(buildGpsDiagnostics())
                 .setPositiveButton("إعادة طلب الموقع",(d,w)->{
-                    current=null;requestLocationSources();
+                    current=null;requestLocationSources();restartGoogleFusedLocation();
                     if(destination!=null){waitingForFix=true;drawRouteIfPossible();}
                 })
                 .setNeutralButton("تحديث A-GPS",(d,w)->refreshGpsAssistanceData())
@@ -345,12 +436,14 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             if(gpsStatusRegistered){try{lm.removeGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}}
         }
         gpsRegistered=false;networkRegistered=false;criteriaRegistered=false;gpsStatusRegistered=false;gpsEngineStarted=false;
+        stopGoogleFusedLocation();
         if(map!=null)map.onPause();super.onPause();
     }
     @Override protected void onDestroy(){
         locationHandler.removeCallbacksAndMessages(null);
         if(geocodeTask!=null)geocodeTask.cancel(true);if(routeTask!=null)routeTask.cancel(true);
         if(lm!=null){try{lm.removeUpdates(this);}catch(Exception ignored){}if(gpsStatusRegistered)try{lm.removeGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}}
+        stopGoogleFusedLocation();
         if(map!=null){map.onDetach();map=null;}super.onDestroy();
     }
     @Override public void onProviderEnabled(String p){if(status!=null)status.setText("تم تفعيل "+p+" — جارٍ طلب تحديث جديد");requestLocationSources();}
