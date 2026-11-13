@@ -27,7 +27,7 @@ python3 "$ROOT/tools/maps/build_syria_places.py" --pbf "$PBF" --output "$PACKAGE
 test -s "$PACKAGE/syria-places.sqlite"
 
 echo "Downloading BRouter road-routing segments for Syria..."
-mkdir -p "$PACKAGE/brouter/segments4" "$PACKAGE/brouter/profiles2" "$PACKAGE/brouter/modes"
+mkdir -p "$PACKAGE/brouter/segments4" "$PACKAGE/brouter/profiles2"
 for segment in E35_N30 E35_N35 E40_N30 E40_N35; do
   curl --fail --location --retry 4 --retry-delay 3 \
     "https://brouter.de/brouter/segments4/${segment}.rd5" \
