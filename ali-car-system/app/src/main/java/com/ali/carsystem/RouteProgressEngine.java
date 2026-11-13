@@ -57,12 +57,15 @@ public final class RouteProgressEngine {
         final double fraction;
         final double progressMeters;
         final double distanceMeters;
+        final double score;
 
-        Candidate(int segmentIndex, double fraction, double progressMeters, double distanceMeters) {
+        Candidate(int segmentIndex, double fraction, double progressMeters,
+                  double distanceMeters, double score) {
             this.segmentIndex = segmentIndex;
             this.fraction = fraction;
             this.progressMeters = progressMeters;
             this.distanceMeters = distanceMeters;
+            this.score = score;
         }
     }
 
@@ -95,14 +98,21 @@ public final class RouteProgressEngine {
     }
 
     public Progress update(double latitude, double longitude, float horizontalAccuracyMeters) {
+        return update(latitude, longitude, horizontalAccuracyMeters, Float.NaN, 0f);
+    }
+
+    public Progress update(double latitude, double longitude, float horizontalAccuracyMeters,
+                           float bearingDegrees, float speedMetersPerSecond) {
         if (!isFinite(latitude) || !isFinite(longitude)) {
             return offRoute(Double.POSITIVE_INFINITY);
         }
+        boolean useHeading = isFinite(bearingDegrees) && speedMetersPerSecond >= 3.0f;
 
         int last = points.size() - 2;
         int from = hasFix ? Math.max(0, lastSegmentIndex - 3) : 0;
         int to = hasFix ? Math.min(last, lastSegmentIndex + 300) : last;
-        Candidate best = findNearest(latitude, longitude, from, to, hasFix ? lastProgressMeters - 20.0 : 0.0);
+        Candidate best = findNearest(latitude, longitude, from, to,
+                hasFix ? lastProgressMeters - 20.0 : 0.0, useHeading, bearingDegrees);
 
         // A GPS fix can jump several route vertices between updates. Expand the
         // search once, but still reject backwards route progress.
@@ -110,8 +120,8 @@ public final class RouteProgressEngine {
             int expandedFrom = hasFix ? Math.max(0, lastSegmentIndex - 2) : 0;
             int expandedTo = last;
             Candidate expanded = findNearest(latitude, longitude, expandedFrom, expandedTo,
-                    hasFix ? lastProgressMeters - 20.0 : 0.0);
-            if (expanded != null && (best == null || expanded.distanceMeters < best.distanceMeters)) {
+                    hasFix ? lastProgressMeters - 20.0 : 0.0, useHeading, bearingDegrees);
+            if (expanded != null && (best == null || expanded.score < best.score)) {
                 best = expanded;
             }
         }
@@ -144,7 +154,8 @@ public final class RouteProgressEngine {
     }
 
     private Candidate findNearest(double latitude, double longitude, int from, int to,
-                                  double minimumProgressMeters) {
+                                  double minimumProgressMeters, boolean useHeading,
+                                  float bearingDegrees) {
         Candidate best = null;
         for (int i = Math.max(0, from); i <= Math.min(points.size() - 2, to); i++) {
             Point a = points.get(i);
@@ -164,11 +175,36 @@ public final class RouteProgressEngine {
             double segmentLength = cumulativeMeters[i + 1] - cumulativeMeters[i];
             double progress = cumulativeMeters[i] + segmentLength * fraction;
             if (progress < minimumProgressMeters) continue;
-            if (best == null || perpendicular < best.distanceMeters) {
-                best = new Candidate(i, fraction, progress, perpendicular);
+
+            double score = perpendicular;
+            if (useHeading) {
+                double routeBearing = bearingDegrees(a, b);
+                double difference = angularDifference(bearingDegrees, routeBearing);
+                // A moving vehicle travelling strongly against the selected route
+                // should not be snapped onto it, even if a parallel road is close.
+                if (difference > 120.0) continue;
+                score += Math.max(0.0, difference - 35.0) * 0.55;
+            }
+            if (best == null || score < best.score) {
+                best = new Candidate(i, fraction, progress, perpendicular, score);
             }
         }
         return best;
+    }
+
+    private static double bearingDegrees(Point from, Point to) {
+        double lat1 = Math.toRadians(from.latitude);
+        double lat2 = Math.toRadians(to.latitude);
+        double deltaLon = Math.toRadians(to.longitude - from.longitude);
+        double y = Math.sin(deltaLon) * Math.cos(lat2);
+        double x = Math.cos(lat1) * Math.sin(lat2)
+                - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+        return (Math.toDegrees(Math.atan2(y, x)) + 360.0) % 360.0;
+    }
+
+    private static double angularDifference(double a, double b) {
+        double difference = Math.abs((a - b) % 360.0);
+        return Math.min(difference, 360.0 - difference);
     }
 
     private Progress offRoute(double distanceMeters) {
