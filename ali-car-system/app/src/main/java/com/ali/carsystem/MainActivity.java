@@ -142,12 +142,12 @@ public final class MainActivity extends BaseActivity implements LocationListener
         }catch(Exception ignored){}}
         if(wallpaper!=null)bg.setImageBitmap(wallpaper);
         root.addView(bg,new FrameLayout.LayoutParams(-1,-1));
-        View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x88020812,0x18020812,0x66020812}));root.addView(shade,new FrameLayout.LayoutParams(-1,-1));
+        View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x55020812,0x00020812,0x42020812}));root.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout all=vertical();all.setPadding(dp(18),dp(8),dp(18),dp(8));root.addView(all,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout top=horizontal();
         TextView brand=label("ALI CAR",28,Color.WHITE,true);brand.setLetterSpacing(.14f);brand.setShadowLayer(dp(10),0,0,0xFF47DFFF);
         top.addView(brand,new LinearLayout.LayoutParams(0,dp(44),1));
-        TextView status=label("◉  Wi-Fi    ᛒ  Bluetooth    ▰  Battery",13,0xFFC8EFFF,true);status.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        TextView status=label("Wi-Fi   •   Bluetooth   •   GPS",12,0xFFE1EFF7,true);status.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         top.addView(status,new LinearLayout.LayoutParams(-2,dp(44)));
         TextView settings=label("⚙",26,0xFFEAFBFF,true);settings.setGravity(Gravity.CENTER);settings.setBackground(glass(0x443A7D99,0x886CDFFF,26));
         LinearLayout.LayoutParams gear=new LinearLayout.LayoutParams(dp(48),dp(44));gear.leftMargin=dp(12);top.addView(settings,gear);
@@ -181,10 +181,10 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,-1,.34f);main.addView(right,rightLp);
 
         LinearLayout dock=horizontal();dock.setGravity(Gravity.CENTER);dock.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        String[] names={"يوتيوب لايت","الملاحة","الموسيقى","بلوتوث","واي فاي","السطوع"};
+        String[] names={"يوتيوب","الملاحة","الموسيقى","بلوتوث","Wi-Fi","السطوع"};
         int[] colors={0xFFFF4365,0xFF46E7FF,0xFFE98AFF,0xFF53AFFF,0xFF5EF1D0,0xFFFFD05E};
         for(int i=0;i<6;i++){
-            final int index=i;LinearLayout item=vertical();item.setGravity(Gravity.CENTER);
+            final int index=i;LinearLayout item=vertical();item.setGravity(Gravity.CENTER);item.setPadding(dp(4),dp(3),dp(4),dp(3));item.setBackground(glass(0x55344C63,0x66DCEEF7,17));
             NeonIconView icon=new NeonIconView(this,i,colors[i]);item.addView(icon,new LinearLayout.LayoutParams(-1,dp(52)));
             TextView caption=label(names[i],11,Color.WHITE,true);caption.setGravity(Gravity.CENTER);
             item.addView(caption,new LinearLayout.LayoutParams(-1,dp(22)));
@@ -192,7 +192,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
             dock.addView(item,new LinearLayout.LayoutParams(0,dp(78),1));
         }
         LinearLayout.LayoutParams dockLp=new LinearLayout.LayoutParams(-1,dp(80));dockLp.topMargin=dp(4);all.addView(dock,dockLp);
-        TextView footer=label("تم تطوير الواجهة بواسطة : ali ahmad",10,0xFFE8E1D1,true);footer.setGravity(Gravity.CENTER);
+        TextView footer=label("ALI CAR  •  SMART COCKPIT",10,0xFFD7EAF2,true);footer.setGravity(Gravity.CENTER);
         all.addView(footer,new LinearLayout.LayoutParams(-1,dp(20)));
         updateClock();return root;
     }
