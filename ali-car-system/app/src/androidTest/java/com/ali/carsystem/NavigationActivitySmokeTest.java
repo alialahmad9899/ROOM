@@ -24,6 +24,8 @@ public final class NavigationActivitySmokeTest {
         assertNotNull(content.findViewWithTag("navigation_free_mode"));
         assertNotNull(content.findViewWithTag("navigation_guided_mode"));
         assertNotNull(content.findViewWithTag("navigation_route_choices"));
+        assertNotNull(content.findViewWithTag("navigation_start_background"));
+        assertNotNull(content.findViewWithTag("navigation_stop_background"));
     }
 
     @Test public void canSwitchBetweenFreeMapAndGuidedDrivingWithoutGps(){
