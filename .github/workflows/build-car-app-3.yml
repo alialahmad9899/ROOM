@@ -41,11 +41,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install offline map build tools
+      - name: Install Android build and archive tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y osmosis zip unzip curl git
-          python -m pip install --disable-pip-version-check Pillow osmium
+          sudo apt-get install -y unzip git
+          python -m pip install --disable-pip-version-check Pillow
 
       - name: Build BRouter offline car-routing engine
         run: |
@@ -60,42 +60,36 @@ jobs:
           cp "$JAR" "$GITHUB_WORKSPACE/ali-car-system/app/libs/brouter-1.7.10-ro.jar"
           test -s "$GITHUB_WORKSPACE/ali-car-system/app/libs/brouter-1.7.10-ro.jar"
 
-      - name: Build Mapsforge writer and complete Syria offline data
-        env:
-          JAVACMD_OPTIONS: "-Xmx4G"
-        run: |
-          set -euo pipefail
-          git clone --depth 1 --branch 0.21.0 https://github.com/mapsforge/mapsforge.git "$RUNNER_TEMP/mapsforge"
-          cd "$RUNNER_TEMP/mapsforge"
-          ./gradlew --no-daemon :mapsforge-map-writer:fatJar
-          JAR="$(find mapsforge-map-writer/build/libs -maxdepth 1 -type f -name '*jar-with-dependencies.jar' | head -n 1)"
-          test -s "$JAR"
-          mkdir -p "$GITHUB_WORKSPACE/offline-map-build"
-          cp "$JAR" "$GITHUB_WORKSPACE/offline-map-build/mapsforge-map-writer.jar"
-      - name: Switch to Java 21 for OSM PBF conversion
-        uses: actions/setup-java@v4
+      # Reuse the separately verified Syria package; do not rebuild 180 MB of OSM data
+      # during every Android code change.
+      - name: Download verified Syria offline map package
+        uses: actions/download-artifact@v4
         with:
-          distribution: temurin
-          java-version: "21"
-      - name: Build Syria map, places, and offline car routes
-        env:
-          JAVACMD_OPTIONS: "-Xmx4G"
-        run: |
-          set -euo pipefail
-          cd "$GITHUB_WORKSPACE"
-          bash tools/maps/build_syria_offline_package.sh
-          mkdir -p ali-car-system/app/src/main/assets/offline
-          cp -a offline-map-output/package/. ali-car-system/app/src/main/assets/offline/
-          test -s ali-car-system/app/src/main/assets/offline/syria.map
-          test -s ali-car-system/app/src/main/assets/offline/syria-places.sqlite
-          test -s ali-car-system/app/src/main/assets/offline/brouter/segments4/E35_N30.rd5
-          du -sh ali-car-system/app/src/main/assets/offline
+          name: ALI-CAR-SYRIA-OFFLINE-MAPS
+          repository: ${{ github.repository }}
+          run-id: 43502967636
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: offline-map-artifact
 
-      - name: Restore Java 17 for Android Gradle build
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+      - name: Install Syria map, POI database and offline routing assets in APK
+        run: |
+          set -euo pipefail
+          PACKAGE="offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip"
+          test -s "$PACKAGE"
+          mkdir -p ali-car-system/app/src/main/assets/offline
+          unzip -q "$PACKAGE" -d ali-car-system/app/src/main/assets/offline
+          for path in \
+            "syria.map" \
+            "syria-places.sqlite" \
+            "brouter/segments4/E35_N30.rd5" \
+            "brouter/segments4/E35_N35.rd5" \
+            "brouter/segments4/E40_N30.rd5" \
+            "brouter/segments4/E40_N35.rd5" \
+            "brouter/profiles2/car-fast.brf" \
+            "brouter/profiles2/lookups.dat"; do
+              test -s "ali-car-system/app/src/main/assets/offline/$path"
+          done
+          du -sh ali-car-system/app/src/main/assets/offline
 
       - name: Resize and verify dashboard photo
         run: python tools/rom/materialize_dashboard_asset.py
