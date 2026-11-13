@@ -42,7 +42,8 @@ public final class NavigationActivity extends Activity implements LocationListen
     private TextView routeStatus, maneuverBanner, trafficStatus;
     private LinearLayout routeChoices;
     private HorizontalScrollView routeChoicesScroll;
-    private Button searchButton, retryRouteButton;
+    private Button searchButton, retryRouteButton, backgroundRouteButton;
+    private RouteProgressEngine progressEngine;
     private TextView modeToggle;
     private boolean keyboardRequested, driverMode;
     private ArrayList<RouteOption> routeOptions = new ArrayList<>();
@@ -147,6 +148,13 @@ public final class NavigationActivity extends Activity implements LocationListen
         retryRouteButton.setTextSize(12);retryRouteButton.setVisibility(View.GONE);
         retryRouteButton.setOnClickListener(v->startRouteRequest());
         bottom.addView(retryRouteButton,new LinearLayout.LayoutParams(-1,dp(40)));
+
+        backgroundRouteButton=new Button(this);
+        backgroundRouteButton.setText("تشغيل المسار بالخلفية");
+        backgroundRouteButton.setTextSize(13);
+        backgroundRouteButton.setVisibility(View.GONE);
+        backgroundRouteButton.setOnClickListener(v->startBackgroundNavigation());
+        bottom.addView(backgroundRouteButton,new LinearLayout.LayoutParams(-1,dp(44)));
 
         FrameLayout.LayoutParams bottomLp=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);
         bottomLp.setMargins(dp(7),0,dp(7),dp(7));root.addView(bottom,bottomLp);
@@ -381,20 +389,45 @@ public final class NavigationActivity extends Activity implements LocationListen
     }
     private String maneuverText(JSONObject step){
         JSONObject maneuver=step.optJSONObject("maneuver");
-        String type=maneuver==null?"":maneuver.optString("type","");
-        String modifier=maneuver==null?"":maneuver.optString("modifier","");
-        String road=step.optString("name","");
-        String direction=modifier.contains("sharp left")?"انعطف بشدة يساراً":
-                modifier.contains("slight left")?"انعطف قليلاً يساراً":
-                modifier.contains("left")?"انعطف يساراً":
-                modifier.contains("sharp right")?"انعطف بشدة يميناً":
-                modifier.contains("slight right")?"انعطف قليلاً يميناً":
-                modifier.contains("right")?"انعطف يميناً":
-                modifier.contains("uturn")?"استدر للخلف":"تابع إلى الأمام";
-        String action="arrive".equals(type)?"وصلت إلى الوجهة":
-                ("roundabout".equals(type)||"rotary".equals(type))?"ادخل الدوار":"";
-        if(action.isEmpty())action=direction;
-        return action+(road.length()>0?" باتجاه "+road:"");
+        String type=maneuver==null?"":maneuver.optString("type","").toLowerCase(Locale.US);
+        String modifier=maneuver==null?"":maneuver.optString("modifier","").toLowerCase(Locale.US);
+        String road=step.optString("name","").trim();
+        String action;
+        if("arrive".equals(type)){
+            action="وصلت إلى الوجهة";
+        }else if("roundabout".equals(type)||"rotary".equals(type)){
+            int exit=maneuver==null?0:maneuver.optInt("exit",0);
+            action=exit>0?"ادخل الدوار واسلك المخرج رقم "+exit:"ادخل الدوار";
+        }else if("merge".equals(type)){
+            action="اندمج مع الطريق";
+        }else if("on ramp".equals(type)){
+            action="اسلك منحدر الدخول إلى الطريق";
+        }else if("off ramp".equals(type)){
+            action="اسلك مخرج الطريق";
+        }else if(modifier.contains("uturn")){
+            action="استدر للخلف";
+        }else if(modifier.contains("sharp left")){
+            action="انعطف بحدة إلى اليسار";
+        }else if(modifier.contains("slight left")){
+            action="انعطف قليلاً إلى اليسار";
+        }else if(modifier.contains("left")){
+            action="انعطف إلى اليسار";
+        }else if(modifier.contains("sharp right")){
+            action="انعطف بحدة إلى اليمين";
+        }else if(modifier.contains("slight right")){
+            action="انعطف قليلاً إلى اليمين";
+        }else if(modifier.contains("right")){
+            action="انعطف إلى اليمين";
+        }else if("new name".equals(type)){
+            action="تابع على الطريق";
+        }else{
+            action="تابع إلى الأمام";
+        }
+        // Keep Arabic street names; omit Latin-only labels so spoken guidance stays Arabic.
+        if(!road.isEmpty()&&road.matches(".*[\\u0600-\\u06FF].*")){
+            action+=" باتجاه "+road;
+        }
+        return action;
     }
     private RouteOption routeForPreference(int preference){
         if(routeOptions.isEmpty())return null;
@@ -441,8 +474,98 @@ public final class NavigationActivity extends Activity implements LocationListen
         }
         selectedPreference=preference==0?"الأسرع":preference==1?"الأقصر":preference==2?"الأقل انعطافاً":"الأطول";
         selectedRoute=routeForPreference(preference);activeManeuverIndex=0;
+        progressEngine=buildProgressEngine(selectedRoute);
+        if(backgroundRouteButton!=null)backgroundRouteButton.setVisibility(View.VISIBLE);
         renderRouteChoices();drawSelectedRoute();
     }
+
+    private RouteProgressEngine buildProgressEngine(RouteOption route){
+        if(route==null||route.points==null||route.points.size()<2)return null;
+        ArrayList<RouteProgressEngine.Point> points=new ArrayList<>();
+        for(GeoPoint point:route.points){
+            points.add(new RouteProgressEngine.Point(point.getLatitude(),point.getLongitude()));
+        }
+        ArrayList<RouteProgressEngine.Turn> turns=new ArrayList<>();
+        for(Maneuver maneuver:route.maneuvers){
+            int nearest=nearestRoutePointIndex(route.points,maneuver.point);
+            turns.add(new RouteProgressEngine.Turn(nearest,maneuver.text));
+        }
+        if(turns.isEmpty()||!turns.get(turns.size()-1).instruction.contains("وصلت")){
+            turns.add(new RouteProgressEngine.Turn(points.size()-1,"وصلت إلى وجهتك"));
+        }
+        return new RouteProgressEngine(points,turns);
+    }
+
+    private int nearestRoutePointIndex(ArrayList<GeoPoint> points,GeoPoint target){
+        int best=0;double bestSquared=Double.MAX_VALUE;
+        double latitudeScale=111319.49079327358;
+        double longitudeScale=latitudeScale*Math.cos(Math.toRadians(target.getLatitude()));
+        for(int i=0;i<points.size();i++){
+            GeoPoint candidate=points.get(i);
+            double dx=(candidate.getLongitude()-target.getLongitude())*longitudeScale;
+            double dy=(candidate.getLatitude()-target.getLatitude())*latitudeScale;
+            double squared=dx*dx+dy*dy;
+            if(squared<bestSquared){bestSquared=squared;best=i;}
+        }
+        return best;
+    }
+
+    private String buildBackgroundRoutePayload(RouteOption route)throws Exception{
+        if(route==null||route.points==null||route.points.size()<2)
+            throw new IllegalStateException("لا يوجد مسار صالح لتشغيله بالخلفية");
+        final int maxPoints=9000;
+        int stride=Math.max(1,(int)Math.ceil(route.points.size()/(double)maxPoints));
+        ArrayList<GeoPoint> sampled=new ArrayList<>();
+        for(int i=0;i<route.points.size();i+=stride)sampled.add(route.points.get(i));
+        GeoPoint last=route.points.get(route.points.size()-1);
+        if(sampled.get(sampled.size()-1)!=last)sampled.add(last);
+
+        org.json.JSONObject root=new org.json.JSONObject();
+        root.put("destination",pendingDestinationName==null?"الوجهة المحددة":pendingDestinationName);
+        root.put("distance_m",route.km*1000.0);
+        root.put("duration_min",route.minutes);
+        org.json.JSONArray pointsJson=new org.json.JSONArray();
+        for(GeoPoint point:sampled){
+            org.json.JSONArray pair=new org.json.JSONArray();
+            pair.put(point.getLatitude());pair.put(point.getLongitude());pointsJson.put(pair);
+        }
+        root.put("points",pointsJson);
+
+        org.json.JSONArray maneuversJson=new org.json.JSONArray();
+        for(Maneuver maneuver:route.maneuvers){
+            int originalIndex=nearestRoutePointIndex(route.points,maneuver.point);
+            int sampledIndex=Math.min(sampled.size()-1,(int)Math.round(originalIndex/(double)stride));
+            org.json.JSONObject item=new org.json.JSONObject();
+            item.put("route_index",sampledIndex);
+            item.put("instruction",maneuver.text);
+            maneuversJson.put(item);
+        }
+        root.put("maneuvers",maneuversJson);
+        return root.toString();
+    }
+
+    private void startBackgroundNavigation(){
+        if(selectedRoute==null||selectedRoute.points.size()<2){
+            Toast.makeText(this,"احسب مساراً صالحاً أولاً",Toast.LENGTH_LONG).show();return;
+        }
+        if(currentLocation==null||!isLocationUsable(currentLocation)){
+            Toast.makeText(this,"نحتاج إلى موقع GPS حديث قبل تشغيل التوجيه",Toast.LENGTH_LONG).show();return;
+        }
+        try{
+            String payload=buildBackgroundRoutePayload(selectedRoute);
+            Intent service=new Intent(this,NavigationService.class);
+            service.setAction(NavigationService.ACTION_START);
+            service.putExtra(NavigationService.EXTRA_ROUTE_JSON,payload);
+            startService(service);
+            Intent dashboard=new Intent(this,MainActivity.class);
+            dashboard.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(dashboard);
+            finish();
+        }catch(Exception error){
+            Toast.makeText(this,"تعذر تشغيل الملاحة بالخلفية: "+error.getMessage(),Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void drawSelectedRoute(){
         if(selectedRoute==null)return;
         if(routeLine!=null)map.getOverlays().remove(routeLine);
@@ -474,17 +597,25 @@ public final class NavigationActivity extends Activity implements LocationListen
         if(selectedRoute==null||selectedRoute.maneuvers.isEmpty()){
             maneuverBanner.setText("اتبع الخط السماوي باتجاه الوجهة");return;
         }
-        if(location==null){maneuverBanner.setText(selectedRoute.maneuvers.get(0).text);return;}
-        while(activeManeuverIndex<selectedRoute.maneuvers.size()-1){
-            Maneuver target=selectedRoute.maneuvers.get(activeManeuverIndex);
-            double distance=distanceMeters(new GeoPoint(location.getLatitude(),location.getLongitude()),target.point);
-            if(distance<28)activeManeuverIndex++;else break;
+        if(location==null||progressEngine==null){
+            maneuverBanner.setText("بانتظار موقع GPS حديث لتحديد المنعطف بدقة");return;
         }
-        Maneuver next=selectedRoute.maneuvers.get(activeManeuverIndex);
-        double metres=distanceMeters(new GeoPoint(location.getLatitude(),location.getLongitude()),next.point);
-        String distance=metres>=1000?String.format(Locale.US,"%.1f كم",metres/1000.0):Math.round(metres)+" متر";
+        float accuracy=location.hasAccuracy()?location.getAccuracy():999f;
+        RouteProgressEngine.Progress progress=progressEngine.update(
+                location.getLatitude(),location.getLongitude(),accuracy);
+        if(!progress.onRoute){
+            maneuverBanner.setText("موقع GPS خارج المسار أو دقته غير كافية — ننتظر قراءة أدق");
+            return;
+        }
+        if(progress.nextTurnIndex<0||progress.nextTurnIndex>=selectedRoute.maneuvers.size()){
+            maneuverBanner.setText("●  وصلت إلى وجهتك");return;
+        }
+        Maneuver next=selectedRoute.maneuvers.get(progress.nextTurnIndex);
+        double metres=progress.remainingToTurnMeters;
+        String distance=metres>=1000?String.format(Locale.US,"%.1f كم",metres/1000.0):
+                Math.round(metres)+" متر";
         String arrow=next.text.contains("يسار")?"↰":next.text.contains("يمين")?"↱":
-                next.text.contains("الوجهة")?"●":"↑";
+                next.text.contains("وصلت")?"●":"↑";
         maneuverBanner.setText(arrow+"  "+next.text+"  •  بعد "+distance);
     }
     private void toggleDisplayMode(){
