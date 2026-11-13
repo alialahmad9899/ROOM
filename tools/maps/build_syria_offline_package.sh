@@ -43,7 +43,7 @@ cp "$WORK/brouter/misc/profiles2/lookups.dat" "$PACKAGE/brouter/profiles2/lookup
 python3 - "$WORK/brouter/misc/profiles2/car-vario.brf" "$PACKAGE/brouter/profiles2/car-fast.brf" <<'PY'
 import pathlib, re, sys
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
-updated, count = re.subn(r"(?m)^assign\\s+vmax\\s*=.*$", "assign vmax = 160  # ALI CAR offline road routing", source)
+updated, count = re.subn(r"(?m)^assign\s+vmax\s*=.*$", "assign vmax = 160  # ALI CAR offline road routing", source)
 if count != 1:
     raise SystemExit(f"Expected one vmax setting, found {count}")
 pathlib.Path(sys.argv[2]).write_text(updated, encoding="utf-8")
