@@ -129,7 +129,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(routeLine!=null)map.getOverlays().remove(routeLine);routeLine=new Polyline(map);routeLine.setPoints(o.points);routeLine.setColor(0xFF00C8F0);routeLine.setWidth(dp(6));if(guidedMode)map.getOverlays().add(routeLine);
         status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %.0f دقيقة  •  %d انعطاف",o.km,o.minutes,o.turns));
         activeManeuvers=o.maneuvers;updateManeuver(current,activeManeuvers);rebuildRouteChoices();map.invalidate();}
-    @Override protected void onCreate(Bundle b){super.onCreate(b);
+    @Override protected void onCreate(Bundle b){super.onCreate(b);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Configuration.getInstance().load(this,getSharedPreferences("osmdroid",MODE_PRIVATE));
         Configuration.getInstance().setUserAgentValue("ALI-CAR/3.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
         Configuration.getInstance().setTileFileSystemCacheMaxBytes(8L*1024*1024);
