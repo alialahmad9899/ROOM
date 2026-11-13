@@ -425,7 +425,8 @@ public final class NavigationActivity extends Activity implements LocationListen
             action="تابع إلى الأمام";
         }
         // Keep Arabic street names; omit Latin-only labels so spoken guidance stays Arabic.
-        if(!road.isEmpty()&&road.matches(".*[\\u0600-\\u06FF].*")){
+        // Speak a road name only when it is entirely Arabic; never feed Latin road labels to Arabic TTS.
+        if(!road.isEmpty()&&road.matches(".*[\\u0600-\\u06FF].*")&&!road.matches(".*[A-Za-z].*")){
             action+=" باتجاه "+road;
         }
         return action;
