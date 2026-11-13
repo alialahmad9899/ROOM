@@ -282,7 +282,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
     @Override protected void onDestroy(){
         handler.removeCallbacksAndMessages(null);
         if(screenReceiver!=null)try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}
-        if(musicReceiver!=null)try{unregisterReceiver(musicReceiver);}catch(Exception ignored){}\n        dismissWelcome();
+        if(musicReceiver!=null)try{unregisterReceiver(musicReceiver);}catch(Exception ignored){}
+        dismissWelcome();
         if(tts!=null){try{tts.stop();tts.shutdown();}catch(Exception ignored){}}
         super.onDestroy();
     }
