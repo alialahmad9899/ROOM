@@ -330,7 +330,7 @@ public final class MusicActivity extends BaseActivity {
             p.setColor(0x5569B7CA);p.setStrokeWidth(dp(1));
             canvas.drawLine(0,h/2f,w,h/2f,p);
             p.setColor(0x2257AFC7);
-            for(int i=0;i<5;i++){float x=cx+(i-2)*dp(18);canvas.drawCircle(x,h/2f,dp(1.4f),p);}
+            for(int i=0;i<5;i++){float x=cx+(i-2)*dp(18);canvas.drawCircle(x,h/2f,dp(1),p);}
         }
     }
 }
