@@ -14,7 +14,15 @@ final class VideoApi {
         final String id,title,author,thumbnail,backend,base;
         Item(String i,String t,String a,String th,String be,String ba){id=i;title=t;author=a;thumbnail=th;backend=be;base=ba;}
     }
-    static final class StreamInfo { final String url,title; final boolean hls; StreamInfo(String u,String t,boolean h){url=u;title=t;hls=h;} }
+    static final class StreamInfo {
+        static final String MP4="MP4",SPLIT="SPLIT",DASH="DASH",HLS="HLS";
+        final String url,audioUrl,title,kind;
+        StreamInfo(String u,String a,String t,String k){url=u;audioUrl=a;title=t;kind=k;}
+        String identity(){return streamIdentity(url,audioUrl,kind);}
+    }
+    static String streamIdentity(String url,String audio,String kind){
+        return (url==null?"":url)+"|"+(audio==null?"":audio)+"|"+(kind==null?"":kind);
+    } }
     private static volatile List<String> pipedCache, invidiousCache;
     private static volatile long discoveryTime;
     private static List<String> piped(Context c) {
@@ -102,40 +110,102 @@ final class VideoApi {
         }return out;
     }
     static StreamInfo resolve(Context c,Item item,String excluded)throws Exception{
-        Exception last=null;List<String> pipedList=new ArrayList<>();
-        if(item.base!=null&&"PIPED".equals(item.backend))pipedList.add(item.base);
-        for(String s:piped(c))if(!pipedList.contains(s))pipedList.add(s);
-        for(String base:pipedList){
-            try{
-                JSONObject data=new JSONObject(read(c,base+"/streams/"+URLEncoder.encode(item.id,"UTF-8")));
-                JSONArray streams=data.optJSONArray("videoStreams");
-                if(streams!=null)for(int i=0;i<streams.length();i++){
-                    JSONObject x=streams.optJSONObject(i);if(x==null)continue;
-                    String url=x.optString("url",""),mime=x.optString("mimeType","").toLowerCase(Locale.US);
-                    boolean videoOnly=x.optBoolean("videoOnly",false);
-                    if(!url.isEmpty()&&!url.equals(excluded)&&mime.contains("video/mp4")&&!videoOnly)return new StreamInfo(url,data.optString("title",item.title),false);
-                }
-                String hls=data.optString("hls","");
-                if(!hls.isEmpty()&&!hls.equals(excluded))return new StreamInfo(hls,data.optString("title",item.title),true);
-            }catch(Exception e){last=e;}
-        }
-        List<String> inv=new ArrayList<>();if(item.base!=null&&"INVIDIOUS".equals(item.backend))inv.add(item.base);
-        for(String s:invidious(c))if(!inv.contains(s))inv.add(s);
-        for(String base:inv){
-            try{
-                JSONObject data=new JSONObject(read(c,base+"/api/v1/videos/"+URLEncoder.encode(item.id,"UTF-8")+"?hl=ar"));
-                JSONArray streams=data.optJSONArray("formatStreams");
-                if(streams!=null)for(int i=0;i<streams.length();i++){
-                    JSONObject x=streams.optJSONObject(i);if(x==null)continue;
-                    String url=x.optString("url",""),type=x.optString("type","").toLowerCase(Locale.US);
-                    if(!url.isEmpty()&&!url.equals(excluded)&&type.contains("video/mp4"))return new StreamInfo(url,data.optString("title",item.title),false);
-                }
-                String hls=data.optString("hlsUrl","");
-                if(!hls.isEmpty()&&!hls.equals(excluded))return new StreamInfo(hls,data.optString("title",item.title),true);
-            }catch(Exception e){last=e;}
-        }
-        throw new IOException(last==null?"لا يوجد مصدر بث متوافق لهذا الفيديو":last.getMessage(),last);
+        Exception last=null;List<String> p=new ArrayList<>();
+        if(item.base!=null&&"PIPED".equals(item.backend))p.add(item.base);
+        for(String x:piped(c))if(!p.contains(x))p.add(x);
+        for(String base:p)try{
+            JSONObject data=new JSONObject(read(c,base+"/streams/"+URLEncoder.encode(item.id,"UTF-8")));
+            StreamInfo result=fromPiped(data,item.title,excluded);if(result!=null)return result;
+        }catch(Exception e){last=e;}
+        List<String> v=new ArrayList<>();if(item.base!=null&&"INVIDIOUS".equals(item.backend))v.add(item.base);
+        for(String x:invidious(c))if(!v.contains(x))v.add(x);
+        for(String base:v)try{
+            JSONObject data=new JSONObject(read(c,base+"/api/v1/videos/"+URLEncoder.encode(item.id,"UTF-8")+"?hl=ar"));
+            StreamInfo result=fromInvidious(data,item.title,excluded);if(result!=null)return result;
+        }catch(Exception e){last=e;}
+        throw new IOException(last==null?"لا يوجد مصدر فيديو متوافق (MP4 أو DASH أو HLS)":last.getMessage(),last);
     }
+    private static StreamInfo fromPiped(JSONObject data,String fallback,String excluded){
+        String title=data.optString("title",fallback);
+        JSONArray videos=data.optJSONArray("videoStreams"),audios=data.optJSONArray("audioStreams");
+        for(JSONObject x:sortedStreams(videos,true,false)){
+            String u=x.optString("url","");
+            if(validStream(u)&&!streamIdentity(u,null,StreamInfo.MP4).equals(excluded))
+                return new StreamInfo(u,null,title,StreamInfo.MP4);
+        }
+        List<JSONObject> videoOnly=sortedStreams(videos,true,true),audioOnly=sortedStreams(audios,false,false);
+        for(JSONObject v:videoOnly)for(JSONObject au:audioOnly){
+            String vu=v.optString("url",""),auUrl=au.optString("url","");
+            if(validStream(vu)&&validStream(auUrl)&&!streamIdentity(vu,auUrl,StreamInfo.SPLIT).equals(excluded))
+                return new StreamInfo(vu,auUrl,title,StreamInfo.SPLIT);
+        }
+        String dash=data.optString("dash","");
+        if(validStream(dash)&&!streamIdentity(dash,null,StreamInfo.DASH).equals(excluded))
+            return new StreamInfo(dash,null,title,StreamInfo.DASH);
+        String hls=data.optString("hls","");
+        if(validStream(hls)&&!streamIdentity(hls,null,StreamInfo.HLS).equals(excluded))
+            return new StreamInfo(hls,null,title,StreamInfo.HLS);
+        return null;
+    }
+    private static StreamInfo fromInvidious(JSONObject data,String fallback,String excluded){
+        String title=data.optString("title",fallback);
+        List<JSONObject> muxed=new ArrayList<>();JSONArray formats=data.optJSONArray("formatStreams");
+        if(formats!=null)for(int i=0;i<formats.length();i++){
+            JSONObject x=formats.optJSONObject(i);
+            if(x!=null&&x.optString("type","").toLowerCase(Locale.US).startsWith("video/mp4"))muxed.add(x);
+        }
+        sortVideoStreams(muxed);
+        for(JSONObject x:muxed){
+            String u=x.optString("url","");
+            if(validStream(u)&&!streamIdentity(u,null,StreamInfo.MP4).equals(excluded))
+                return new StreamInfo(u,null,title,StreamInfo.MP4);
+        }
+        List<JSONObject> videos=new ArrayList<>(),audios=new ArrayList<>();JSONArray adaptive=data.optJSONArray("adaptiveFormats");
+        if(adaptive!=null)for(int i=0;i<adaptive.length();i++){
+            JSONObject x=adaptive.optJSONObject(i);if(x==null)continue;
+            String type=x.optString("type","").toLowerCase(Locale.US);
+            if(type.startsWith("video/mp4"))videos.add(x);else if(type.startsWith("audio/mp4"))audios.add(x);
+        }
+        sortVideoStreams(videos);sortAudioStreams(audios);
+        for(JSONObject v:videos)for(JSONObject au:audios){
+            String vu=v.optString("url",""),auUrl=au.optString("url","");
+            if(validStream(vu)&&validStream(auUrl)&&!streamIdentity(vu,auUrl,StreamInfo.SPLIT).equals(excluded))
+                return new StreamInfo(vu,auUrl,title,StreamInfo.SPLIT);
+        }
+        String dash=data.optString("dashUrl","");
+        if(validStream(dash)&&!streamIdentity(dash,null,StreamInfo.DASH).equals(excluded))
+            return new StreamInfo(dash,null,title,StreamInfo.DASH);
+        String hls=data.optString("hlsUrl","");
+        if(validStream(hls)&&!streamIdentity(hls,null,StreamInfo.HLS).equals(excluded))
+            return new StreamInfo(hls,null,title,StreamInfo.HLS);
+        return null;
+    }
+    private static List<JSONObject> sortedStreams(JSONArray values,boolean video,boolean videoOnly){
+        List<JSONObject> out=new ArrayList<>();if(values==null)return out;
+        for(int i=0;i<values.length();i++){
+            JSONObject x=values.optJSONObject(i);if(x==null)continue;
+            String mime=x.optString("mimeType","").toLowerCase(Locale.US);
+            if(video&&mime.startsWith("video/mp4")&&x.optBoolean("videoOnly",false)==videoOnly)out.add(x);
+            if(!video&&mime.startsWith("audio/mp4"))out.add(x);
+        }
+        if(video)sortVideoStreams(out);else sortAudioStreams(out);
+        return out;
+    }
+    private static void sortVideoStreams(List<JSONObject> values){
+        Collections.sort(values,(a,b)->Integer.compare(videoScore(b),videoScore(a)));
+    }
+    private static int videoScore(JSONObject x){
+        int h=x.optInt("height",0);
+        if(h==0){Matcher m=Pattern.compile("(\\d{2,4})").matcher(x.optString("resolution",x.optString("qualityLabel",x.optString("quality",""))));if(m.find())try{h=Integer.parseInt(m.group(1));}catch(Exception ignored){}}
+        return h<=480?1000+h:1000-(h-480)*3;
+    }
+    private static void sortAudioStreams(List<JSONObject> values){
+        Collections.sort(values,(a,b)->Integer.compare(audioScore(b),audioScore(a)));
+    }
+    private static int audioScore(JSONObject x){
+        int rate=x.optInt("bitrate",0);return rate>1000&&rate<1000000?rate:(rate==0?64000:rate/1000);
+    }
+    private static boolean validStream(String url){return url!=null&&url.startsWith("https://")&&!url.contains("null");}
     static String read(Context context,String url)throws Exception{
         java.net.HttpURLConnection c=LegacyTls.open(context,url);
         try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){
