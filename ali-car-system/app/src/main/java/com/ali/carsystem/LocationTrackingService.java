@@ -143,6 +143,11 @@ public final class LocationTrackingService extends Service implements LocationLi
         long oldTime = previousAccepted == null ? 0L : previousAccepted.getElapsedRealtimeNanos();
         float accuracy = location.hasAccuracy() ? location.getAccuracy() : 999f;
         accuracyMeters = accuracy;
+        if (accuracy <= 100f && Math.abs(location.getLatitude()) <= 90d && Math.abs(location.getLongitude()) <= 180d) {
+            prefs.edit().putFloat("last_latitude", (float) location.getLatitude())
+                    .putFloat("last_longitude", (float) location.getLongitude())
+                    .putFloat("last_gps_accuracy", accuracy).apply();
+        }
 
         float reportedSpeed = location.hasSpeed() ? Math.max(0f, location.getSpeed() * 3.6f) : 0f;
         if (reportedSpeed > 250f) reportedSpeed = 0f;
