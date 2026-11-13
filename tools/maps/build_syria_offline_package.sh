@@ -84,9 +84,8 @@ mkdir -p "$OUT"
   find . -type f -print0 | sort -z | xargs -0 sha256sum > "$OUT/SHA256SUMS.txt"
 )
 cp "$OUT/SHA256SUMS.txt" "$PACKAGE/SHA256SUMS.txt"
-cd "$OUT"
-zip -r -0 ALI-CAR-SYRIA-OFFLINE-MAPS.zip package
-mv ALI-CAR-SYRIA-OFFLINE-MAPS.zip "$OUT/ALI-CAR-SYRIA-OFFLINE-MAPS.zip"
+cd "$PACKAGE"
+zip -r -0 "$OUT/ALI-CAR-SYRIA-OFFLINE-MAPS.zip" .
 test -s "$OUT/ALI-CAR-SYRIA-OFFLINE-MAPS.zip"
 unzip -t "$OUT/ALI-CAR-SYRIA-OFFLINE-MAPS.zip"
 sha256sum "$OUT/ALI-CAR-SYRIA-OFFLINE-MAPS.zip"
