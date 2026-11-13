@@ -42,6 +42,7 @@ require("trip_meters" in TRACK and "odometer_meters" in TRACK and "LocationManag
 require("startForeground" in TRACK and "ACTION_UPDATE" in TRACK,"foreground GPS tracking service broadcasts state")
 require("LocationTrackingService.ACTION_RESET_TRIP" in MAIN and "setPositiveButton" in MAIN,"trip reset confirmation and service reset")
 require("sleepBlocked()" in MAIN and "Intent.ACTION_POWER_CONNECTED" in MAIN and "MusicPlaybackService.isAudioPlaying" in MAIN,"sleep blocked while charging or music playback")
+require("static boolean shouldBlockSleep" in MAIN and "showAmbientClockForTest" in MAIN,"testable sleep power interlock and isolated visual test")
 require("FLAG_KEEP_SCREEN_ON" in MAIN,"main dashboard sleep policy")
 require("MusicPlaybackService.dispatch" in MAIN,"dashboard music buttons share playback service")
 require("ExecutorCompletionService" in VIDEO,"parallel video search")

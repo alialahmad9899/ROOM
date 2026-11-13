@@ -119,7 +119,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
         // Keep content readable: no global brightness writes without explicit user consent.
         v.setAlpha(.94f);
     }
-    private boolean sleepBlocked(){return charging||musicPlaying;}
+    static boolean shouldBlockSleep(boolean isCharging,boolean isMusicPlaying){return isCharging||isMusicPlaying;}
+    private boolean sleepBlocked(){return shouldBlockSleep(charging,musicPlaying);}
     private void refreshChargingState(){
         try{
             Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -146,9 +147,11 @@ public final class MainActivity extends BaseActivity implements LocationListener
         // Do not dismiss sleep mode for an arbitrary touch; only the explicit wake control exits it.
         if(ambientOverlay==null)scheduleIdle();
     }
-    private void showAmbientClock(){
+    private void showAmbientClock(){showAmbientClock(false);}
+    void showAmbientClockForTest(){showAmbientClock(true);}
+    private void showAmbientClock(boolean ignorePowerLocks){
         if(isFinishing()||pager==null||ambientOverlay!=null)return;
-        if(sleepBlocked())return;
+        if(!ignorePowerLocks&&sleepBlocked())return;
         FrameLayout overlay=new FrameLayout(this);
         overlay.setTag("ambient_sleep_overlay");
         overlay.setClickable(true);

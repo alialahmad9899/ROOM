@@ -25,13 +25,23 @@ public final class DashboardSleepSmokeTest {
         assertEquals(speed.getLayoutParams().height, clock.getLayoutParams().height);
     }
 
+    @Test public void sleepPolicyBlocksSleepWhileChargingOrPlayingMusic() {
+        assertTrue("Charging must prevent sleep", MainActivity.shouldBlockSleep(true, false));
+        assertTrue("Music playback must prevent sleep", MainActivity.shouldBlockSleep(false, true));
+        assertTrue("Either condition must prevent sleep", MainActivity.shouldBlockSleep(true, true));
+        assertFalse("Sleep is allowed only when unplugged and audio is stopped",
+                MainActivity.shouldBlockSleep(false, false));
+    }
+
     @Test public void sleepModeDimsScreenUntilExplicitWakeButtonIsPressed() {
         MainActivity main = activity.getActivity();
         ViewGroup content = (ViewGroup) main.findViewById(android.R.id.content);
         View sleep = content.findViewWithTag("dashboard_sleep_toggle");
         assertNotNull(sleep);
         final float oldBrightness = main.getWindow().getAttributes().screenBrightness;
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(sleep::performClick);
+        // The emulator may report itself as externally powered. Isolate this visual
+        // test from hardware power state; the interlock is covered above.
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(main::showAmbientClockForTest);
         View overlay = content.findViewWithTag("ambient_sleep_overlay");
         assertNotNull(overlay);
         assertTrue("Sleep overlay must dim the app window",
