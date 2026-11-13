@@ -108,7 +108,8 @@ public final class MusicActivity extends BaseActivity {
         int duration=service.getDuration(),position=service.getPosition();
         progress.setProgress(duration>0?(int)Math.max(0,Math.min(1000,position*1000L/duration)):0);
         time.setText(clock(position)+"  /  "+clock(duration));
-        cover.setSpinning(service.isPlaying());\n        if(!service.isPlaying())stopVisualizer();else if(visualizer==null)startVisualizerIfPossible();
+        cover.setSpinning(service.isPlaying());
+        if(!service.isPlaying())stopVisualizer();else if(visualizer==null)startVisualizerIfPossible();
     }
     private String clock(int ms){int sec=Math.max(0,ms/1000);return String.format(Locale.US,"%d:%02d",sec/60,sec%60);}
     private void loadAlbumArt(long id){
