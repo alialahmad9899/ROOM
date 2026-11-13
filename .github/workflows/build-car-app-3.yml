@@ -156,24 +156,8 @@ jobs:
           retention-days: 90
           compression-level: 0
 
-      - name: Upload separately installable Syria offline data package
-        uses: actions/upload-artifact@v4
-        with:
-          name: ALI-CAR-SYRIA-OFFLINE-MAPS
-          path: |
-            offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS.zip
-            offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS.zip.sha256
-            offline-map-output/SHA256SUMS.txt
-            offline-map-output/syria-pbf.sha256
-            offline-map-output/package/ATTRIBUTION.txt
-            offline-map-output/package/BUILD-INFO.txt
-          if-no-files-found: error
-          retention-days: 90
-          compression-level: 0
-
       - name: Run API21 x86 UI smoke test
         id: api21-ui-test
-        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 21

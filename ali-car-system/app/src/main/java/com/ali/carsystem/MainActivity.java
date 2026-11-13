@@ -212,13 +212,18 @@ public final class MainActivity extends BaseActivity implements LocationListener
         dismissAmbient();handler.removeCallbacks(idleTick);
         NeonSplashView splash=new NeonSplashView(this);welcomeOverlay=splash;
         addContentView(splash,new FrameLayout.LayoutParams(-1,-1));
-        splash.setAlpha(0);splash.animate().alpha(1).setDuration(350).start();
+        splash.setAlpha(0);splash.animate().alpha(1).setDuration(520).setInterpolator(new DecelerateInterpolator()).start();
         if(ttsReady)try{tts.speak("Welcome Ali",TextToSpeech.QUEUE_FLUSH,null,"ali-welcome");}catch(Exception ignored){pendingSpeak=true;}
         else pendingSpeak=true;
         handler.postDelayed(this::dismissWelcome,5200);
     }
     private void dismissWelcome(){
-        if(welcomeOverlay!=null){View v=welcomeOverlay;welcomeOverlay=null;ViewGroup p=(ViewGroup)v.getParent();if(p!=null)p.removeView(v);}
+        if(welcomeOverlay!=null){
+            View v=welcomeOverlay;welcomeOverlay=null;
+            Runnable remove=()->{if(v.getParent() instanceof ViewGroup)((ViewGroup)v.getParent()).removeView(v);};
+            if(isFinishing())remove.run();
+            else v.animate().alpha(0f).setDuration(420).setInterpolator(new DecelerateInterpolator()).withEndAction(remove).start();
+        }
         if(!isFinishing())scheduleIdle();
     }
     @Override public void onInit(int status){

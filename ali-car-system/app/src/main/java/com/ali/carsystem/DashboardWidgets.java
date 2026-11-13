@@ -204,25 +204,147 @@ final class AnalogClockView extends View {
 }
 
 final class NeonSplashView extends View {
-    private final Paint p=new Paint(3);
+    private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF ringBounds=new RectF();
     private final long start=android.os.SystemClock.uptimeMillis();
-    NeonSplashView(Context c){super(c);setLayerType(View.LAYER_TYPE_SOFTWARE,null);}
+    private final Typeface display=Typeface.create("sans-serif-black",Typeface.BOLD);
+    private final Typeface regular=Typeface.create("sans-serif",Typeface.NORMAL);
+    private final Typeface medium=Typeface.create("sans-serif-medium",Typeface.BOLD);
+    private Shader backgroundShader;
+
+    NeonSplashView(Context c){
+        super(c);
+        setTag("welcome_splash_overlay");
+        setContentDescription("ALI CAR welcome screen");
+        setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+    }
+
+    @Override protected void onSizeChanged(int w,int h,int oldW,int oldH){
+        super.onSizeChanged(w,h,oldW,oldH);
+        float radius=Math.max(w,h)*.82f;
+        backgroundShader=new RadialGradient(w*.5f,h*.40f,radius,
+                new int[]{0xFF153A51,0xFF0A1C2A,0xFF030A12},null,Shader.TileMode.CLAMP);
+    }
+
+    private float clamp(float v){return Math.max(0f,Math.min(1f,v));}
+    private float ease(float v){v=clamp(v);return v*v*(3f-2f*v);}
+    private int alphaColor(int color,float alpha){
+        int a=Math.round(((color>>>24)&0xFF)*clamp(alpha));
+        return (color&0x00FFFFFF)|(a<<24);
+    }
+
+    private void centeredText(Canvas c,String value,float x,float y,float size,int color,Typeface face){
+        p.setShader(null);p.setStyle(Paint.Style.FILL);p.setTextAlign(Paint.Align.CENTER);
+        p.setTypeface(face);p.setTextSize(size);p.setColor(color);p.clearShadowLayer();
+        c.drawText(value,x,y,p);
+    }
+
     @Override protected void onDraw(Canvas c){
-        super.onDraw(c);float elapsed=android.os.SystemClock.uptimeMillis()-start;
-        float f=Math.min(1f,elapsed/4300f),cx=getWidth()/2f,cy=getHeight()/2f;
+        super.onDraw(c);
+        final float elapsed=android.os.SystemClock.uptimeMillis()-start;
+        final float w=getWidth(),h=getHeight();
+        if(w<=0||h<=0)return;
+        final float s=Math.min(w/900f,h/520f);
+        final float cx=w*.5f,centerY=h*.425f;
+        final float logoY=centerY-18f*s;
+        final float radius=91f*s;
+        final float intro=ease(elapsed/1050f);
+        final float titleIn=ease((elapsed-240f)/850f);
+        final float pulse=.5f+.5f*(float)Math.sin(elapsed*.0032f);
+        final float rotation=elapsed*.026f;
+
         p.setStyle(Paint.Style.FILL);
-        p.setShader(new RadialGradient(cx,cy,Math.max(getWidth(),getHeight())*.78f,new int[]{0xFF153E59,0xFF071522,0xFF02060C},null,Shader.TileMode.CLAMP));
-        c.drawRect(0,0,getWidth(),getHeight(),p);p.setShader(null);
-        for(int i=0;i<28;i++){float phase=(elapsed*.035f+i*137f)%(getWidth()+100);float x=phase-50,y=(i*83f)%Math.max(1,getHeight());p.setColor(i%3==0?0x8858E8FF:0x44669CB8);p.setStrokeWidth(i%4==0?2.2f:1f);c.drawCircle(x,y,i%4==0?2.5f:1.2f,p);}
-        float pulse=.5f+.5f*(float)Math.sin(elapsed*.003);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(3.5f);p.setColor(0xFF58DFFF);p.setShadowLayer(22,0,0,0xFF169EFF);
-        c.drawRoundRect(cx-130,cy-112,cx+130,cy+112,38,38,p);p.clearShadowLayer();
-        p.setStrokeWidth(7);p.setStrokeCap(Paint.Cap.ROUND);p.setColor(0xFFB4F4FF);c.drawArc(cx-105,cy-87,cx+105,cy+87,200,140*f,false,p);
-        p.setStyle(Paint.Style.FILL);p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.create("sans-serif-black",Typeface.BOLD));
-        p.setTextSize(46);p.setColor(Color.WHITE);p.setShadowLayer(14,0,0,0xFF24BAFF);c.drawText("ALI CAR",cx,cy-5,p);p.clearShadowLayer();
-        p.setTextSize(15);p.setColor(0xFF9CD8EF);p.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));c.drawText("SMART COCKPIT",cx,cy+31,p);
-        p.setColor(0xFF314D61);c.drawRoundRect(cx-140,cy+142,cx+140,cy+148,4,4,p);
-        p.setColor(0xFF56E4FF);c.drawRoundRect(cx-140,cy+142,cx-140+280*f,cy+148,4,4,p);
-        p.setTextSize(12);p.setColor(0xFF8CAFC2);p.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));c.drawText("WELCOME  •  ENJOY THE DRIVE",cx,cy+182,p);
-        p.setAlpha((int)(255*(.65f+.35f*pulse)));if(f<1)postInvalidateDelayed(16);
+        p.setShader(backgroundShader);
+        c.drawRect(0,0,w,h,p);
+        p.setShader(null);
+
+        // Subtle technical grid and horizon lines keep the background refined, not busy.
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1f,s));
+        p.setColor(0x183E7892);
+        for(int i=1;i<=5;i++){
+            float y=h*(.12f+i*.105f);
+            c.drawLine(w*.09f,y,w*.91f,y,p);
+        }
+        p.setColor(0x193E7892);
+        c.drawLine(cx-w*.38f,0,cx-w*.12f,h,p);
+        c.drawLine(cx+w*.38f,0,cx+w*.12f,h,p);
+
+        // Fine orbit particles travel around the central emblem.
+        for(int i=0;i<18;i++){
+            float a=(float)(i*Math.PI*2/18d)+elapsed*.00023f;
+            float rr=radius*(.78f+.14f*(float)Math.sin(elapsed*.0015f+i));
+            float x=cx+(float)Math.cos(a)*rr;
+            float y=logoY+(float)Math.sin(a)*rr;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(i%4==0?0xCC75EFFF:0x667CB9D0);
+            c.drawCircle(x,y,(i%4==0?2.6f:1.35f)*s,p);
+        }
+
+        // Animated instrument-style halo around the steering emblem.
+        ringBounds.set(cx-radius,logoY-radius,cx+radius,logoY+radius);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(1.8f*s);
+        p.setColor(alphaColor(0xFF4D819A,.43f*intro));
+        c.drawCircle(cx,logoY,radius,p);
+        p.setStrokeWidth(4.1f*s);
+        p.setColor(alphaColor(0xFF63E6FF,intro));
+        c.drawArc(ringBounds,205f,112f*intro,false,p);
+        p.setStrokeWidth(2.5f*s);
+        p.setColor(alphaColor(0xFFFFD27C,.9f*intro));
+        c.drawArc(ringBounds,27f-rotation,54f*intro,false,p);
+        p.setStrokeWidth(1.5f*s);
+        p.setColor(alphaColor(0xFF6EC8E4,.7f*intro));
+        c.drawArc(ringBounds,150f+rotation*.6f,32f*intro,false,p);
+
+        // Steering-wheel mark, drawn with simple primitives for low memory use.
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(3.2f*s);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setColor(alphaColor(0xFFE8FAFF,intro));
+        c.drawCircle(cx,logoY,27f*s,p);
+        c.drawArc(cx-19f*s,logoY-13f*s,cx+19f*s,logoY+18f*s,22f,136f,false,p);
+        c.drawLine(cx,logoY-25f*s,cx,logoY+5f*s,p);
+        c.drawLine(cx,logoY+5f*s,cx-17f*s,logoY+18f*s,p);
+        c.drawLine(cx,logoY+5f*s,cx+17f*s,logoY+18f*s,p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(alphaColor(0xFF66E7FF,.85f*intro));
+        c.drawCircle(cx,logoY+5f*s,3.5f*s,p);
+
+        centeredText(c,"WELCOME BACK",cx,logoY-radius-22f*s,
+                12f*s,alphaColor(0xFF9EC5D8,.85f*intro),medium);
+
+        // Brand title enters with a restrained upward motion and a cyan edge.
+        c.save();
+        c.translate(0,(1f-titleIn)*18f*s);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(1.5f*s);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTypeface(display);
+        p.setTextSize(47f*s);
+        p.setColor(alphaColor(0xFF62DFFF,titleIn*.9f));
+        c.drawText("ALI CAR",cx,centerY+105f*s,p);
+        centeredText(c,"ALI CAR",cx,centerY+105f*s,47f*s,
+                alphaColor(0xFFF4FBFF,titleIn),display);
+        centeredText(c,"SMART  •  CONNECTED  •  READY TO DRIVE",
+                cx,centerY+132f*s,11.5f*s,alphaColor(0xFF9DCCDE,titleIn),medium);
+        centeredText(c,"أهلاً بك في تجربة قيادة أذكى",
+                cx,centerY+166f*s,17f*s,alphaColor(0xFFE3F5FA,titleIn),regular);
+        c.restore();
+
+        // A restrained progress beam gives the opening a clear animated finish.
+        float barWidth=Math.min(w*.42f,300f*s);
+        float barY=h-48f*s;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0x663A6378);
+        c.drawRoundRect(cx-barWidth*.5f,barY,cx+barWidth*.5f,barY+3.5f*s,3f*s,3f*s,p);
+        p.setColor(0xFF62E5FF);
+        c.drawRoundRect(cx-barWidth*.5f,barY,cx-barWidth*.5f+barWidth*clamp(elapsed/4700f),
+                barY+3.5f*s,3f*s,3f*s,p);
+        centeredText(c,"DRIVE WITH CONFIDENCE",cx,h-23f*s,9.5f*s,
+                0x889DC3D2,medium);
+
+        if(elapsed<4800f)postInvalidateDelayed(33);
     }
 }
