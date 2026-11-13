@@ -2,6 +2,7 @@ package com.ali.carsystem;
 
 import android.content.*;
 import android.location.*;
+import android.net.Uri;
 import android.os.*;
 import android.provider.Settings;
 import android.text.TextUtils;
@@ -16,9 +17,19 @@ import org.osmdroid.views.overlay.*;
 import java.net.URLEncoder;
 import java.util.*;
 import java.io.*;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
 
 public final class NavigationActivity extends BaseActivity implements LocationListener {
     private MapView map;private LocationManager lm;private Location current;
+    private FusedLocationProviderClient fusedClient;private LocationCallback fusedCallback;
+    private boolean fusedRegistered,fusedRequestPending;private int gmsAvailabilityCode=-1;
+    private String gmsLocationStatus="لم يبدأ اتصال Google Fused";private Button googleNavigationButton;
     private EditText search;private TextView status,maneuver;
     private GeoPoint destination;private String destinationName="";private Polyline routeLine;private Marker destMarker,carMarker;
     private AsyncTask<Void,Void,RouteResult> routeTask;private AsyncTask<String,Void,GeoResult> geocodeTask;
@@ -64,6 +75,15 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         Configuration.getInstance().setTileFileSystemCacheMaxBytes(8L*1024*1024);
         Configuration.getInstance().setTileFileSystemCacheTrimBytes(4L*1024*1024);
         lm=(LocationManager)getSystemService(LOCATION_SERVICE);
+        try{fusedClient=LocationServices.getFusedLocationProviderClient(this);}catch(Exception e){gmsLocationStatus="تعذر إنشاء عميل Google Fused: "+e.getClass().getSimpleName();}
+        fusedCallback=new LocationCallback(){
+            @Override public void onLocationResult(LocationResult result){
+                if(result==null||result.getLastLocation()==null)return;
+                Location fix=result.getLastLocation();
+                onLocationChanged(fix);
+                if(status!=null&&destination==null)status.setText("موقع Google Fused وصل • دقة ±"+(fix.hasAccuracy()?Math.round(fix.getAccuracy()):0)+" متر");
+            }
+        };
         FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xFF07111C);
         map=new MapView(this);map.setTileSource(TileSourceFactory.MAPNIK);map.setMultiTouchControls(true);map.setTilesScaledToDpi(true);
         map.getController().setZoom(12.5);root.addView(map,new FrameLayout.LayoutParams(-1,-1));
@@ -72,12 +92,15 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         LinearLayout line=new LinearLayout(this);line.setGravity(Gravity.CENTER_VERTICAL);
         search=new EditText(this);search.setSingleLine(true);search.setTextColor(0xFF111111);search.setHintTextColor(0xFF666666);search.setHint("ابحث عن وجهتك");search.setBackgroundColor(-1);line.addView(search,new LinearLayout.LayoutParams(0,dp(48),1));
         Button go=new Button(this);go.setText("اذهب");line.addView(go,new LinearLayout.LayoutParams(dp(78),dp(48)));panel.addView(line);
+        googleNavigationButton=new Button(this);googleNavigationButton.setText("ابدأ التوجيه الصوتي عبر Google Maps");
+        googleNavigationButton.setTextSize(13);panel.addView(googleNavigationButton,new LinearLayout.LayoutParams(-1,dp(42)));
         status=new TextView(this);status.setTextColor(-1);status.setTextSize(13);status.setText("جارٍ تحديد موقعك...");panel.addView(status);
         maneuver=new TextView(this);maneuver.setTextColor(0xFF83EFFF);maneuver.setTextSize(15);maneuver.setPadding(0,dp(4),0,0);panel.addView(maneuver);
         FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);root.addView(panel,pp);
         TextView attribution=new TextView(this);attribution.setText("© OpenStreetMap contributors");attribution.setTextColor(-1);attribution.setTextSize(10);attribution.setBackgroundColor(0xAA061522);attribution.setPadding(dp(7),dp(4),dp(7),dp(4));
         FrameLayout.LayoutParams ap=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);root.addView(attribution,ap);
         setContentView(root);go.setOnClickListener(v->searchDestination());search.setOnEditorActionListener((v,a,e)->{searchDestination();return true;});
+        googleNavigationButton.setOnClickListener(v->launchGoogleMapsNavigation());
         loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());
     }
     private void searchDestination(){
