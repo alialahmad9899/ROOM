@@ -46,7 +46,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private MapsForgeTileSource offlineTileSource;
     private static final int REQUEST_IMPORT_OFFLINE_MAPS=8401;
     private FusedLocationProviderClient fusedClient;private LocationCallback fusedCallback;
-    private boolean fusedRegistered,fusedRequestPending;private int gmsAvailabilityCode=-1;
+    private boolean fusedRegistered,fusedRequestPending,offlinePreparationRunning;private int gmsAvailabilityCode=-1;
     private String gmsLocationStatus="لم يبدأ اتصال Google Fused";
     private EditText search;private TextView status,maneuver,trafficInfo;private LinearLayout routeChoices;
     private Button googleNavigationButton,freeModeButton,guidedModeButton,followButton,retryRouteButton;
@@ -190,6 +190,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());setGuidedMode(true);ensureBundledOfflineData();
     }
     private void searchDestination(){
+        if(offlinePreparationRunning){
+            status.setText("جارٍ تجهيز خريطة سوريا والأماكن للعمل دون إنترنت...");
+            return;
+        }
         String q=search.getText().toString().trim();if(q.length()<2){search.setError("أدخل اسم وجهة");return;}
         long now=SystemClock.elapsedRealtime();if(now-lastSearch<1100){status.setText("انتظر لحظة بين عمليات البحث");return;}lastSearch=now;
         InputMethodManager keyboard=(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
@@ -239,12 +243,15 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
 
     private void ensureBundledOfflineData(){
         if(OfflineMapsManager.getMapFile(this)!=null&&OfflineMapsManager.getPlacesDatabase(this)!=null&&OfflineMapsManager.hasOfflineRouting(this))return;
+        offlinePreparationRunning=true;
+        status.setText("جارٍ تجهيز الخريطة المحلية...");
         new AsyncTask<Void,Void,String>(){
             protected String doInBackground(Void...ignored){
                 try{OfflineMapsManager.ensureBundledAssets(getApplicationContext());return null;}
                 catch(Exception error){return error.getMessage()==null?error.getClass().getSimpleName():error.getMessage();}
             }
             protected void onPostExecute(String error){
+                offlinePreparationRunning=false;
                 if(isFinishing())return;
                 configureMapTiles();
                 String packageState=OfflineMapsManager.status(NavigationActivity.this);
