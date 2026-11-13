@@ -21,6 +21,51 @@ CATEGORY_KEYS = (
 )
 
 
+CATEGORY_AR = {
+    ("place", "city"): "مدينة", ("place", "town"): "بلدة",
+    ("place", "village"): "قرية", ("place", "hamlet"): "ضيعة",
+    ("amenity", "restaurant"): "مطعم", ("amenity", "fast_food"): "وجبات سريعة",
+    ("amenity", "cafe"): "مقهى", ("amenity", "pharmacy"): "صيدلية",
+    ("amenity", "hospital"): "مشفى", ("amenity", "clinic"): "عيادة",
+    ("amenity", "doctors"): "طبيب", ("amenity", "bank"): "مصرف",
+    ("amenity", "atm"): "صراف آلي", ("amenity", "fuel"): "محطة وقود",
+    ("amenity", "school"): "مدرسة", ("amenity", "university"): "جامعة",
+    ("amenity", "kindergarten"): "روضة أطفال", ("amenity", "police"): "مركز شرطة",
+    ("amenity", "post_office"): "مكتب بريد", ("amenity", "car_wash"): "غسيل سيارات",
+    ("amenity", "parking"): "موقف سيارات", ("tourism", "hotel"): "فندق",
+    ("tourism", "guest_house"): "بيت ضيافة", ("tourism", "museum"): "متحف",
+    ("shop", "supermarket"): "سوبرماركت", ("shop", "convenience"): "بقالة",
+    ("shop", "bakery"): "مخبز", ("shop", "butcher"): "ملحمة",
+    ("shop", "clothes"): "متجر ألبسة", ("shop", "electronics"): "متجر إلكترونيات",
+    ("shop", "mobile_phone"): "متجر هواتف", ("shop", "car_repair"): "صيانة سيارات",
+    ("shop", "hairdresser"): "حلاق", ("shop", "beauty"): "تجميل",
+    ("leisure", "park"): "حديقة", ("leisure", "sports_centre"): "مركز رياضي",
+    ("healthcare", "pharmacy"): "صيدلية", ("healthcare", "hospital"): "مشفى",
+}
+SEARCHABLE_UNNAMED = {
+    "restaurant", "fast_food", "cafe", "pharmacy", "hospital", "clinic", "doctors",
+    "bank", "atm", "fuel", "school", "university", "kindergarten", "police",
+    "post_office", "car_wash", "parking"
+}
+
+
+def arabic_category(tags) -> str:
+    for key in CATEGORY_KEYS:
+        value = tags.get(key)
+        if not value or value in ("yes", "no", "true", "false"):
+            continue
+        translated = CATEGORY_AR.get((key, value))
+        if translated:
+            return translated
+        if key == "shop":
+            return "متجر"
+        if key == "place":
+            return {"city": "مدينة", "town": "بلدة", "village": "قرية", "hamlet": "ضيعة"}.get(value, "مكان")
+        if key == "amenity":
+            return "خدمة"
+    return "مكان"
+
+
 def first_category(tags) -> str:
     for key in CATEGORY_KEYS:
         value = tags.get(key)
@@ -41,6 +86,14 @@ def address_text(tags) -> str:
 def is_interesting(tags) -> bool:
     if tags.get("name") or tags.get("name:ar"):
         return any(tags.get(key) for key in CATEGORY_KEYS) or bool(tags.get("addr:street"))
+    if tags.get("shop"):
+        return True
+    if tags.get("amenity") in SEARCHABLE_UNNAMED:
+        return True
+    if tags.get("healthcare") in ("pharmacy", "hospital", "clinic", "doctor"):
+        return True
+    if tags.get("tourism") in ("hotel", "guest_house", "hostel", "museum", "attraction"):
+        return True
     return False
 
 
@@ -53,11 +106,12 @@ class PlaceHandler(osmium.SimpleHandler):
     def _store(self, osm_id: int, kind: str, tags, lat: float, lon: float) -> None:
         if not is_interesting(tags):
             return
-        name = (tags.get("name") or tags.get("name:ar") or "").strip()
-        name_ar = (tags.get("name:ar") or name).strip()
+        category = first_category(tags)
+        fallback_name = arabic_category(tags)
+        name = (tags.get("name") or tags.get("name:ar") or fallback_name).strip()
+        name_ar = (tags.get("name:ar") or (name if name else fallback_name)).strip()
         if not name:
             return
-        category = first_category(tags)
         self.db.execute(
             """INSERT OR REPLACE INTO places
                (id, name, name_ar, category, lat, lon, address, phone, website, opening_hours)
