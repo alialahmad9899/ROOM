@@ -94,7 +94,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(enabled&&current!=null&&followCar)centerOnCar(current);updateManeuver(current,activeManeuvers);map.invalidate();}
     private void updateFollowButton(){if(followButton!=null)styleButton(followButton,followCar?"تتبّع السيارة ✓":"تتبّع السيارة",followCar?0xFF087FA4:0xF20A1B2A);}
     private void centerOnCar(Location l){if(map==null||l==null)return;GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());map.getController().animateTo(p);lastFollowPoint=p;lastFollowAt=SystemClock.elapsedRealtime();}
-    private BitmapDrawable createCarIcon(){
+    private BitmapDrawable createLocationDot(){
         int size=dp(36);Bitmap bitmap=Bitmap.createBitmap(size,size,Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
         float center=size/2f;
@@ -174,7 +174,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         freeModeButton.setOnClickListener(v->setGuidedMode(false));guidedModeButton.setOnClickListener(v->setGuidedMode(true));
         followButton.setOnClickListener(v->{followCar=!followCar;updateFollowButton();if(followCar&&current!=null)centerOnCar(current);});
         googleNavigationButton.setOnClickListener(v->launchGoogleMapsNavigation());
-        retryRouteButton.setOnClickListener(v->{if(current!=null&&destination!=null)requestRoute(current,destination,destinationName);else drawRouteIfPossible();});
+        retryRouteButton.setOnClickListener(v->drawRouteIfPossible());
         loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());setGuidedMode(true);
     }
     private void searchDestination(){
@@ -457,14 +457,15 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());
         if(carMarker==null){
             carMarker=new Marker(map);carMarker.setTitle("الموقع الحالي واتجاه الحركة");
-            carMarker.setIcon(createCarIcon());carMarker.setAnchor(Marker.ANCHOR_CENTER,Marker.ANCHOR_CENTER);
+            carMarker.setIcon(createLocationDot());carMarker.setAnchor(Marker.ANCHOR_CENTER,Marker.ANCHOR_CENTER);
             map.getOverlays().add(carMarker);
         }
+        double movedMeters=previousCarPoint==null?Double.MAX_VALUE:
+                GeoMath.distanceMeters(previousCarPoint.getLatitude(),previousCarPoint.getLongitude(),
+                        p.getLatitude(),p.getLongitude());
         if(l.hasBearing()&&(!l.hasSpeed()||l.getSpeed()>0.5f)){
             lastCarHeading=l.getBearing();
-        }else if(previousCarPoint!=null
-                &&GeoMath.distanceMeters(previousCarPoint.getLatitude(),previousCarPoint.getLongitude(),
-                    p.getLatitude(),p.getLongitude())>4.0){
+        }else if(previousCarPoint!=null&&movedMeters>4.0){
             double lat1=Math.toRadians(previousCarPoint.getLatitude());
             double lat2=Math.toRadians(p.getLatitude());
             double dLon=Math.toRadians(p.getLongitude()-previousCarPoint.getLongitude());
@@ -473,7 +474,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             lastCarHeading=(float)((Math.toDegrees(Math.atan2(y,x))+360.0)%360.0);
         }
         carMarker.setPosition(p);carMarker.setRotation(lastCarHeading);
-        previousCarPoint=p;map.invalidate();
+        if(previousCarPoint==null||movedMeters>4.0)previousCarPoint=p;
+        map.invalidate();
     }
     private void drawRouteIfPossible(){
         if(destination==null)return;
