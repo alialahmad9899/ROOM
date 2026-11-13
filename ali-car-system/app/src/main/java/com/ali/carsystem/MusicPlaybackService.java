@@ -42,6 +42,7 @@ public final class MusicPlaybackService extends Service implements AudioManager.
     private boolean prepared;
     private boolean pausedByFocus;
     private boolean ducked;
+    private boolean shuttingDown;
     private long lastNotificationUpdate;
 
     private final Runnable progressTicker = new Runnable() {
@@ -245,7 +246,7 @@ public final class MusicPlaybackService extends Service implements AudioManager.
             player = null;
         }
         prepared = false;
-        handler.post(progressTicker);
+        if (!shuttingDown) handler.post(progressTicker);
     }
 
     @Override public void onAudioFocusChange(int focusChange) {
@@ -263,6 +264,7 @@ public final class MusicPlaybackService extends Service implements AudioManager.
                     player.start();
                     pausedByFocus = false;
                 }
+                publishState();
             } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
                     || focusChange == AudioManager.AUDIOFOCUS_LOSS) {
                 if (player.isPlaying()) {
@@ -353,6 +355,7 @@ public final class MusicPlaybackService extends Service implements AudioManager.
     }
 
     @Override public void onDestroy() {
+        shuttingDown = true;
         handler.removeCallbacksAndMessages(null);
         releasePlayer();
         if (audioManager != null) {
