@@ -67,6 +67,15 @@ jobs:
           python3 tools/rom/create_bootanimation.py
           test -s workspace/rom-output/bootanimation.zip
 
+      - name: Upload verified ALI CAR APK immediately
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALI-CAR-2.3.0-API21-X86-APK
+          path: workspace/rom-output/ALICarSystem.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
       - name: Download and reconstruct exact stock P01Y WW system
         env:
           OTA_URL: https://github.com/alialahmad9899/ROOM/releases/download/stock-firmware-v1/UL-P01Y-WW-12.26.4.69-user_2.zip
