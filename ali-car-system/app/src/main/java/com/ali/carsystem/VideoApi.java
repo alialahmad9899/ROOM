@@ -134,15 +134,15 @@ final class VideoApi {
             if(validStream(u)&&!streamIdentity(u,null,StreamInfo.MP4).equals(excluded))
                 return new StreamInfo(u,null,title,StreamInfo.MP4);
         }
+        String dash=data.optString("dash","");
+        if(validStream(dash)&&!streamIdentity(dash,null,StreamInfo.DASH).equals(excluded))
+            return new StreamInfo(dash,null,title,StreamInfo.DASH);
         List<JSONObject> videoOnly=sortedStreams(videos,true,true),audioOnly=sortedStreams(audios,false,false);
         for(JSONObject v:videoOnly)for(JSONObject au:audioOnly){
             String vu=v.optString("url",""),auUrl=au.optString("url","");
             if(validStream(vu)&&validStream(auUrl)&&!streamIdentity(vu,auUrl,StreamInfo.SPLIT).equals(excluded))
                 return new StreamInfo(vu,auUrl,title,StreamInfo.SPLIT);
         }
-        String dash=data.optString("dash","");
-        if(validStream(dash)&&!streamIdentity(dash,null,StreamInfo.DASH).equals(excluded))
-            return new StreamInfo(dash,null,title,StreamInfo.DASH);
         String hls=data.optString("hls","");
         if(validStream(hls)&&!streamIdentity(hls,null,StreamInfo.HLS).equals(excluded))
             return new StreamInfo(hls,null,title,StreamInfo.HLS);
@@ -161,6 +161,9 @@ final class VideoApi {
             if(validStream(u)&&!streamIdentity(u,null,StreamInfo.MP4).equals(excluded))
                 return new StreamInfo(u,null,title,StreamInfo.MP4);
         }
+        String dash=data.optString("dashUrl","");
+        if(validStream(dash)&&!streamIdentity(dash,null,StreamInfo.DASH).equals(excluded))
+            return new StreamInfo(dash,null,title,StreamInfo.DASH);
         List<JSONObject> videos=new ArrayList<>(),audios=new ArrayList<>();JSONArray adaptive=data.optJSONArray("adaptiveFormats");
         if(adaptive!=null)for(int i=0;i<adaptive.length();i++){
             JSONObject x=adaptive.optJSONObject(i);if(x==null)continue;
@@ -173,9 +176,6 @@ final class VideoApi {
             if(validStream(vu)&&validStream(auUrl)&&!streamIdentity(vu,auUrl,StreamInfo.SPLIT).equals(excluded))
                 return new StreamInfo(vu,auUrl,title,StreamInfo.SPLIT);
         }
-        String dash=data.optString("dashUrl","");
-        if(validStream(dash)&&!streamIdentity(dash,null,StreamInfo.DASH).equals(excluded))
-            return new StreamInfo(dash,null,title,StreamInfo.DASH);
         String hls=data.optString("hlsUrl","");
         if(validStream(hls)&&!streamIdentity(hls,null,StreamInfo.HLS).equals(excluded))
             return new StreamInfo(hls,null,title,StreamInfo.HLS);
