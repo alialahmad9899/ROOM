@@ -24,6 +24,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android platform and build tools
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
@@ -43,7 +45,7 @@ jobs:
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          aapt dump badging "$APK" | grep -E "package: name='com.ali.carsystem' versionCode='14' versionName='2.3.0'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -E "package: name='com.ali.carsystem' versionCode='14' versionName='2.3.0'"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           mkdir -p artifacts
           sha256sum "$APK" | tee artifacts/ALI-CAR-2.3.0-SHA256.txt
