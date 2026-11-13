@@ -36,7 +36,7 @@
         </activity>
         <activity android:name=".YouTubeSearchActivity" android:screenOrientation="landscape" android:exported="false"/>
         <activity android:name=".VideoPlayerActivity" android:screenOrientation="landscape" android:exported="false"/>
-        <activity android:name=".NavigationActivity" android:screenOrientation="landscape" android:exported="false"/>
+        <activity android:name=".NavigationActivity" android:screenOrientation="landscape" android:exported="false" android:windowSoftInputMode="stateAlwaysHidden|adjustResize"/>
         <activity android:name=".MusicActivity" android:screenOrientation="landscape" android:exported="false"/>
         <service android:name=".MusicPlaybackService" android:exported="false"/>
         <activity android:name=".SettingsActivity" android:screenOrientation="landscape" android:exported="false"/>
