@@ -19,13 +19,15 @@ import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import java.util.*;
+import javax.net.ssl.HttpsURLConnection;
 
 public final class VideoPlayerActivity extends BaseActivity {
     private PlayerView playerView;private ExoPlayer player;private TextView status,titleView;
-    private VideoApi.Item item;private VideoApi.StreamInfo active;private int attempts;private boolean resolving,released;
+    private VideoApi.Item item;private VideoApi.StreamInfo active;private int attempts;private boolean resolving,released,resumeOnReturn;
     private int dp(float v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
     @Override protected void onCreate(Bundle b){
         super.onCreate(b);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        try{HttpsURLConnection.setDefaultSSLSocketFactory(LegacyTls.factory(getApplicationContext()));}catch(Exception ignored){}
         String id=getIntent().getStringExtra("id"),title=getIntent().getStringExtra("title");
         String backend=getIntent().getStringExtra("backend"),base=getIntent().getStringExtra("base");
         item=new VideoApi.Item(id==null?"":id,title==null?"فيديو":title,"","",
@@ -102,7 +104,7 @@ public final class VideoPlayerActivity extends BaseActivity {
         }
     }
     private void releasePlayer(){if(player!=null){try{playerView.setPlayer(null);player.release();}catch(Exception ignored){}player=null;}}
-    @Override protected void onPause(){super.onPause();if(player!=null)player.setPlayWhenReady(false);}
-    @Override protected void onResume(){super.onResume();if(player!=null)player.setPlayWhenReady(true);}
+    @Override protected void onPause(){resumeOnReturn=player!=null&&player.getPlayWhenReady();super.onPause();if(player!=null)player.setPlayWhenReady(false);}
+    @Override protected void onResume(){super.onResume();if(player!=null&&resumeOnReturn)player.setPlayWhenReady(true);}
     @Override protected void onDestroy(){released=true;releasePlayer();super.onDestroy();}
 }
