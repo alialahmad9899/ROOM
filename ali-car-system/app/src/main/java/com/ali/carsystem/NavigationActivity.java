@@ -23,16 +23,32 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private GeoPoint destination;private String destinationName="";private Polyline routeLine;private Marker destMarker,carMarker;
     private AsyncTask<Void,Void,RouteResult> routeTask;private AsyncTask<String,Void,GeoResult> geocodeTask;
     private List<Maneuver> activeManeuvers=Collections.emptyList();
-    private long lastSearch;private boolean waitingForFix;private boolean gpsRegistered,networkRegistered,gpsStatusRegistered;private String providerError="";
-    private int satellitesVisible,satellitesUsed;
+    private long lastSearch;private boolean waitingForFix;
+    private boolean gpsRegistered,networkRegistered,criteriaRegistered,gpsStatusRegistered,gpsEngineStarted;
+    private String providerError="",criteriaProvider="لم يتم اختياره",lastFixProvider="لا يوجد";
+    private int satellitesVisible,satellitesUsed,timeToFirstFixMs=-1;
+    private float lastFixAccuracy=-1f;
+    private long lastFixElapsedNanos;
+    private final Handler locationHandler=new Handler(Looper.getMainLooper());
+    private final Runnable locationStatusTicker=new Runnable(){
+        @Override public void run(){
+            if(status!=null&&destination!=null&&waitingForFix)status.setText(gpsStatusText());
+            locationHandler.postDelayed(this,5000);
+        }
+    };
     private final GpsStatus.Listener gpsStatusListener=new GpsStatus.Listener(){
         @Override public void onGpsStatusChanged(int event){
             if(lm==null)return;
+            if(event==GpsStatus.GPS_EVENT_STARTED)gpsEngineStarted=true;
+            if(event==GpsStatus.GPS_EVENT_STOPPED){gpsEngineStarted=false;satellitesVisible=0;satellitesUsed=0;}
             if(event==GpsStatus.GPS_EVENT_SATELLITE_STATUS||event==GpsStatus.GPS_EVENT_FIRST_FIX){
                 try{
                     GpsStatus gps=lm.getGpsStatus(null);int visible=0,used=0;
-                    if(gps!=null)for(GpsSatellite satellite:gps.getSatellites()){
-                        visible++;if(satellite.usedInFix())used++;
+                    if(gps!=null){
+                        for(GpsSatellite satellite:gps.getSatellites()){
+                            visible++;if(satellite.usedInFix())used++;
+                        }
+                        if(event==GpsStatus.GPS_EVENT_FIRST_FIX)timeToFirstFixMs=gps.getTimeToFirstFix();
                     }
                     satellitesVisible=visible;satellitesUsed=used;
                     if(status!=null&&destination!=null&&waitingForFix)status.setText(gpsStatusText());
@@ -61,7 +77,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         TextView attribution=new TextView(this);attribution.setText("© OpenStreetMap contributors");attribution.setTextColor(-1);attribution.setTextSize(10);attribution.setBackgroundColor(0xAA061522);attribution.setPadding(dp(7),dp(4),dp(7),dp(4));
         FrameLayout.LayoutParams ap=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);root.addView(attribution,ap);
         setContentView(root);go.setOnClickListener(v->searchDestination());search.setOnEditorActionListener((v,a,e)->{searchDestination();return true;});
-        loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->openLocationSettings());
+        loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());
     }
     private void searchDestination(){
         String q=search.getText().toString().trim();if(q.length()<2){search.setError("أدخل اسم وجهة");return;}
@@ -77,44 +93,155 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             protected void onPostExecute(GeoResult r){if(isFinishing())return;if(r.error!=null){status.setText(r.error);return;}destination=r.point;destinationName=r.name;showDestination();drawRouteIfPossible();}
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,q);
     }
-    private void loadLastKnown(){
-        long now=System.currentTimeMillis();Location best=null;
-        for(String provider:new String[]{LocationManager.GPS_PROVIDER,LocationManager.NETWORK_PROVIDER})try{
-            if(!lm.isProviderEnabled(provider))continue;
-            Location l=lm.getLastKnownLocation(provider);if(l==null)continue;
-            float acc=l.hasAccuracy()?l.getAccuracy():999;
-            if(!GeoMath.isUsableFix(l.getTime(),now,120000,acc))continue;
-            if(best==null||l.getTime()>best.getTime())best=l;
-        }catch(SecurityException e){providerError="إذن الموقع غير متاح";}catch(Exception ignored){}
-        if(best!=null)current=best;
-    }
     private boolean hasLocationPermission(){
         return checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")==android.content.pm.PackageManager.PERMISSION_GRANTED||
                checkCallingOrSelfPermission("android.permission.ACCESS_COARSE_LOCATION")==android.content.pm.PackageManager.PERMISSION_GRANTED;
     }
+    private boolean hasFineLocationPermission(){
+        return checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")==android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+    private boolean isFreshLocation(Location l,long maxAgeMs){
+        if(l==null)return false;
+        long fixElapsed=l.getElapsedRealtimeNanos(),nowElapsed=SystemClock.elapsedRealtimeNanos();
+        if(fixElapsed>0&&nowElapsed>=fixElapsed)return nowElapsed-fixElapsed<=maxAgeMs*1000000L;
+        return GeoMath.isUsableFix(l.getTime(),System.currentTimeMillis(),maxAgeMs,0);
+    }
+    private boolean isNavigationFixUsable(Location l){
+        return isFreshLocation(l,180000)&&l.hasAccuracy()&&l.getAccuracy()<=250f;
+    }
+    private void loadLastKnown(){
+        if(lm==null)return;
+        Location best=null;
+        ArrayList<String> providers=new ArrayList<>();
+        providers.add(LocationManager.GPS_PROVIDER);
+        providers.add(LocationManager.NETWORK_PROVIDER);
+        providers.add(LocationManager.PASSIVE_PROVIDER);
+        if(criteriaProvider!=null&&!criteriaProvider.isEmpty()&&!providers.contains(criteriaProvider))providers.add(criteriaProvider);
+        for(String provider:providers)try{
+            if(!lm.getAllProviders().contains(provider))continue;
+            Location l=lm.getLastKnownLocation(provider);
+            if(l==null||!isFreshLocation(l,300000))continue;
+            float acc=l.hasAccuracy()?l.getAccuracy():999f;
+            if(acc>350f)continue;
+            if(best==null||l.getElapsedRealtimeNanos()>best.getElapsedRealtimeNanos())best=l;
+        }catch(SecurityException e){providerError="صلاحية الموقع مرفوضة من النظام";}catch(Exception ignored){}
+        if(best!=null){
+            current=new Location(best);lastFixProvider=best.getProvider();
+            lastFixAccuracy=best.hasAccuracy()?best.getAccuracy():-1f;
+            lastFixElapsedNanos=best.getElapsedRealtimeNanos();
+        }
+    }
     private void openLocationSettings(){
         try{startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS));}
-        catch(Exception e){status.setText("افتح إعدادات الجهاز ثم الموقع وفعّل تحديد الموقع");}
+        catch(Exception e){status.setText("افتح إعدادات الجهاز ثم الموقع");}
     }
     private void requestLocationSources(){
-        gpsRegistered=false;networkRegistered=false;providerError="";
-        if(lm==null){status.setText("خدمة الموقع غير متاحة في نظام الجهاز");return;}
-        if(!hasLocationPermission()){status.setText("إذن الموقع غير ممنوح — اضغط هنا لفتح إعدادات الموقع");return;}
-        boolean gpsOn=false,networkOn=false;
+        gpsRegistered=false;networkRegistered=false;criteriaRegistered=false;providerError="";
+        if(lm==null){status.setText("خدمة الموقع غير متاحة في نظام Android");return;}
+        if(!hasLocationPermission()){status.setText("إذن الموقع غير ممنوح للتطبيق");return;}
+        boolean gpsOn=false,networkOn=false,passiveAvailable=false;
         try{gpsOn=lm.isProviderEnabled(LocationManager.GPS_PROVIDER);}catch(Exception ignored){}
         try{networkOn=lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);}catch(Exception ignored){}
-        if(gpsOn&&!gpsStatusRegistered)try{gpsStatusRegistered=lm.addGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}
+        try{passiveAvailable=lm.getAllProviders().contains(LocationManager.PASSIVE_PROVIDER);}catch(Exception ignored){}
+
+        if(gpsOn&&!gpsStatusRegistered)try{gpsStatusRegistered=lm.addGpsStatusListener(gpsStatusListener);}
+            catch(SecurityException e){providerError="رفض النظام صلاحية GPS Status";}catch(Exception e){providerError="تعذر مراقبة حالة GPS";}
         if(gpsOn)try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,0,this);gpsRegistered=true;}
-            catch(SecurityException e){providerError="رفض النظام إذن GPS";}
-            catch(Exception e){providerError="تعذر التسجيل في GPS: "+e.getClass().getSimpleName();}
+            catch(SecurityException e){providerError="رفض النظام إذن GPS الدقيق";}catch(Exception e){providerError="تعذر تسجيل GPS: "+e.getClass().getSimpleName();}
         if(networkOn)try{lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1500,0,this);networkRegistered=true;}
-            catch(SecurityException e){providerError="رفض النظام إذن الشبكة";}
-            catch(Exception e){if(providerError.isEmpty())providerError="تعذر التسجيل في مزود الشبكة";}
-        if(!gpsOn&&!networkOn)status.setText("خدمة الموقع مغلقة — اضغط هنا لفتح إعدادات الموقع");
-        else if(current!=null&&GeoMath.isUsableFix(current.getTime(),System.currentTimeMillis(),120000,current.hasAccuracy()?current.getAccuracy():999))
-            status.setText("آخر موقع صالح: "+current.getProvider()+" — دقة ±"+(current.hasAccuracy()?Math.round(current.getAccuracy()):0)+" متر — ننتظر تحديثاً جديداً");
-        else if(!providerError.isEmpty())status.setText(providerError+" — اضغط هنا للإعدادات");
-        else status.setText("GPS "+(gpsRegistered?"مفعّل":"غير متاح")+" • الشبكة "+(networkRegistered?"مفعّلة":"غير متاحة")+" — بانتظار أول تثبيت للموقع");
+            catch(SecurityException e){if(providerError.isEmpty())providerError="رفض النظام إذن مزود الشبكة";}catch(Exception e){if(providerError.isEmpty())providerError="تعذر تسجيل مزود الشبكة";}
+        if(passiveAvailable)try{lm.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER,3000,0,this);}
+            catch(Exception ignored){}
+
+        // Android 4.4+ routes Criteria-based requests through its fused location provider.
+        // This is a separate path from directly subscribing to GPS_PROVIDER and NETWORK_PROVIDER.
+        try{
+            Criteria criteria=new Criteria();
+            criteria.setAccuracy(Criteria.ACCURACY_FINE);
+            criteria.setPowerRequirement(Criteria.POWER_HIGH);
+            criteria.setAltitudeRequired(false);criteria.setBearingRequired(false);criteria.setSpeedRequired(false);
+            criteria.setCostAllowed(true);
+            criteriaProvider=lm.getBestProvider(criteria,true);
+            lm.requestLocationUpdates(1000,0,criteria,this,Looper.getMainLooper());
+            criteriaRegistered=true;
+        }catch(SecurityException e){if(providerError.isEmpty())providerError="رفض النظام إذن خدمة الموقع المدمجة";}
+         catch(Exception e){if(providerError.isEmpty())providerError="خدمة الموقع المدمجة غير متاحة: "+e.getClass().getSimpleName();}
+
+        loadLastKnown();
+        if(!gpsOn&&!networkOn)status.setText("خدمة الموقع مغلقة — اضغط لعرض التشخيص");
+        else if(current!=null&&isNavigationFixUsable(current))
+            status.setText("تم استقبال موقع حديث من "+lastFixProvider+" — دقة ±"+Math.round(lastFixAccuracy)+" متر");
+        else if(!providerError.isEmpty())status.setText(providerError+" — اضغط لعرض التشخيص");
+        else status.setText(gpsStatusText());
+    }
+    private String gpsStatusText(){
+        String satelliteState;
+        if(!gpsEngineStarted)satelliteState="محرك GPS لم يبدأ بعد";
+        else if(satellitesVisible==0)satelliteState="GPS يعمل لكن لا يرى أقماراً";
+        else if(satellitesUsed==0)satelliteState="يرى "+satellitesVisible+" أقمار، لكن لا يوجد تثبيت";
+        else satelliteState="تثبيت الأقمار "+satellitesUsed+"/"+satellitesVisible;
+        return satelliteState+" • GPS "+(gpsRegistered?"مطلوب":"غير مسجّل")+
+                " • الشبكة "+(networkRegistered?"مطلوبة":"غير متاحة")+
+                " • الموقع المدمج "+(criteriaRegistered?"مطلوب":"غير متاح")+" — اضغط للتشخيص";
+    }
+    private String providerReport(String provider){
+        if(lm==null)return provider+": غير متاح";
+        try{
+            if(!lm.getAllProviders().contains(provider))return provider+": غير موجود في النظام";
+            boolean enabled=lm.isProviderEnabled(provider);
+            Location l=lm.getLastKnownLocation(provider);
+            StringBuilder out=new StringBuilder(provider+": ").append(enabled?"مفعّل":"متوقف");
+            if(l==null)return out.append(" • لا توجد قراءة محفوظة").toString();
+            float accuracy=l.hasAccuracy()?l.getAccuracy():-1f;
+            long ageMs=isFreshLocation(l,86400000)?Math.max(0,(SystemClock.elapsedRealtimeNanos()-l.getElapsedRealtimeNanos())/1000000L)
+                    :Math.max(0,System.currentTimeMillis()-l.getTime());
+            out.append(" • آخر قراءة قبل ").append(ageMs/1000).append(" ثانية");
+            out.append(" • الدقة ").append(accuracy>0?Math.round(accuracy)+" متر":"غير معروفة");
+            out.append(" • ").append(String.format(Locale.US,"%.5f, %.5f",l.getLatitude(),l.getLongitude()));
+            return out.toString();
+        }catch(SecurityException e){return provider+": لا توجد صلاحية لقراءة الموقع";}
+        catch(Exception e){return provider+": خطأ "+e.getClass().getSimpleName();}
+    }
+    private String buildGpsDiagnostics(){
+        StringBuilder b=new StringBuilder();
+        b.append("إذن الموقع الدقيق: ").append(hasFineLocationPermission()?"ممنوح":"غير ممنوح").append("\n");
+        b.append("إذن الموقع التقريبي: ").append(checkCallingOrSelfPermission("android.permission.ACCESS_COARSE_LOCATION")==android.content.pm.PackageManager.PERMISSION_GRANTED?"ممنوح":"غير ممنوح").append("\n");
+        try{
+            int mode=Settings.Secure.getInt(getContentResolver(),Settings.Secure.LOCATION_MODE,Settings.Secure.LOCATION_MODE_OFF);
+            b.append("وضع الموقع في Android: ").append(mode==Settings.Secure.LOCATION_MODE_OFF?"متوقف":mode==Settings.Secure.LOCATION_MODE_HIGH_ACCURACY?"دقة عالية":mode==Settings.Secure.LOCATION_MODE_BATTERY_SAVING?"توفير بطارية":"GPS فقط").append("\n");
+        }catch(Exception ignored){}
+        b.append("GPS: ").append(providerReport(LocationManager.GPS_PROVIDER)).append("\n");
+        b.append("الشبكة: ").append(providerReport(LocationManager.NETWORK_PROVIDER)).append("\n");
+        b.append("Passive: ").append(providerReport(LocationManager.PASSIVE_PROVIDER)).append("\n");
+        b.append("مسار Criteria/Fused: ").append(criteriaRegistered?"تم تسجيل الطلب":"لم يتم تسجيل الطلب").append(" • أفضل مزود: ").append(criteriaProvider).append("\n");
+        b.append("محرك GPS: ").append(gpsEngineStarted?"بدأ":"لم يبدأ / لا توجد إشارة حالة").append("\n");
+        b.append("الأقمار: مرئية ").append(satellitesVisible).append(" • مستخدمة ").append(satellitesUsed);
+        if(timeToFirstFixMs>=0)b.append(" • زمن أول تثبيت ").append(timeToFirstFixMs/1000f).append(" ثانية");
+        b.append("\n");
+        b.append("آخر تحديث استلمه التطبيق: ").append(lastFixProvider);
+        if(lastFixAccuracy>0)b.append(" • دقة ±").append(Math.round(lastFixAccuracy)).append(" متر");
+        if(lastFixElapsedNanos>0)b.append(" • قبل ").append(Math.max(0,(SystemClock.elapsedRealtimeNanos()-lastFixElapsedNanos)/1000000000L)).append(" ثانية");
+        b.append("\n");
+        try{
+            android.content.pm.PackageInfo gms=getPackageManager().getPackageInfo("com.google.android.gms",0);
+            b.append("Google Play services: موجودة ").append(gms.versionName);
+        }catch(Exception e){b.append("Google Play services: غير موجودة / لا يمكن قراءتها");}
+        b.append("\n\n");
+        b.append("ملاحظة: ظهور «الشبكة متاحة» لا يعني أن مزود الشبكة أعاد إحداثيات. إذا كانت الأقمار المرئية صفر، فالمشكلة استقبال GPS أو برنامج تشغيله أو مكان تثبيت الجهاز، وليست صلاحيات ALI CAR.");
+        return b.toString();
+    }
+    private void showGpsDiagnostics(){
+        if(isFinishing())return;
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("تشخيص الموقع و GPS")
+                .setMessage(buildGpsDiagnostics())
+                .setPositiveButton("إعادة طلب الموقع",(d,w)->{
+                    current=null;requestLocationSources();
+                    if(destination!=null){waitingForFix=true;drawRouteIfPossible();}
+                })
+                .setNeutralButton("إعدادات الموقع",(d,w)->openLocationSettings())
+                .setNegativeButton("إغلاق",null)
+                .show();
     }
     private void showDestination(){
         if(destMarker!=null)map.getOverlays().remove(destMarker);
@@ -127,7 +254,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
     private void drawRouteIfPossible(){
         if(destination==null)return;
-        if(current==null||!GeoMath.isUsableFix(current.getTime(),System.currentTimeMillis(),120000,current.hasAccuracy()?current.getAccuracy():999)){waitingForFix=true;status.setText("تم تحديد الوجهة — "+gpsStatusText());return;}
+        if(!isNavigationFixUsable(current)){waitingForFix=true;status.setText("تم تحديد الوجهة — "+gpsStatusText());return;}
         requestRoute(current,destination,destinationName);
     }
     private void requestRoute(Location start,GeoPoint end,String name){
@@ -170,13 +297,32 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     @Override public void onLocationChanged(Location l){
         if(l==null)return;current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
         float accuracy=l.hasAccuracy()?l.getAccuracy():999;
-        boolean fresh=GeoMath.isUsableFix(l.getTime(),System.currentTimeMillis(),120000,accuracy);
-        if(destination!=null&&(waitingForFix||routeLine==null)&&fresh&&accuracy<=150)drawRouteIfPossible();
-        if(status!=null&&destination==null)status.setText("تم استقبال موقع "+l.getProvider()+" — الدقة ±"+Math.round(accuracy)+" متر");
+        if(destination!=null&&(waitingForFix||routeLine==null)&&isNavigationFixUsable(l))drawRouteIfPossible();
+        lastFixProvider=l.getProvider()==null?"غير معروف":l.getProvider();
+        lastFixAccuracy=accuracy;lastFixElapsedNanos=l.getElapsedRealtimeNanos();
+        if(status!=null&&destination==null)status.setText("تم استقبال موقع "+lastFixProvider+" — الدقة ±"+Math.round(accuracy)+" متر");
     }
-    @Override protected void onResume(){super.onResume();if(map!=null)map.onResume();loadLastKnown();requestLocationSources();if(current!=null)showCar(current);if(destination!=null)drawRouteIfPossible();}
-    @Override protected void onPause(){if(lm!=null)try{lm.removeUpdates(this);}catch(Exception ignored){}gpsRegistered=false;networkRegistered=false;if(gpsStatusRegistered&&lm!=null){try{lm.removeGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}gpsStatusRegistered=false;}if(map!=null)map.onPause();super.onPause();}
-    @Override protected void onDestroy(){if(geocodeTask!=null)geocodeTask.cancel(true);if(routeTask!=null)routeTask.cancel(true);if(map!=null){map.onDetach();map=null;}super.onDestroy();}
+    @Override protected void onResume(){
+        super.onResume();if(map!=null)map.onResume();
+        requestLocationSources();if(current!=null)showCar(current);
+        if(destination!=null){waitingForFix=true;drawRouteIfPossible();}
+        locationHandler.removeCallbacks(locationStatusTicker);locationHandler.post(locationStatusTicker);
+    }
+    @Override protected void onPause(){
+        locationHandler.removeCallbacks(locationStatusTicker);
+        if(lm!=null){
+            try{lm.removeUpdates(this);}catch(Exception ignored){}
+            if(gpsStatusRegistered){try{lm.removeGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}}
+        }
+        gpsRegistered=false;networkRegistered=false;criteriaRegistered=false;gpsStatusRegistered=false;gpsEngineStarted=false;
+        if(map!=null)map.onPause();super.onPause();
+    }
+    @Override protected void onDestroy(){
+        locationHandler.removeCallbacksAndMessages(null);
+        if(geocodeTask!=null)geocodeTask.cancel(true);if(routeTask!=null)routeTask.cancel(true);
+        if(lm!=null){try{lm.removeUpdates(this);}catch(Exception ignored){}if(gpsStatusRegistered)try{lm.removeGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}}
+        if(map!=null){map.onDetach();map=null;}super.onDestroy();
+    }
     @Override public void onProviderEnabled(String p){if(status!=null)status.setText("تم تفعيل "+p+" — جارٍ طلب تحديث جديد");requestLocationSources();}
     @Override public void onProviderDisabled(String p){if(status!=null)status.setText("تم إيقاف "+p+" — فعّل الموقع من الإعدادات");}
     @Override public void onStatusChanged(String p,int state,Bundle b){
