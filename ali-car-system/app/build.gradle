@@ -4,6 +4,12 @@ android {
     namespace 'com.ali.carsystem'
     compileSdk 35
 
+    androidResources {
+        // Keep already-compressed offline map and routing payloads uncompressed
+        // inside the APK so first-launch extraction does not waste CPU time.
+        noCompress += ['map', 'rd5', 'sqlite']
+    }
+
     defaultConfig {
         applicationId 'com.ali.carsystem'
         minSdk 21
