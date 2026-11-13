@@ -62,6 +62,7 @@ final class VideoApi {
         if(raw==null)return "UNKNOWN";
         String value=raw.toLowerCase(java.util.Locale.US);
         if(value.contains(".m3u8")||value.contains("application/vnd.apple.mpegurl")||value.contains("application/x-mpegurl"))return "HLS";
+        if(value.contains(".mpd")||value.contains("application/dash+xml"))return "DASH";
         if(value.contains(".mp4")||value.contains("mime=video%2fmp4")||value.contains("mime=video/mp4"))return "MP4";
         return "UNKNOWN";
     }
