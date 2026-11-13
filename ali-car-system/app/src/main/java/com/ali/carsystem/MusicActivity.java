@@ -156,12 +156,15 @@ public final class MusicActivity extends BaseActivity {
     }
     @Override protected void onStop(){
         handler.removeCallbacks(ticker);
-        if(stateReceiver!=null)try{unregisterReceiver(stateReceiver);}catch(Exception ignored){}
-        if(powerReceiver!=null)try{unregisterReceiver(powerReceiver);}catch(Exception ignored){}
         if(bound){if(service!=null)service.setListener(null);unbindService(connection);bound=false;service=null;}
         stopVisualizer();if(cover!=null)cover.setSpinning(false);super.onStop();
     }
-    @Override protected void onDestroy(){handler.removeCallbacksAndMessages(null);stopVisualizer();super.onDestroy();}
+    @Override protected void onDestroy(){
+        handler.removeCallbacksAndMessages(null);
+        if(stateReceiver!=null)try{unregisterReceiver(stateReceiver);}catch(Exception ignored){}
+        if(powerReceiver!=null)try{unregisterReceiver(powerReceiver);}catch(Exception ignored){}
+        stopVisualizer();super.onDestroy();
+    }
     private final class SongAdapter extends RecyclerView.Adapter<SongRow>{
         private List<MusicPlaybackService.Song> items=new ArrayList<>();
         void set(List<MusicPlaybackService.Song> x){items=x;notifyDataSetChanged();}
