@@ -1,0 +1,68 @@
+name: Publish ALI CAR 3.6.0 tested APK
+
+on:
+  push:
+    branches: ["ali-car-system/3.0.0-clean-rebuild"]
+    paths:
+      - ".github/workflows/publish-ali-car-3-6-0.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download the verified API 21 x86 APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ALI-CAR-3.6.0-API21-X86-APK
+          repository: ${{ github.repository }}
+          run-id: 43511439584
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: release-package
+
+      - name: Verify APK and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="release-package/ALI-Car-System-3.6.0-api21-x86-debug.apk"
+          test -s "$APK"
+          EXPECTED="$(awk 'NR==1 {print $1}' release-package/SHA256SUMS.txt)"
+          ACTUAL="$(sha256sum "$APK" | awk '{print $1}')"
+          test -n "$EXPECTED"
+          test "$EXPECTED" = "$ACTUAL"
+          grep -F "Version: 3.6.0" release-package/BUILD-INFO.txt
+          grep -F "Minimum Android: 5.0 / API 21" release-package/BUILD-INFO.txt
+          grep -F "Target SDK: 22" release-package/BUILD-INFO.txt
+          echo "Verified APK SHA256: $ACTUAL"
+          ls -lh "$APK"
+
+      - name: Publish GitHub release with direct APK download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ali-car-v3.6.0-api21-x86
+          target_commitish: 243a1c4ca9ffd5b5580a096e5c3e290d07f8a110
+          name: ALI CAR 3.6.0 — Android 5 / x86
+          draft: false
+          prerelease: false
+          make_latest: false
+          generate_release_notes: false
+          body: |
+            ALI CAR 3.6.0 for ASUS ZenPad C 7.0 / P01Y (Intel SoFIA 3GR, x86 32-bit).
+
+            - Minimum Android: 5.0 / API 21
+            - Target SDK: 22
+            - Package: com.ali.carsystem
+            - Offline Syria vector map, places database and local BRouter road routing included.
+            - Animated redesigned welcome screen.
+            - API 21 x86 emulator tests: 11/11 passed.
+
+            Build type: Debug-signed testing APK. This is not a production Release-key build.
+          files: |
+            release-package/ALI-Car-System-3.6.0-api21-x86-debug.apk
+            release-package/SHA256SUMS.txt
+            release-package/BUILD-INFO.txt
+          fail_on_unmatched_files: true
