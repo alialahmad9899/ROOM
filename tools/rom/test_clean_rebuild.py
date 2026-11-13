@@ -53,7 +53,7 @@ require("audioStreams" in VIDEO and "videoOnly" in VIDEO,"Piped separate audio a
 require("encodeQuery" in VIDEO,"UTF-8 query contract")
 require("osmdroid-android:6.1.20" in GRADLE,"pinned OSMDroid")
 require("play-services-location:21.0.1" in GRADLE,"Google Play fused location API compatible with API 21")
-require("OfflineRoutingEngine.requestRoutes" in NAV and "offline-brouter" in NAV and "RouteNetworkClient" not in NAV,"offline BRouter is sole routing engine")
+require("OfflineRoutingEngine.requestRoutes" in NAV and "RouteNetworkClient" not in NAV and "offline-brouter" in (SRC/"java/com/ali/carsystem/OfflineRoutingEngine.java").read_text(encoding="utf-8"),"offline BRouter is sole routing engine")
 require("chooseDestination" in NAV and "setItems(labels" in NAV,"multiple place search results selectable")
 require("MapsForgeTileSource.createFromFiles" in NAV and "MapsForgeTileProvider" in NAV,"offline Syria vector map renderer")
 require("OfflinePlacesDb.search" in NAV and "GeocodingClient" not in NAV,"local POI search only")
