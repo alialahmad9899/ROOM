@@ -24,6 +24,9 @@ public final class MusicActivity extends BaseActivity {
     private float sleepPreviousBrightness=-1f;
     private boolean sleepBrightnessCaptured;
     private final Runnable idleSleep=new Runnable(){@Override public void run(){showMusicSleep();}};
+    private final Runnable sleepClockTick=new Runnable(){@Override public void run(){
+        if(sleepClock!=null){sleepClock.setText(new java.text.SimpleDateFormat("HH:mm",Locale.US).format(new Date()));handler.postDelayed(this,1000L);}
+    }};
     private final Runnable ticker=new Runnable(){@Override public void run(){updateProgress();handler.postDelayed(this,250);}};
     private final ServiceConnection connection=new ServiceConnection(){
         @Override public void onServiceConnected(ComponentName n,IBinder b){
@@ -77,13 +80,14 @@ public final class MusicActivity extends BaseActivity {
         FrameLayout.LayoutParams wakeLp=new FrameLayout.LayoutParams(-2,dp(46),Gravity.TOP|Gravity.RIGHT);
         wakeLp.setMargins(0,dp(14),dp(14),0);overlay.addView(wake,wakeLp);
         wake.setOnClickListener(v->{dismissMusicSleep();scheduleMusicSleep();});
-        sleepOverlay=overlay;
+        sleepOverlay=overlay;handler.removeCallbacks(sleepClockTick);handler.post(sleepClockTick);
         WindowManager.LayoutParams params=getWindow().getAttributes();
         if(!sleepBrightnessCaptured){sleepPreviousBrightness=params.screenBrightness;sleepBrightnessCaptured=true;}
         params.screenBrightness=.045f;getWindow().setAttributes(params);
         addContentView(overlay,new ViewGroup.LayoutParams(-1,-1));
     }
     private void dismissMusicSleep(){
+        handler.removeCallbacks(sleepClockTick);
         if(sleepOverlay!=null){
             ViewGroup parent=(ViewGroup)sleepOverlay.getParent();
             if(parent!=null)parent.removeView(sleepOverlay);
