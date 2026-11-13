@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import java.util.ArrayList;
@@ -58,6 +59,7 @@ public final class NavigationService extends Service implements LocationListener
     private double startProgressMeters;
     private boolean arabicVoiceReady;
     private boolean locationRegistered;
+    private boolean routeActive;
     private boolean arrived;
     private int currentTurnIndex = -1;
     private int spokenStage;
@@ -92,12 +94,16 @@ public final class NavigationService extends Service implements LocationListener
         }
 
         if (!configureRoute(routeJson)) {
+            routeActive = false;
             statusText = "تعذر استعادة المسار؛ افتح الخريطة وحدد الوجهة مجدداً";
+            getPreferences().edit().putBoolean(KEY_ACTIVE, false).putString(KEY_STATE, statusText).apply();
             broadcastState(false, null, 0, 0, 0, statusText);
             stopSelf(startId);
             return START_NOT_STICKY;
         }
 
+        routeActive = true;
+        statusText = "الملاحة نشطة • بانتظار تثبيت موقع GPS";
         getPreferences().edit().putBoolean(KEY_ACTIVE, true).putString(KEY_STATE, statusText).apply();
         startForeground(NOTIFICATION_ID, buildNotification(statusText));
         acquireNavigationWakeLock();
@@ -157,6 +163,7 @@ public final class NavigationService extends Service implements LocationListener
             spokenStage = 0;
             offRouteFixes = 0;
             arrived = false;
+            routeActive = true;
             startProgressMeters = 0;
             statusText = "جارٍ تحديد موقع السيارة";
             return true;
@@ -177,11 +184,11 @@ public final class NavigationService extends Service implements LocationListener
                 publishStatus();
                 return;
             }
+            statusText = "الملاحة نشطة • بانتظار تثبيت موقع GPS";
             locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 2f, this);
             locationRegistered = true;
             Location last = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
             if (last != null) onLocationChanged(last);
-            statusText = "الملاحة نشطة • بانتظار تثبيت موقع GPS";
             publishStatus();
         } catch (SecurityException error) {
             statusText = "إذن الموقع غير متاح؛ لن يصدر التطبيق تعليمات صوتية";
@@ -271,17 +278,17 @@ public final class NavigationService extends Service implements LocationListener
             return;
         }
 
-        if (metres <= 500.0 && spokenStage < 1) {
-            speak("بعد " + spokenDistance(metres) + "، " + instruction);
-            spokenStage = 1;
-        }
-        if (metres <= 150.0 && spokenStage < 2) {
-            speak("استعد، بعد " + spokenDistance(metres) + "، " + instruction);
-            spokenStage = 2;
-        }
+        // Speak only the most urgent stage reached by this GPS fix. This avoids
+        // replacing one phrase with another if GPS jumps over several thresholds.
         if (metres <= 35.0 && spokenStage < 3) {
             speak("الآن، " + instruction);
             spokenStage = 3;
+        } else if (metres <= 150.0 && spokenStage < 2) {
+            speak("استعد، بعد " + spokenDistance(metres) + "، " + instruction);
+            spokenStage = 2;
+        } else if (metres <= 500.0 && spokenStage < 1) {
+            speak("بعد " + spokenDistance(metres) + "، " + instruction);
+            spokenStage = 1;
         }
 
         statusText = display;
@@ -313,8 +320,10 @@ public final class NavigationService extends Service implements LocationListener
     }
 
     private void publishStatus() {
-        broadcastState(true, null, 0, totalDistanceMeters, totalDurationMinutes, statusText);
-        updateNotification(statusText);
+        broadcastState(routeActive, null, 0,
+                routeActive ? totalDistanceMeters : 0,
+                routeActive ? totalDurationMinutes : 0, statusText);
+        if (routeActive) updateNotification(statusText);
     }
 
     private void broadcastState(boolean active, RouteProgressEngine.Progress progress,
@@ -432,6 +441,7 @@ public final class NavigationService extends Service implements LocationListener
     }
 
     private void stopNavigation() {
+        routeActive = false;
         getPreferences().edit().putBoolean(KEY_ACTIVE, false).putString(KEY_STATE, "تم إيقاف الملاحة").remove(KEY_ROUTE).apply();
         statusText = "تم إيقاف الملاحة";
         broadcastState(false, null, 0, 0, 0, statusText);
