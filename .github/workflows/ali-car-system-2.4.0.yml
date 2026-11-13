@@ -1,0 +1,73 @@
+name: ALI CAR 2.4.0 - Arabic Navigation and Stable Music
+
+on:
+  push:
+    branches:
+      - "ali-car-system/2.4.0-arabic-guidance-2026-11-14"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Run unit tests and build APK
+        working-directory: ali-car-system
+        run: gradle --no-daemon clean :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Verify API level, package, version and APK signature
+        working-directory: ali-car-system
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          BADGING="$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK")"
+          echo "$BADGING" | grep -F "package: name='com.ali.carsystem' versionCode='15' versionName='2.4.0'"
+          echo "$BADGING" | grep -F "sdkVersion:'21'"
+          echo "$BADGING" | grep -F "targetSdkVersion:'22'"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          mkdir -p artifacts
+          sha256sum "$APK" | tee artifacts/ALI-CAR-2.4.0-API21-SHA256.txt
+          cp "$APK" artifacts/ALI-CAR-2.4.0-API21-x86-debug.apk
+          cat > artifacts/BUILD-INFO.txt <<'EOF'
+          ALI CAR 2.4.0
+          Package: com.ali.carsystem
+          Minimum Android: 5.0 / API 21
+          Target API: 22
+          Architecture: built as the application APK (device ABI compatibility to be checked on tablet)
+          Signature: Debug
+          Navigation: foreground GPS service with Arabic-only TextToSpeech
+          Music: persistent playback service with navigation ducking
+          EOF
+
+      - name: Upload verified APK and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALI-CAR-2.4.0-API21-APK
+          path: ali-car-system/artifacts/
+          if-no-files-found: error
