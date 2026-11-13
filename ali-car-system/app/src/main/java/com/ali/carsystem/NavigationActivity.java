@@ -26,6 +26,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private long lastSearch;private boolean waitingForFix;
     private boolean gpsRegistered,networkRegistered,criteriaRegistered,gpsStatusRegistered,gpsEngineStarted;
     private String providerError="",criteriaProvider="لم يتم اختياره",lastFixProvider="لا يوجد";
+    private String gpsProviderStatus="غير معروف",networkProviderStatus="غير معروف",assistanceResult="لم يتم طلب تحديث A-GPS";
     private int satellitesVisible,satellitesUsed,timeToFirstFixMs=-1;
     private float lastFixAccuracy=-1f;
     private long lastFixElapsedNanos;
@@ -193,7 +194,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             StringBuilder out=new StringBuilder(provider+": ").append(enabled?"مفعّل":"متوقف");
             if(l==null)return out.append(" • لا توجد قراءة محفوظة").toString();
             float accuracy=l.hasAccuracy()?l.getAccuracy():-1f;
-            long ageMs=isFreshLocation(l,86400000)?Math.max(0,(SystemClock.elapsedRealtimeNanos()-l.getElapsedRealtimeNanos())/1000000L)
+            long elapsedFix=l.getElapsedRealtimeNanos(),elapsedNow=SystemClock.elapsedRealtimeNanos();
+            long ageMs=elapsedFix>0&&elapsedNow>=elapsedFix
+                    ?(elapsedNow-elapsedFix)/1000000L
                     :Math.max(0,System.currentTimeMillis()-l.getTime());
             out.append(" • آخر قراءة قبل ").append(ageMs/1000).append(" ثانية");
             out.append(" • الدقة ").append(accuracy>0?Math.round(accuracy)+" متر":"غير معروفة");
@@ -210,11 +213,11 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             int mode=Settings.Secure.getInt(getContentResolver(),Settings.Secure.LOCATION_MODE,Settings.Secure.LOCATION_MODE_OFF);
             b.append("وضع الموقع في Android: ").append(mode==Settings.Secure.LOCATION_MODE_OFF?"متوقف":mode==Settings.Secure.LOCATION_MODE_HIGH_ACCURACY?"دقة عالية":mode==Settings.Secure.LOCATION_MODE_BATTERY_SAVING?"توفير بطارية":"GPS فقط").append("\n");
         }catch(Exception ignored){}
-        b.append("GPS: ").append(providerReport(LocationManager.GPS_PROVIDER)).append("\n");
-        b.append("الشبكة: ").append(providerReport(LocationManager.NETWORK_PROVIDER)).append("\n");
+        b.append("GPS: ").append(providerReport(LocationManager.GPS_PROVIDER)).append(" • حالة المزود: ").append(gpsProviderStatus).append("\n");
+        b.append("الشبكة: ").append(providerReport(LocationManager.NETWORK_PROVIDER)).append(" • حالة المزود: ").append(networkProviderStatus).append("\n");
         b.append("Passive: ").append(providerReport(LocationManager.PASSIVE_PROVIDER)).append("\n");
         b.append("مسار Criteria/Fused: ").append(criteriaRegistered?"تم تسجيل الطلب":"لم يتم تسجيل الطلب").append(" • أفضل مزود: ").append(criteriaProvider).append("\n");
-        b.append("محرك GPS: ").append(gpsEngineStarted?"بدأ":"لم يبدأ / لا توجد إشارة حالة").append("\n");
+        b.append("محرك GPS: ").append(gpsEngineStarted?"بدأ":"لم يبدأ / لا توجد إشارة حالة").append("\n");\n        b.append("A-GPS/XTRA: ").append(assistanceResult).append("\n");
         b.append("الأقمار: مرئية ").append(satellitesVisible).append(" • مستخدمة ").append(satellitesUsed);
         if(timeToFirstFixMs>=0)b.append(" • زمن أول تثبيت ").append(timeToFirstFixMs/1000f).append(" ثانية");
         b.append("\n");
@@ -239,8 +242,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                     current=null;requestLocationSources();
                     if(destination!=null){waitingForFix=true;drawRouteIfPossible();}
                 })
-                .setNeutralButton("إعدادات الموقع",(d,w)->openLocationSettings())
-                .setNegativeButton("إغلاق",null)
+                .setNeutralButton("تحديث A-GPS",(d,w)->refreshGpsAssistanceData())
+                .setNegativeButton("إعدادات الموقع",(d,w)->openLocationSettings())
                 .show();
     }
     private void showDestination(){
@@ -326,8 +329,26 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     @Override public void onProviderEnabled(String p){if(status!=null)status.setText("تم تفعيل "+p+" — جارٍ طلب تحديث جديد");requestLocationSources();}
     @Override public void onProviderDisabled(String p){if(status!=null)status.setText("تم إيقاف "+p+" — فعّل الموقع من الإعدادات");}
     @Override public void onStatusChanged(String p,int state,Bundle b){
-        if(LocationManager.GPS_PROVIDER.equals(p)&&state==LocationProvider.TEMPORARILY_UNAVAILABLE&&status!=null)
-            status.setText("GPS مفعّل لكن لم يصل تثبيت أقمار بعد — ابقَ قرب نافذة أو في مكان مفتوح");
+        String label=state==LocationProvider.AVAILABLE?"متاح":state==LocationProvider.TEMPORARILY_UNAVAILABLE?"بانتظار إشارة":state==LocationProvider.OUT_OF_SERVICE?"خارج الخدمة":"غير معروف";
+        if(LocationManager.GPS_PROVIDER.equals(p))gpsProviderStatus=label;
+        if(LocationManager.NETWORK_PROVIDER.equals(p))networkProviderStatus=label;
+        if(LocationManager.GPS_PROVIDER.equals(p)&&state==LocationProvider.TEMPORARILY_UNAVAILABLE&&status!=null&&destination!=null)
+            status.setText("GPS مفعّل لكن ينتظر تثبيت الأقمار • مرئية "+satellitesVisible+" / مستخدمة "+satellitesUsed);
+    }
+    private void refreshGpsAssistanceData(){
+        if(lm==null||!hasFineLocationPermission()){
+            assistanceResult="تعذر طلب تحديث المساعدة: لا توجد صلاحية موقع دقيق";
+            android.widget.Toast.makeText(this,assistanceResult,android.widget.Toast.LENGTH_LONG).show();return;
+        }
+        boolean timeInjected=false,xtraRequested=false;
+        try{timeInjected=lm.sendExtraCommand(LocationManager.GPS_PROVIDER,"force_time_injection",null);}catch(Exception ignored){}
+        try{xtraRequested=lm.sendExtraCommand(LocationManager.GPS_PROVIDER,"force_xtra_injection",null);}catch(Exception ignored){}
+        if(timeInjected||xtraRequested)
+            assistanceResult="قبل برنامج GPS طلب المساعدة (وقت: "+timeInjected+"، XTRA: "+xtraRequested+"). التنزيل يعتمد على دعم Firmware.";
+        else
+            assistanceResult="برنامج GPS لم يقبل أو لا يدعم أوامر XTRA/وقت المساعدة.";
+        android.widget.Toast.makeText(this,assistanceResult,android.widget.Toast.LENGTH_LONG).show();
+        try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,0,this);}catch(Exception ignored){}
     }
     private static final class GeoResult{final GeoPoint point;final String name,error;GeoResult(String e){point=null;name="";error=e;}GeoResult(GeoPoint p,String n){point=p;name=n;error=null;}}
     private static final class Maneuver{final GeoPoint point;final String text;Maneuver(GeoPoint p,String t){point=p;text=t;}}
