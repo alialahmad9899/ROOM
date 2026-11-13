@@ -181,9 +181,16 @@ final class OfflineMapsManager {
 
         File map = new File(staging, "syria.map");
         File places = new File(staging, "syria-places.sqlite");
-        File segment = new File(staging, "brouter/segments4/E35_N30.rd5");
+        String[] requiredSegments = {"E35_N30.rd5", "E35_N35.rd5", "E40_N30.rd5", "E40_N35.rd5"};
+        boolean segmentsReady = true;
+        for (String segmentName : requiredSegments) {
+            File segment = new File(staging, "brouter/segments4/" + segmentName);
+            if (!segment.isFile() || segment.length() < 4096) segmentsReady = false;
+        }
+        File carProfile = new File(staging, "brouter/profiles2/car-fast.brf");
+        File lookups = new File(staging, "brouter/profiles2/lookups.dat");
         if (!map.isFile() || map.length() < 1024 || !places.isFile() || places.length() < 1024
-                || !segment.isFile()) {
+                || !segmentsReady || !carProfile.isFile() || !lookups.isFile()) {
             deleteTree(staging);
             throw new IllegalArgumentException("الحزمة ناقصة: يلزم ملف الخريطة وقاعدة الأماكن وبيانات التوجيه");
         }
