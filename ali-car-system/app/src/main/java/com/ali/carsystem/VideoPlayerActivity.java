@@ -77,7 +77,7 @@ public final class VideoPlayerActivity extends BaseActivity {
         if(VideoApi.StreamInfo.SPLIT.equals(info.kind)){
             MediaSource video=new ProgressiveMediaSource.Factory(data).createMediaSource(MediaItem.fromUri(info.url));
             MediaSource audio=new ProgressiveMediaSource.Factory(data).createMediaSource(MediaItem.fromUri(info.audioUrl));
-            return new MergingMediaSource(video,audio);
+            return new MergingMediaSource(true,true,video,audio);
         }
         return new ProgressiveMediaSource.Factory(data).createMediaSource(source);
     }
