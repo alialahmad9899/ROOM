@@ -26,7 +26,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private TextView gpsStatus, songTitle, digitalClock, dateLabel;
     private LocationManager locationManager;
     private Location previousFix;
-    private boolean gpsStarted, splashPending=true, ttsReady, pendingSpeak;
+    private boolean gpsStarted, dashboardCriteriaRegistered, splashPending=true, ttsReady, pendingSpeak;
     private TextToSpeech tts;
     private double tripKm, odometerKm;
     private float maxSpeed;
@@ -266,19 +266,38 @@ public final class MainActivity extends BaseActivity implements LocationListener
         if(locationManager==null||gpsStarted)return;
         if(checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")!=android.content.pm.PackageManager.PERMISSION_GRANTED&&checkCallingOrSelfPermission("android.permission.ACCESS_COARSE_LOCATION")!=android.content.pm.PackageManager.PERMISSION_GRANTED)return;
         boolean registered=false;
-        try{if(locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)){locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,1,this);registered=true;}}catch(Exception ignored){}
-        try{if(locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)){locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1500,3,this);registered=true;}}catch(Exception ignored){}
+        try{if(locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)){locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,0,this);registered=true;}}catch(Exception ignored){}
+        try{if(locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)){locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1500,0,this);registered=true;}}catch(Exception ignored){}
+        try{
+            Criteria criteria=new Criteria();criteria.setAccuracy(Criteria.ACCURACY_FINE);
+            criteria.setPowerRequirement(Criteria.POWER_HIGH);criteria.setAltitudeRequired(false);
+            criteria.setBearingRequired(false);criteria.setSpeedRequired(false);criteria.setCostAllowed(true);
+            locationManager.requestLocationUpdates(1000,0,criteria,this,Looper.getMainLooper());
+            dashboardCriteriaRegistered=true;registered=true;
+        }catch(Exception ignored){}
         gpsStarted=registered;
         Location last=bestLastKnown();if(last!=null)onLocationChanged(last);
-        if(!registered&&gpsStatus!=null)gpsStatus.setText("فعّل خدمات الموقع للحصول على السرعة");
+        if(!registered&&gpsStatus!=null)gpsStatus.setText("بانتظار خدمات GPS أو الموقع المدمج");
+    }
+    private boolean freshDashboardLocation(Location l){
+        if(l==null||!l.hasAccuracy()||l.getAccuracy()>150f)return false;
+        long fix=l.getElapsedRealtimeNanos(),now=SystemClock.elapsedRealtimeNanos();
+        if(fix>0&&now>=fix)return now-fix<=120000000000L;
+        return GeoMath.isUsableFix(l.getTime(),System.currentTimeMillis(),120000,l.getAccuracy());
     }
     private Location bestLastKnown(){
-        Location best=null;for(String p:new String[]{LocationManager.GPS_PROVIDER,LocationManager.NETWORK_PROVIDER}){
-            try{Location l=locationManager.getLastKnownLocation(p);if(l!=null&&(best==null||l.getTime()>best.getTime()))best=l;}catch(Exception ignored){}
+        Location best=null;
+        for(String p:new String[]{LocationManager.GPS_PROVIDER,LocationManager.NETWORK_PROVIDER,LocationManager.PASSIVE_PROVIDER}){
+            try{
+                if(!locationManager.getAllProviders().contains(p))continue;
+                Location l=locationManager.getLastKnownLocation(p);
+                if(!freshDashboardLocation(l))continue;
+                if(best==null||l.getElapsedRealtimeNanos()>best.getElapsedRealtimeNanos())best=l;
+            }catch(Exception ignored){}
         }return best;
     }
     @Override protected void onResume(){super.onResume();startGps();scheduleIdle();}
-    @Override protected void onPause(){handler.removeCallbacks(idleTick);if(locationManager!=null){try{locationManager.removeUpdates(this);}catch(Exception ignored){}}gpsStarted=false;super.onPause();}
+    @Override protected void onPause(){handler.removeCallbacks(idleTick);if(locationManager!=null){try{locationManager.removeUpdates(this);}catch(Exception ignored){}}gpsStarted=false;dashboardCriteriaRegistered=false;super.onPause();}
     @Override protected void onDestroy(){
         handler.removeCallbacksAndMessages(null);
         if(screenReceiver!=null)try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}
@@ -288,7 +307,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
         super.onDestroy();
     }
     @Override public void onLocationChanged(Location l){
-        if(l==null)return;lastDisplayedSpeed=l.hasSpeed()?l.getSpeed()*3.6f:0;
+        if(!freshDashboardLocation(l))return;
+        lastDisplayedSpeed=l.hasSpeed()?l.getSpeed()*3.6f:0;
         if(previousFix!=null&&l.getTime()>previousFix.getTime()){
             long dt=l.getTime()-previousFix.getTime();float acc=l.hasAccuracy()?l.getAccuracy():999;
             double m=GeoMath.distanceMeters(previousFix.getLatitude(),previousFix.getLongitude(),l.getLatitude(),l.getLongitude());
