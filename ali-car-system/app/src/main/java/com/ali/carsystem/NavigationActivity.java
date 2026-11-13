@@ -199,7 +199,10 @@ public final class NavigationActivity extends Activity implements LocationListen
         hideKeyboard();
         if(searchTask!=null)searchTask.cancel(true);
         if(routeTask!=null)routeTask.cancel(true);
-        routeTask=null;routeOptions.clear();selectedRoute=null;waitingForGps=false;
+        routeTask=null;routeOptions.clear();selectedRoute=null;waitingForGps=false;activeManeuverIndex=0;
+        if(routeLine!=null){map.getOverlays().remove(routeLine);routeLine=null;}
+        if(destinationMarker!=null){map.getOverlays().remove(destinationMarker);destinationMarker=null;}
+        pendingDestination=null;pendingDestinationName=null;
         retryRouteButton.setVisibility(View.GONE);renderRouteChoices();
         loadLastKnownLocation();routeStatus.setText("جارٍ البحث عن الوجهة...");
         maneuverBanner.setText("يتم تحديد موقع الوجهة");
