@@ -2,6 +2,7 @@ package com.ali.carsystem;
 
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewGroup;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -16,7 +17,7 @@ public final class DashboardSleepSmokeTest {
             new ActivityTestRule<>(MainActivity.class);
 
     @Test public void dashboardHasEqualLargeAnalogClockAndSpeedDial() {
-        View content = activity.getActivity().findViewById(android.R.id.content);
+        ViewGroup content = (ViewGroup) activity.getActivity().findViewById(android.R.id.content);
         View speed = content.findViewWithTag("dashboard_speed_gauge");
         View clock = content.findViewWithTag("dashboard_analog_clock");
         assertNotNull(speed);
@@ -27,16 +28,21 @@ public final class DashboardSleepSmokeTest {
 
     @Test public void sleepModeDimsScreenUntilExplicitWakeButtonIsPressed() {
         MainActivity main = activity.getActivity();
-        View content = main.findViewById(android.R.id.content);
+        ViewGroup content = (ViewGroup) main.findViewById(android.R.id.content);
         View sleep = content.findViewWithTag("dashboard_sleep_toggle");
         assertNotNull(sleep);
+        final float oldBrightness = main.getWindow().getAttributes().screenBrightness;
         InstrumentationRegistry.getInstrumentation().runOnMainSync(sleep::performClick);
         View overlay = content.findViewWithTag("ambient_sleep_overlay");
         assertNotNull(overlay);
+        assertTrue("Sleep overlay must dim the app window",
+                main.getWindow().getAttributes().screenBrightness <= 0.05f);
         assertNotNull(((ViewGroup) overlay).findViewWithTag("ambient_sleep_time"));
         View wake = ((ViewGroup) overlay).findViewWithTag("ambient_wake_button");
         assertNotNull(wake);
         InstrumentationRegistry.getInstrumentation().runOnMainSync(wake::performClick);
         assertNull(content.findViewWithTag("ambient_sleep_overlay"));
+        assertEquals("Sleep mode must restore the previous brightness", oldBrightness,
+                main.getWindow().getAttributes().screenBrightness, 0.001f);
     }
 }
