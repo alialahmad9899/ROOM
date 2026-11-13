@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
 
         <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -44,6 +45,13 @@
             android:exported="false" android:configChanges="keyboardHidden|orientation|screenSize"/>
         <activity android:name=".AdminToolsActivity" android:screenOrientation="landscape"
             android:exported="false"/>
+        <service android:name=".NavigationService" android:enabled="true" android:exported="false"/>
+        <receiver android:name=".PowerReceiver" android:enabled="true" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED"/>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED"/>
+            </intent-filter>
+        </receiver>
         <receiver android:name=".BootReceiver" android:enabled="true" android:exported="true">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter>
         </receiver>
