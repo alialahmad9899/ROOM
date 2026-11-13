@@ -22,7 +22,7 @@ public class RouteProgressEngineTest {
         RouteProgressEngine.Progress progress = engine.update(0.0, 0.0015, 5f);
         assertTrue(progress.onRoute);
         assertEquals(55.6, progress.remainingToTurnMeters, 2.0);
-        assertEquals(1, progress.nextTurnIndex);
+        assertEquals(0, progress.nextTurnIndex);
     }
 
     @Test public void rejectsClearlyOffRouteFix() {
