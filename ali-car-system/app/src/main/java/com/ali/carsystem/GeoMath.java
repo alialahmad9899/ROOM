@@ -14,6 +14,13 @@ public final class GeoMath {
         double v=distanceMeters/(elapsedMillis/1000d)*3.6d;
         return (!Double.isNaN(v) && !Double.isInfinite(v)) ? Math.max(0,Math.min(350,v)) : 0;
     }
+    public static boolean isFreshElapsedFix(long fixElapsedRealtimeNanos,long nowElapsedRealtimeNanos,long maxAgeMs) {
+        return fixElapsedRealtimeNanos>0 && nowElapsedRealtimeNanos>=fixElapsedRealtimeNanos &&
+                nowElapsedRealtimeNanos-fixElapsedRealtimeNanos<=maxAgeMs*1000000L;
+    }
+    public static boolean isAccuracyUsable(float accuracyMeters,float maxAccuracyMeters) {
+        return accuracyMeters>0 && accuracyMeters<=maxAccuracyMeters;
+    }
     public static boolean isUsableFix(long fixTime,long now,long maxAgeMs,float accuracyMeters) {
         return fixTime > 0 && now >= fixTime && now-fixTime <= maxAgeMs &&
                 (accuracyMeters <= 0 || accuracyMeters <= 100f);
