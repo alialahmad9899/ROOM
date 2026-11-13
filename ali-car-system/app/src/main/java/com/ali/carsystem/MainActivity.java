@@ -36,7 +36,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private View ambientOverlay,welcomeOverlay;
     private float previousWindowBrightness=-1f;
     private boolean previousBrightnessCaptured;
-    private BroadcastReceiver screenReceiver,musicReceiver,powerReceiver,trackingReceiver;
+    private BroadcastReceiver screenReceiver,musicReceiver,powerReceiver,trackingReceiver,navigationReceiver;
     private boolean charging, musicPlaying;
 
     @Override protected void onCreate(Bundle state) {
@@ -79,6 +79,14 @@ public final class MainActivity extends BaseActivity implements LocationListener
             updateStats();
         }};
         registerReceiver(trackingReceiver,new IntentFilter(LocationTrackingService.ACTION_UPDATE));
+        navigationReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
+            if(!NavigationGuidanceService.ACTION_STATE.equals(i.getAction()))return;
+            String guidance=i.getStringExtra("guidance");
+            boolean active=i.getBooleanExtra("active",false);
+            if(gpsStatus!=null&&guidance!=null)gpsStatus.setText(active?guidance:"GPS نشط • "+guidance);
+            applySleepPolicy();
+        }};
+        registerReceiver(navigationReceiver,new IntentFilter(NavigationGuidanceService.ACTION_STATE));
         powerReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
             if(Intent.ACTION_POWER_CONNECTED.equals(i.getAction()))charging=true;
             else if(Intent.ACTION_POWER_DISCONNECTED.equals(i.getAction()))charging=false;
@@ -124,7 +132,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     static boolean shouldAllowAutomaticSleep(boolean isCharging,boolean isMusicPlaying,boolean isNavigationActive){
         return !isCharging&&!isMusicPlaying&&!isNavigationActive;
     }
-    private boolean sleepBlocked(){return !shouldAllowAutomaticSleep(charging,musicPlaying,false);}
+    private boolean sleepBlocked(){return !shouldAllowAutomaticSleep(charging,musicPlaying,NavigationGuidanceService.isActive(this));}
     private boolean manualSleep;
     private void refreshChargingState(){
         try{
@@ -446,6 +454,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         if(musicReceiver!=null)try{unregisterReceiver(musicReceiver);}catch(Exception ignored){}
         if(powerReceiver!=null)try{unregisterReceiver(powerReceiver);}catch(Exception ignored){}
         if(trackingReceiver!=null)try{unregisterReceiver(trackingReceiver);}catch(Exception ignored){}
+        if(navigationReceiver!=null)try{unregisterReceiver(navigationReceiver);}catch(Exception ignored){}
         dismissWelcome();
         if(tts!=null){try{tts.stop();tts.shutdown();}catch(Exception ignored){}}
         super.onDestroy();
