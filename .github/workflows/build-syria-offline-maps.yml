@@ -77,7 +77,8 @@ jobs:
             offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS.zip.sha256
             offline-map-output/SHA256SUMS.txt
             offline-map-output/syria-pbf.sha256
-            offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS/ATTRIBUTION.txt
+            offline-map-output/package/ATTRIBUTION.txt
+            offline-map-output/package/BUILD-INFO.txt
           if-no-files-found: warn
           retention-days: 90
           compression-level: 0
