@@ -23,7 +23,23 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private GeoPoint destination;private String destinationName="";private Polyline routeLine;private Marker destMarker,carMarker;
     private AsyncTask<Void,Void,RouteResult> routeTask;private AsyncTask<String,Void,GeoResult> geocodeTask;
     private List<Maneuver> activeManeuvers=Collections.emptyList();
-    private long lastSearch;private boolean waitingForFix;private boolean gpsRegistered,networkRegistered;private String providerError="";
+    private long lastSearch;private boolean waitingForFix;private boolean gpsRegistered,networkRegistered,gpsStatusRegistered;private String providerError="";
+    private int satellitesVisible,satellitesUsed;
+    private final GpsStatus.Listener gpsStatusListener=new GpsStatus.Listener(){
+        @Override public void onGpsStatusChanged(int event){
+            if(lm==null)return;
+            if(event==GpsStatus.GPS_EVENT_SATELLITE_STATUS||event==GpsStatus.GPS_EVENT_FIRST_FIX){
+                try{
+                    GpsStatus gps=lm.getGpsStatus(null);int visible=0,used=0;
+                    if(gps!=null)for(GpsSatellite satellite:gps.getSatellites()){
+                        visible++;if(satellite.usedInFix())used++;
+                    }
+                    satellitesVisible=visible;satellitesUsed=used;
+                    if(status!=null&&destination!=null&&waitingForFix)status.setText(gpsStatusText());
+                }catch(SecurityException ignored){}
+            }
+        }
+    };
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     @Override protected void onCreate(Bundle b){super.onCreate(b);
         Configuration.getInstance().load(this,getSharedPreferences("osmdroid",MODE_PRIVATE));
@@ -87,6 +103,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         boolean gpsOn=false,networkOn=false;
         try{gpsOn=lm.isProviderEnabled(LocationManager.GPS_PROVIDER);}catch(Exception ignored){}
         try{networkOn=lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);}catch(Exception ignored){}
+        if(gpsOn&&!gpsStatusRegistered)try{gpsStatusRegistered=lm.addGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}
         if(gpsOn)try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,0,this);gpsRegistered=true;}
             catch(SecurityException e){providerError="رفض النظام إذن GPS";}
             catch(Exception e){providerError="تعذر التسجيل في GPS: "+e.getClass().getSimpleName();}
@@ -146,7 +163,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         for(Maneuver m:steps){double d=GeoMath.distanceMeters(l.getLatitude(),l.getLongitude(),m.point.getLatitude(),m.point.getLongitude());if(d>15&&d<best){best=d;next=m.text+" — بعد "+Math.round(d)+" متر";}}
         maneuver.setText(next);
     }
-    private String gpsStatusText(){return "GPS "+(gpsRegistered?"يبحث عن الأقمار":"غير مسجّل")+" — الشبكة "+(networkRegistered?"متاحة":"غير متاحة")+" — اضغط هنا للتشخيص";}
+    private String gpsStatusText(){
+        return "GPS "+(gpsRegistered?"يبحث عن الأقمار":"غير مسجّل")+" • الأقمار مرئية "+satellitesVisible+" / مستخدمة "+satellitesUsed+
+                " • الشبكة "+(networkRegistered?"متاحة":"غير متاحة")+" — اضغط هنا للتشخيص";
+    }
     @Override public void onLocationChanged(Location l){
         if(l==null)return;current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
         float accuracy=l.hasAccuracy()?l.getAccuracy():999;
@@ -155,7 +175,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(status!=null&&destination==null)status.setText("تم استقبال موقع "+l.getProvider()+" — الدقة ±"+Math.round(accuracy)+" متر");
     }
     @Override protected void onResume(){super.onResume();if(map!=null)map.onResume();loadLastKnown();requestLocationSources();if(current!=null)showCar(current);if(destination!=null)drawRouteIfPossible();}
-    @Override protected void onPause(){if(lm!=null)try{lm.removeUpdates(this);}catch(Exception ignored){}gpsRegistered=false;networkRegistered=false;if(map!=null)map.onPause();super.onPause();}
+    @Override protected void onPause(){if(lm!=null)try{lm.removeUpdates(this);}catch(Exception ignored){}gpsRegistered=false;networkRegistered=false;if(gpsStatusRegistered&&lm!=null){try{lm.removeGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}gpsStatusRegistered=false;}if(map!=null)map.onPause();super.onPause();}
     @Override protected void onDestroy(){if(geocodeTask!=null)geocodeTask.cancel(true);if(routeTask!=null)routeTask.cancel(true);if(map!=null){map.onDetach();map=null;}super.onDestroy();}
     @Override public void onProviderEnabled(String p){if(status!=null)status.setText("تم تفعيل "+p+" — جارٍ طلب تحديث جديد");requestLocationSources();}
     @Override public void onProviderDisabled(String p){if(status!=null)status.setText("تم إيقاف "+p+" — فعّل الموقع من الإعدادات");}
