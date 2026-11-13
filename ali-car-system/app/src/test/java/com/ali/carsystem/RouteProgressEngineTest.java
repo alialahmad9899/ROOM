@@ -44,4 +44,9 @@ public class RouteProgressEngineTest {
         assertTrue(progress.onRoute);
         assertEquals(222.4, progress.remainingRouteMeters, 2.0);
     }
+
+    @Test public void rejectsOppositeDirectionWhileVehicleIsMoving() {
+        RouteProgressEngine.Progress progress = engine().update(0.0, 0.0015, 5f, 270f, 10f);
+        assertFalse(progress.onRoute);
+    }
 }
