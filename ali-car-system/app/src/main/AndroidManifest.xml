@@ -46,6 +46,7 @@
         <activity android:name=".AdminToolsActivity" android:screenOrientation="landscape"
             android:exported="false"/>
         <service android:name=".NavigationService" android:enabled="true" android:exported="false"/>
+        <service android:name=".MusicPlaybackService" android:enabled="true" android:exported="false"/>
         <receiver android:name=".PowerReceiver" android:enabled="true" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_POWER_CONNECTED"/>
