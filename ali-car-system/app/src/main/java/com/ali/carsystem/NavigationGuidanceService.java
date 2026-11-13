@@ -246,7 +246,7 @@ public final class NavigationGuidanceService extends Service implements Location
             }
         } else {
             offRouteFixes = 0;
-            offRouteSince = 0d;
+            offRouteSince = 0L;
         }
         updateNextManeuver();
         publishProgress();
