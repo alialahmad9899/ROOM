@@ -301,10 +301,6 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         for(Maneuver m:steps){double d=GeoMath.distanceMeters(l.getLatitude(),l.getLongitude(),m.point.getLatitude(),m.point.getLongitude());if(d>15&&d<best){best=d;next=m.text+" — بعد "+Math.round(d)+" متر";}}
         maneuver.setText(next);
     }
-    private String gpsStatusText(){
-        return "GPS "+(gpsRegistered?"يبحث عن الأقمار":"غير مسجّل")+" • الأقمار مرئية "+satellitesVisible+" / مستخدمة "+satellitesUsed+
-                " • الشبكة "+(networkRegistered?"متاحة":"غير متاحة")+" — اضغط هنا للتشخيص";
-    }
     @Override public void onLocationChanged(Location l){
         if(l==null)return;current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
         float accuracy=l.hasAccuracy()?l.getAccuracy():999;
