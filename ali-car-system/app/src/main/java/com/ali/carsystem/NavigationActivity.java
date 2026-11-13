@@ -124,7 +124,12 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             if(l==null||!isFreshLocation(l,300000))continue;
             float acc=l.hasAccuracy()?l.getAccuracy():999f;
             if(acc>350f)continue;
-            if(best==null||l.getElapsedRealtimeNanos()>best.getElapsedRealtimeNanos())best=l;
+            boolean newer=best==null;
+            if(best!=null){
+                long candidateElapsed=l.getElapsedRealtimeNanos(),bestElapsed=best.getElapsedRealtimeNanos();
+                newer=candidateElapsed>0&&bestElapsed>0?candidateElapsed>bestElapsed:l.getTime()>best.getTime();
+            }
+            if(newer)best=l;
         }catch(SecurityException e){providerError="صلاحية الموقع مرفوضة من النظام";}catch(Exception ignored){}
         if(best!=null){
             current=new Location(best);lastFixProvider=best.getProvider();
@@ -200,13 +205,15 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                     :Math.max(0,System.currentTimeMillis()-l.getTime());
             out.append(" • آخر قراءة قبل ").append(ageMs/1000).append(" ثانية");
             out.append(" • الدقة ").append(accuracy>0?Math.round(accuracy)+" متر":"غير معروفة");
-            out.append(" • ").append(String.format(Locale.US,"%.5f, %.5f",l.getLatitude(),l.getLongitude()));
             return out.toString();
         }catch(SecurityException e){return provider+": لا توجد صلاحية لقراءة الموقع";}
         catch(Exception e){return provider+": خطأ "+e.getClass().getSimpleName();}
     }
     private String buildGpsDiagnostics(){
         StringBuilder b=new StringBuilder();
+        b.append("الجهاز: ").append(Build.MANUFACTURER).append(" ").append(Build.MODEL).append("\n");
+        b.append("Firmware / Build: ").append(Build.DISPLAY).append(" • ").append(Build.VERSION.INCREMENTAL).append("\n");
+        b.append("Android: ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
         b.append("إذن الموقع الدقيق: ").append(hasFineLocationPermission()?"ممنوح":"غير ممنوح").append("\n");
         b.append("إذن الموقع التقريبي: ").append(checkCallingOrSelfPermission("android.permission.ACCESS_COARSE_LOCATION")==android.content.pm.PackageManager.PERMISSION_GRANTED?"ممنوح":"غير ممنوح").append("\n");
         try{
