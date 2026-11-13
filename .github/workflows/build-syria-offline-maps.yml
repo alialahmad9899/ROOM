@@ -1,0 +1,83 @@
+name: ALI CAR Syria Offline Map Package
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1"
+  push:
+    branches: ["ali-car-system/3.0.0-clean-rebuild"]
+    paths:
+      - "tools/maps/**"
+      - ".github/workflows/build-syria-offline-maps.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ali-car-syria-offline-map-package
+  cancel-in-progress: true
+
+jobs:
+  build-syria-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Osmosis and package tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmosis zip unzip curl git
+          python -m pip install --disable-pip-version-check osmium
+
+      - name: Build Mapsforge Osmosis writer
+        run: |
+          git clone --depth 1 --branch 0.21.0 https://github.com/mapsforge/mapsforge.git "$RUNNER_TEMP/mapsforge"
+          cd "$RUNNER_TEMP/mapsforge"
+          ./gradlew --no-daemon :mapsforge-map-writer:fatJar
+          JAR="$(find mapsforge-map-writer/build/libs -maxdepth 1 -type f -name '*jar-with-dependencies.jar' | head -n 1)"
+          test -s "$JAR"
+          mkdir -p "$GITHUB_WORKSPACE/offline-map-build"
+          cp "$JAR" "$GITHUB_WORKSPACE/offline-map-build/mapsforge-map-writer.jar"
+
+      - name: Build Syria map, places, and offline car routes
+        env:
+          JAVACMD_OPTIONS: "-Xmx4G"
+        run: bash tools/maps/build_syria_offline_package.sh
+
+      - name: Verify package layout and all required offline files
+        run: |
+          set -euo pipefail
+          PACKAGE="offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS.zip"
+          test -s "$PACKAGE"
+          unzip -t "$PACKAGE"
+          unzip -l "$PACKAGE" | tee offline-map-output/archive-list.txt
+          for path in             "syria.map"             "syria-places.sqlite"             "brouter/segments4/E35_N30.rd5"             "brouter/segments4/E35_N35.rd5"             "brouter/segments4/E40_N30.rd5"             "brouter/segments4/E40_N35.rd5"             "brouter/profiles2/car-fast.brf"             "brouter/profiles2/lookups.dat"; do
+              unzip -Z1 "$PACKAGE" | grep -Fx "$path"
+          done
+          sha256sum "$PACKAGE" > offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS.zip.sha256
+
+      - name: Upload Syria offline maps package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALI-CAR-SYRIA-OFFLINE-MAPS
+          path: |
+            offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS.zip
+            offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS.zip.sha256
+            offline-map-output/SHA256SUMS.txt
+            offline-map-output/syria-pbf.sha256
+            offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS/ATTRIBUTION.txt
+          if-no-files-found: warn
+          retention-days: 90
+          compression-level: 0
