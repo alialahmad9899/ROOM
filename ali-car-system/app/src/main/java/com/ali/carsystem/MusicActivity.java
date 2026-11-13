@@ -19,6 +19,11 @@ public final class MusicActivity extends BaseActivity {
     private long loadedAlbum=-1;private final Handler handler=new Handler(Looper.getMainLooper());
     private boolean charging,playing;
     private BroadcastReceiver stateReceiver,powerReceiver;
+    private FrameLayout sleepOverlay;
+    private TextView sleepClock;
+    private float sleepPreviousBrightness=-1f;
+    private boolean sleepBrightnessCaptured;
+    private final Runnable idleSleep=new Runnable(){@Override public void run(){showMusicSleep();}};
     private final Runnable ticker=new Runnable(){@Override public void run(){updateProgress();handler.postDelayed(this,250);}};
     private final ServiceConnection connection=new ServiceConnection(){
         @Override public void onServiceConnected(ComponentName n,IBinder b){
@@ -31,9 +36,64 @@ public final class MusicActivity extends BaseActivity {
         try{Intent i=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));charging=i!=null&&i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED,0)!=0;}
         catch(Exception ignored){charging=false;}
     }
+    private boolean sleepBlocked(){return charging||playing;}
     private void applyScreenPolicy(){
-        if(charging||playing)getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if(sleepBlocked()){
+            handler.removeCallbacks(idleSleep);
+            dismissMusicSleep();
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }else{
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            scheduleMusicSleep();
+        }
+    }
+    private void scheduleMusicSleep(){
+        handler.removeCallbacks(idleSleep);
+        if(!sleepBlocked()&&sleepOverlay==null&&!isFinishing())handler.postDelayed(idleSleep,90000L);
+    }
+    @Override public void onUserInteraction(){
+        super.onUserInteraction();
+        if(sleepOverlay==null)scheduleMusicSleep();
+    }
+    private void showMusicSleep(){
+        if(isFinishing()||sleepBlocked()||sleepOverlay!=null)return;
+        FrameLayout overlay=new FrameLayout(this);
+        overlay.setClickable(true);overlay.setBackgroundColor(0xFF02060C);
+        LinearLayout center=new LinearLayout(this);center.setOrientation(LinearLayout.VERTICAL);center.setGravity(Gravity.CENTER);
+        sleepClock=text(new java.text.SimpleDateFormat("HH:mm",Locale.US).format(new Date()),150,0xFFE7F8FF,true);
+        sleepClock.setGravity(Gravity.CENTER);sleepClock.setShadowLayer(dp(20),0,0,0xFF218DB8);
+        TextView date=text(new java.text.SimpleDateFormat("EEEE، d MMMM yyyy",new Locale("ar")).format(new Date()),22,0xFF9BB9CA,false);
+        date.setGravity(Gravity.CENTER);
+        TextView motto=text("REST  •  RESET  •  DRIVE SAFE",18,0xFF76DFFF,true);
+        motto.setGravity(Gravity.CENTER);
+        center.addView(sleepClock,new LinearLayout.LayoutParams(-1,dp(190)));
+        center.addView(date);
+        LinearLayout.LayoutParams mottoLp=new LinearLayout.LayoutParams(-1,dp(44));mottoLp.topMargin=dp(18);
+        center.addView(motto,mottoLp);
+        overlay.addView(center,new FrameLayout.LayoutParams(-1,-1));
+        TextView wake=text("إلغاء وضع السكون",14,0xFFD6EAF4,true);
+        wake.setGravity(Gravity.CENTER);wake.setPadding(dp(16),dp(8),dp(16),dp(8));
+        wake.setBackground(card(0x443A596B,0x556CB6D0,18));
+        FrameLayout.LayoutParams wakeLp=new FrameLayout.LayoutParams(-2,dp(46),Gravity.TOP|Gravity.RIGHT);
+        wakeLp.setMargins(0,dp(14),dp(14),0);overlay.addView(wake,wakeLp);
+        wake.setOnClickListener(v->{dismissMusicSleep();scheduleMusicSleep();});
+        sleepOverlay=overlay;
+        WindowManager.LayoutParams params=getWindow().getAttributes();
+        if(!sleepBrightnessCaptured){sleepPreviousBrightness=params.screenBrightness;sleepBrightnessCaptured=true;}
+        params.screenBrightness=.045f;getWindow().setAttributes(params);
+        addContentView(overlay,new ViewGroup.LayoutParams(-1,-1));
+    }
+    private void dismissMusicSleep(){
+        if(sleepOverlay!=null){
+            ViewGroup parent=(ViewGroup)sleepOverlay.getParent();
+            if(parent!=null)parent.removeView(sleepOverlay);
+            sleepOverlay=null;sleepClock=null;
+        }
+        if(sleepBrightnessCaptured){
+            WindowManager.LayoutParams params=getWindow().getAttributes();
+            params.screenBrightness=sleepPreviousBrightness;getWindow().setAttributes(params);
+            sleepPreviousBrightness=-1f;sleepBrightnessCaptured=false;
+        }
     }
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     private GradientDrawable card(int fill,int stroke,int radius){
@@ -155,12 +215,12 @@ public final class MusicActivity extends BaseActivity {
         handler.post(ticker);
     }
     @Override protected void onStop(){
-        handler.removeCallbacks(ticker);
+        handler.removeCallbacks(ticker);handler.removeCallbacks(idleSleep);dismissMusicSleep();
         if(bound){if(service!=null)service.setListener(null);unbindService(connection);bound=false;service=null;}
         stopVisualizer();if(cover!=null)cover.setSpinning(false);super.onStop();
     }
     @Override protected void onDestroy(){
-        handler.removeCallbacksAndMessages(null);
+        handler.removeCallbacksAndMessages(null);dismissMusicSleep();
         if(stateReceiver!=null)try{unregisterReceiver(stateReceiver);}catch(Exception ignored){}
         if(powerReceiver!=null)try{unregisterReceiver(powerReceiver);}catch(Exception ignored){}
         stopVisualizer();super.onDestroy();
