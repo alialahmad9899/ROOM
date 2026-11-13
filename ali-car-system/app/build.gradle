@@ -8,8 +8,8 @@ android {
         applicationId 'com.ali.carsystem'
         minSdk 21
         targetSdk 22
-        versionCode 330
-        versionName '3.3.0'
+        versionCode 340
+        versionName '3.4.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions {
