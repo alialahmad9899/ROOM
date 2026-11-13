@@ -280,9 +280,9 @@ public final class MainActivity extends BaseActivity implements LocationListener
         if(!registered&&gpsStatus!=null)gpsStatus.setText("بانتظار خدمات GPS أو الموقع المدمج");
     }
     private boolean freshDashboardLocation(Location l){
-        if(l==null||!l.hasAccuracy()||l.getAccuracy()>150f)return false;
+        if(l==null||!l.hasAccuracy()||!GeoMath.isAccuracyUsable(l.getAccuracy(),150f))return false;
         long fix=l.getElapsedRealtimeNanos(),now=SystemClock.elapsedRealtimeNanos();
-        if(fix>0&&now>=fix)return now-fix<=120000000000L;
+        if(fix>0)return GeoMath.isFreshElapsedFix(fix,now,120000);
         return GeoMath.isUsableFix(l.getTime(),System.currentTimeMillis(),120000,l.getAccuracy());
     }
     private Location bestLastKnown(){
