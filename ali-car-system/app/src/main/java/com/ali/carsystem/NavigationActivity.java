@@ -3,6 +3,7 @@ package com.ali.carsystem;
 import android.content.*;
 import android.location.*;
 import android.os.*;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.*;
 import android.widget.*;
@@ -22,7 +23,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private GeoPoint destination;private String destinationName="";private Polyline routeLine;private Marker destMarker,carMarker;
     private AsyncTask<Void,Void,RouteResult> routeTask;private AsyncTask<String,Void,GeoResult> geocodeTask;
     private List<Maneuver> activeManeuvers=Collections.emptyList();
-    private long lastSearch;private boolean waitingForFix;
+    private long lastSearch;private boolean waitingForFix;private boolean gpsRegistered,networkRegistered;private String providerError="";
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     @Override protected void onCreate(Bundle b){super.onCreate(b);
         Configuration.getInstance().load(this,getSharedPreferences("osmdroid",MODE_PRIVATE));
@@ -44,7 +45,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         TextView attribution=new TextView(this);attribution.setText("© OpenStreetMap contributors");attribution.setTextColor(-1);attribution.setTextSize(10);attribution.setBackgroundColor(0xAA061522);attribution.setPadding(dp(7),dp(4),dp(7),dp(4));
         FrameLayout.LayoutParams ap=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);root.addView(attribution,ap);
         setContentView(root);go.setOnClickListener(v->searchDestination());search.setOnEditorActionListener((v,a,e)->{searchDestination();return true;});
-        loadLastKnown();if(current!=null)showCar(current);
+        loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->openLocationSettings());
     }
     private void searchDestination(){
         String q=search.getText().toString().trim();if(q.length()<2){search.setError("أدخل اسم وجهة");return;}
@@ -63,17 +64,45 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private void loadLastKnown(){
         long now=System.currentTimeMillis();Location best=null;
         for(String provider:new String[]{LocationManager.GPS_PROVIDER,LocationManager.NETWORK_PROVIDER})try{
+            if(!lm.isProviderEnabled(provider))continue;
             Location l=lm.getLastKnownLocation(provider);if(l==null)continue;
             float acc=l.hasAccuracy()?l.getAccuracy():999;
             if(!GeoMath.isUsableFix(l.getTime(),now,120000,acc))continue;
             if(best==null||l.getTime()>best.getTime())best=l;
-        }catch(Exception ignored){}
+        }catch(SecurityException e){providerError="إذن الموقع غير متاح";}catch(Exception ignored){}
         if(best!=null)current=best;
+    }
+    private boolean hasLocationPermission(){
+        return checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")==android.content.pm.PackageManager.PERMISSION_GRANTED||
+               checkCallingOrSelfPermission("android.permission.ACCESS_COARSE_LOCATION")==android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+    private void openLocationSettings(){
+        try{startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS));}
+        catch(Exception e){status.setText("افتح إعدادات الجهاز ثم الموقع وفعّل تحديد الموقع");}
+    }
+    private void requestLocationSources(){
+        gpsRegistered=false;networkRegistered=false;providerError="";
+        if(lm==null){status.setText("خدمة الموقع غير متاحة في نظام الجهاز");return;}
+        if(!hasLocationPermission()){status.setText("إذن الموقع غير ممنوح — اضغط هنا لفتح إعدادات الموقع");return;}
+        boolean gpsOn=false,networkOn=false;
+        try{gpsOn=lm.isProviderEnabled(LocationManager.GPS_PROVIDER);}catch(Exception ignored){}
+        try{networkOn=lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);}catch(Exception ignored){}
+        if(gpsOn)try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,0,this);gpsRegistered=true;}
+            catch(SecurityException e){providerError="رفض النظام إذن GPS";}
+            catch(Exception e){providerError="تعذر التسجيل في GPS: "+e.getClass().getSimpleName();}
+        if(networkOn)try{lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1500,0,this);networkRegistered=true;}
+            catch(SecurityException e){providerError="رفض النظام إذن الشبكة";}
+            catch(Exception e){if(providerError.isEmpty())providerError="تعذر التسجيل في مزود الشبكة";}
+        if(!gpsOn&&!networkOn)status.setText("خدمة الموقع مغلقة — اضغط هنا لفتح إعدادات الموقع");
+        else if(current!=null&&GeoMath.isUsableFix(current.getTime(),System.currentTimeMillis(),120000,current.hasAccuracy()?current.getAccuracy():999))
+            status.setText("آخر موقع صالح: "+current.getProvider()+" — دقة ±"+(current.hasAccuracy()?Math.round(current.getAccuracy()):0)+" متر — ننتظر تحديثاً جديداً");
+        else if(!providerError.isEmpty())status.setText(providerError+" — اضغط هنا للإعدادات");
+        else status.setText("GPS "+(gpsRegistered?"مفعّل":"غير متاح")+" • الشبكة "+(networkRegistered?"مفعّلة":"غير متاحة")+" — بانتظار أول تثبيت للموقع");
     }
     private void showDestination(){
         if(destMarker!=null)map.getOverlays().remove(destMarker);
         destMarker=new Marker(map);destMarker.setPosition(destination);destMarker.setTitle(destinationName);map.getOverlays().add(destMarker);
-        if(current==null){map.getController().setCenter(destination);map.getController().setZoom(13.5);status.setText("تم تحديد الوجهة — ننتظر موقع GPS صالحاً لرسم الطريق");waitingForFix=true;}
+        if(current==null){map.getController().setCenter(destination);map.getController().setZoom(13.5);status.setText("تم تحديد الوجهة — "+gpsStatusText());waitingForFix=true;}
         else map.invalidate();
     }
     private void showCar(Location l){
@@ -81,7 +110,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
     private void drawRouteIfPossible(){
         if(destination==null)return;
-        if(current==null||!GeoMath.isUsableFix(current.getTime(),System.currentTimeMillis(),120000,current.hasAccuracy()?current.getAccuracy():999)){waitingForFix=true;status.setText("تم تحديد الوجهة — بانتظار إشارة GPS حديثة");return;}
+        if(current==null||!GeoMath.isUsableFix(current.getTime(),System.currentTimeMillis(),120000,current.hasAccuracy()?current.getAccuracy():999)){waitingForFix=true;status.setText("تم تحديد الوجهة — "+gpsStatusText());return;}
         requestRoute(current,destination,destinationName);
     }
     private void requestRoute(Location start,GeoPoint end,String name){
@@ -117,16 +146,23 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         for(Maneuver m:steps){double d=GeoMath.distanceMeters(l.getLatitude(),l.getLongitude(),m.point.getLatitude(),m.point.getLongitude());if(d>15&&d<best){best=d;next=m.text+" — بعد "+Math.round(d)+" متر";}}
         maneuver.setText(next);
     }
+    private String gpsStatusText(){return "GPS "+(gpsRegistered?"يبحث عن الأقمار":"غير مسجّل")+" — الشبكة "+(networkRegistered?"متاحة":"غير متاحة")+" — اضغط هنا للتشخيص";}
     @Override public void onLocationChanged(Location l){
         if(l==null)return;current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
-        if(destination!=null&&(waitingForFix||routeLine==null)&&(!l.hasAccuracy()||l.getAccuracy()<=100))drawRouteIfPossible();
+        float accuracy=l.hasAccuracy()?l.getAccuracy():999;
+        boolean fresh=GeoMath.isUsableFix(l.getTime(),System.currentTimeMillis(),120000,accuracy);
+        if(destination!=null&&(waitingForFix||routeLine==null)&&fresh&&accuracy<=150)drawRouteIfPossible();
+        if(status!=null&&destination==null)status.setText("تم استقبال موقع "+l.getProvider()+" — الدقة ±"+Math.round(accuracy)+" متر");
     }
-    @Override protected void onResume(){super.onResume();if(map!=null)map.onResume();if(lm!=null)try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,2,this);}catch(Exception ignored){}try{lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,2000,5,this);}catch(Exception ignored){}loadLastKnown();if(current!=null)showCar(current);}
-    @Override protected void onPause(){if(lm!=null)try{lm.removeUpdates(this);}catch(Exception ignored){}if(map!=null)map.onPause();super.onPause();}
+    @Override protected void onResume(){super.onResume();if(map!=null)map.onResume();loadLastKnown();requestLocationSources();if(current!=null)showCar(current);if(destination!=null)drawRouteIfPossible();}
+    @Override protected void onPause(){if(lm!=null)try{lm.removeUpdates(this);}catch(Exception ignored){}gpsRegistered=false;networkRegistered=false;if(map!=null)map.onPause();super.onPause();}
     @Override protected void onDestroy(){if(geocodeTask!=null)geocodeTask.cancel(true);if(routeTask!=null)routeTask.cancel(true);if(map!=null){map.onDetach();map=null;}super.onDestroy();}
-    @Override public void onProviderEnabled(String p){}
-    @Override public void onProviderDisabled(String p){status.setText("تم إيقاف مزود الموقع");}
-    @Override public void onStatusChanged(String p,int s,Bundle b){}
+    @Override public void onProviderEnabled(String p){if(status!=null)status.setText("تم تفعيل "+p+" — جارٍ طلب تحديث جديد");requestLocationSources();}
+    @Override public void onProviderDisabled(String p){if(status!=null)status.setText("تم إيقاف "+p+" — فعّل الموقع من الإعدادات");}
+    @Override public void onStatusChanged(String p,int state,Bundle b){
+        if(LocationManager.GPS_PROVIDER.equals(p)&&state==LocationProvider.TEMPORARILY_UNAVAILABLE&&status!=null)
+            status.setText("GPS مفعّل لكن لم يصل تثبيت أقمار بعد — ابقَ قرب نافذة أو في مكان مفتوح");
+    }
     private static final class GeoResult{final GeoPoint point;final String name,error;GeoResult(String e){point=null;name="";error=e;}GeoResult(GeoPoint p,String n){point=p;name=n;error=null;}}
     private static final class Maneuver{final GeoPoint point;final String text;Maneuver(GeoPoint p,String t){point=p;text=t;}}
     private static final class RouteResult{final ArrayList<GeoPoint> points;final double km,minutes;final List<Maneuver> maneuvers;final String error;RouteResult(String e){points=null;km=minutes=0;maneuvers=null;error=e;}RouteResult(ArrayList<GeoPoint> p,double k,double m,List<Maneuver> n){points=p;km=k;minutes=m;maneuvers=n;error=null;}}
