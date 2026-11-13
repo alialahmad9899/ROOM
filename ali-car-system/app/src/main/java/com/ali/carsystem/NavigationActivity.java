@@ -1,6 +1,7 @@
 package com.ali.carsystem;
 
 import android.content.*;
+import android.app.AlertDialog;
 import android.location.*;
 import android.net.Uri;
 import android.os.*;
@@ -22,6 +23,9 @@ import android.graphics.drawable.GradientDrawable;
 import android.widget.*;
 import org.json.*;
 import org.osmdroid.config.Configuration;
+import org.osmdroid.mapsforge.MapsForgeTileProvider;
+import org.osmdroid.mapsforge.MapsForgeTileSource;
+import org.osmdroid.tileprovider.util.SimpleRegisterReceiver;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.*;
 import org.osmdroid.views.*;
@@ -39,6 +43,8 @@ import com.google.android.gms.location.LocationServices;
 
 public final class NavigationActivity extends BaseActivity implements LocationListener {
     private MapView map;private LocationManager lm;private Location current;
+    private MapsForgeTileSource offlineTileSource;
+    private static final int REQUEST_IMPORT_OFFLINE_MAPS=8401;
     private FusedLocationProviderClient fusedClient;private LocationCallback fusedCallback;
     private boolean fusedRegistered,fusedRequestPending;private int gmsAvailabilityCode=-1;
     private String gmsLocationStatus="لم يبدأ اتصال Google Fused";
@@ -141,6 +147,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xFF07111C);
         map=new MapView(this);map.setTileSource(TileSourceFactory.MAPNIK);map.setMultiTouchControls(true);map.setTilesScaledToDpi(true);
+        configureMapTiles();
         map.getController().setZoom(12.5);root.addView(map,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(14),dp(12),dp(14),dp(12));
         panel.setBackground(rounded(0xF20A1B2A,0xFF24465B,18));
@@ -161,6 +168,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         styleButton(retryRouteButton,"إعادة محاولة حساب المسار",0xFF087FA4);retryRouteButton.setTextSize(12);
         retryRouteButton.setVisibility(View.GONE);panel.addView(retryRouteButton,new LinearLayout.LayoutParams(-1,dp(38)));
         googleNavigationButton=new Button(this);styleButton(googleNavigationButton,"فتح التوجيه الصوتي في Google Maps",0xFF244B61);googleNavigationButton.setTextSize(12);panel.addView(googleNavigationButton,new LinearLayout.LayoutParams(-1,dp(40)));
+        Button offlineMapsButton=new Button(this);styleButton(offlineMapsButton,"استيراد خريطة سوريا والمسارات دون إنترنت",0xFF1B665F);offlineMapsButton.setTextSize(12);
+        panel.addView(offlineMapsButton,new LinearLayout.LayoutParams(-1,dp(42)));
+        TextView offlineStatus=new TextView(this);offlineStatus.setTextColor(0xFF9BD9D5);offlineStatus.setTextSize(10);offlineStatus.setText(OfflineMapsManager.status(this));offlineStatus.setGravity(Gravity.RIGHT);panel.addView(offlineStatus);
         FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(dp(560),-2,Gravity.TOP|Gravity.LEFT);pp.setMargins(dp(16),dp(16),dp(16),0);root.addView(panel,pp);
         followButton=new Button(this);styleButton(followButton,"تتبّع السيارة ✓",0xF20A1B2A);FrameLayout.LayoutParams flp=new FrameLayout.LayoutParams(dp(150),dp(44),Gravity.TOP|Gravity.RIGHT);flp.setMargins(0,dp(18),dp(18),0);root.addView(followButton,flp);
         LinearLayout bottom=new LinearLayout(this);bottom.setOrientation(LinearLayout.VERTICAL);bottom.setPadding(dp(14),dp(10),dp(14),dp(10));bottom.setBackground(rounded(0xF20A1B2A,0xFF24465B,18));
@@ -175,6 +185,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         freeModeButton.setOnClickListener(v->setGuidedMode(false));guidedModeButton.setOnClickListener(v->setGuidedMode(true));
         followButton.setOnClickListener(v->{followCar=!followCar;updateFollowButton();if(followCar&&current!=null)centerOnCar(current);});
         googleNavigationButton.setOnClickListener(v->launchGoogleMapsNavigation());
+        offlineMapsButton.setOnClickListener(v->startOfflineMapImport());
         retryRouteButton.setOnClickListener(v->drawRouteIfPossible());
         loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());setGuidedMode(true);
     }
@@ -189,14 +200,80 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(routeLine!=null){map.getOverlays().remove(routeLine);routeLine=null;}routeChoices.removeAllViews();
         status.setText("جارٍ البحث عن الوجهة...");maneuver.setText("تم إرسال البحث عن الوجهة");
         geocodeTask=new AsyncTask<String,Void,GeoResult>(){
-            protected GeoResult doInBackground(String...v){try{
-                String u="https://nominatim.openstreetmap.org/search?q="+URLEncoder.encode(v[0],"UTF-8")+"&format=jsonv2&limit=1&accept-language=ar,en";
-                JSONArray a=new JSONArray(VideoApi.read(getApplicationContext(),u));if(a.length()==0)return new GeoResult("لم يتم العثور على الوجهة");
-                JSONObject x=a.getJSONObject(0);return new GeoResult(new GeoPoint(x.getDouble("lat"),x.getDouble("lon")),x.optString("display_name","الوجهة"));
-            }catch(Exception e){return new GeoResult(e.getMessage());}}
-            protected void onPostExecute(GeoResult r){if(requestId!=geocodeRequestId||isFinishing())return;geocodeTask=null;if(r.error!=null){status.setText("تعذر البحث عن الوجهة: "+r.error);return;}destination=r.point;destinationName=r.name;routeAttemptedForDestination=false;showDestination();drawRouteIfPossible();}
+            protected GeoResult doInBackground(String...v){
+                try{
+                    ArrayList<GeoCandidate> candidates=new ArrayList<>();
+                    List<OfflinePlacesDb.Place> local=OfflinePlacesDb.search(getApplicationContext(),v[0],8);
+                    for(OfflinePlacesDb.Place place:local)candidates.add(new GeoCandidate(place.point,place.label(),"Offline Syria"));
+                    if(candidates.isEmpty()){
+                        for(GeocodingClient.Candidate candidate:GeocodingClient.search(getApplicationContext(),v[0]))
+                            candidates.add(new GeoCandidate(new GeoPoint(candidate.latitude,candidate.longitude),candidate.name,candidate.provider));
+                    }
+                    return candidates.isEmpty()?new GeoResult("لم يتم العثور على نتائج"):new GeoResult(candidates);
+                }catch(Exception e){return new GeoResult(e.getMessage());}
+            }
+            protected void onPostExecute(GeoResult r){
+                if(requestId!=geocodeRequestId||isFinishing())return;geocodeTask=null;
+                if(r.error!=null){status.setText("تعذر البحث عن الوجهة: "+r.error);return;}
+                chooseDestination(r.candidates);
+            }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,q);
     }
+    private void configureMapTiles(){
+        if(map==null)return;
+        File[] maps=OfflineMapsManager.getMapFiles(this);
+        if(maps.length==0){map.setTileSource(TileSourceFactory.MAPNIK);return;}
+        try{
+            if(offlineTileSource==null){
+                MapsForgeTileSource.createInstance(getApplication());
+                offlineTileSource=MapsForgeTileSource.createFromFiles(maps,null,"ALI-CAR-SYRIA-OFFLINE","ar");
+            }
+            map.setTileProvider(new MapsForgeTileProvider(new SimpleRegisterReceiver(this),offlineTileSource,null));
+            if(status!=null)status.setText("خريطة سوريا المحلية جاهزة • "+OfflineMapsManager.status(this));
+        }catch(Exception error){
+            offlineTileSource=null;
+            map.setTileSource(TileSourceFactory.MAPNIK);
+            if(status!=null)status.setText("تعذر فتح الخريطة المحلية: "+error.getClass().getSimpleName());
+        }
+    }
+
+    private void startOfflineMapImport(){
+        try{
+            Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("application/zip");
+            startActivityForResult(pick,REQUEST_IMPORT_OFFLINE_MAPS);
+        }catch(Exception error){new AlertDialog.Builder(this).setMessage("تعذر فتح مدير الملفات").setPositiveButton("موافق",null).show();}
+    }
+
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode!=REQUEST_IMPORT_OFFLINE_MAPS||resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+        final Uri source=data.getData();status.setText("جارٍ التحقق من حزمة خرائط سوريا واستيرادها...");
+        new AsyncTask<Void,Void,String>(){
+            protected String doInBackground(Void...v){try{OfflineMapsManager.installArchive(getApplicationContext(),source);return null;}catch(Exception e){return e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();}}
+            protected void onPostExecute(String error){
+                if(isFinishing())return;
+                if(error!=null){status.setText("فشل استيراد الخريطة: "+error);return;}
+                offlineTileSource=null;configureMapTiles();status.setText(OfflineMapsManager.status(NavigationActivity.this));
+                new AlertDialog.Builder(NavigationActivity.this).setTitle("خرائط سوريا جاهزة").setMessage(OfflineMapsManager.status(NavigationActivity.this))
+                        .setPositiveButton("موافق",null).show();
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+    }
+
+    private void chooseDestination(List<GeoCandidate> candidates){
+        if(candidates==null||candidates.isEmpty()){status.setText("لم يتم العثور على الوجهة");return;}
+        if(candidates.size()==1){setDestination(candidates.get(0));return;}
+        String[] labels=new String[candidates.size()];
+        for(int i=0;i<candidates.size();i++){GeoCandidate c=candidates.get(i);labels[i]=c.name+"  •  "+c.source;}
+        new AlertDialog.Builder(this).setTitle("اختر الموقع المقصود").setItems(labels,(dialog,which)->setDestination(candidates.get(which))).setNegativeButton("إلغاء",null).show();
+    }
+
+    private void setDestination(GeoCandidate candidate){
+        destination=candidate.point;destinationName=candidate.name;routeAttemptedForDestination=false;
+        showDestination();drawRouteIfPossible();
+    }
+
     private boolean hasLocationPermission(){
         return checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")==android.content.pm.PackageManager.PERMISSION_GRANTED||
                checkCallingOrSelfPermission("android.permission.ACCESS_COARSE_LOCATION")==android.content.pm.PackageManager.PERMISSION_GRANTED;
@@ -490,7 +567,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(retryRouteButton!=null)retryRouteButton.setVisibility(View.GONE);
         routeTask=new AsyncTask<Void,Void,RouteResult>(){
             protected RouteResult doInBackground(Void...v){try{
-                JSONObject root=RouteNetworkClient.requestRoutes(getApplicationContext(),routeStart,routeEnd);
+                JSONObject root=null;String offlineFailure="";
+                try{root=OfflineRoutingEngine.requestRoutes(getApplicationContext(),routeStart,routeEnd);}
+                catch(Exception offlineError){offlineFailure=offlineError.getMessage()==null?offlineError.getClass().getSimpleName():offlineError.getMessage();}
+                if(root==null)root=RouteNetworkClient.requestRoutes(getApplicationContext(),routeStart,routeEnd);
                 if(!"Ok".equals(root.optString("code")))return new RouteResult("محرك المسارات رفض الطلب: "+root.optString("message",root.optString("code","خطأ غير معروف")));
                 JSONArray routes=root.getJSONArray("routes");if(routes.length()==0)return new RouteResult("لم يعثر محرك المسارات على طريق قيادة");
                 ArrayList<RouteOption> options=new ArrayList<>();
@@ -521,7 +601,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 routeOptions=r.options;selectedRouteIndex=RouteChoiceLogic.shortestIndex(routeDistances(routeOptions));if(selectedRouteIndex<0)selectedRouteIndex=0;
                 rebuildRouteChoices();selectRoute(selectedRouteIndex);BoundingBox bounds=BoundingBox.fromGeoPoints(routeOptions.get(selectedRouteIndex).points);
                 map.zoomToBoundingBox(bounds,true);waitingForFix=false;map.invalidate();
-                String providerName="valhalla".equals(r.provider)?"Valhalla":"fossgis".equals(r.provider)?"FOSSGIS OSRM":"OSRM";
+                String providerName="offline-brouter".equals(r.provider)?"BRouter • توجيه محلي دون إنترنت":"valhalla".equals(r.provider)?"Valhalla":"fossgis".equals(r.provider)?"FOSSGIS OSRM":"OSRM";
                 trafficInfo.setText(providerName+" • "+routeOptions.size()+" مسار/مسارات متاحة • لا تتوفر بيانات ازدحام مباشر");
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
@@ -596,7 +676,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         android.widget.Toast.makeText(this,assistanceResult,android.widget.Toast.LENGTH_LONG).show();
         try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,0,this);}catch(Exception ignored){}
     }
-    private static final class GeoResult{final GeoPoint point;final String name,error;GeoResult(String e){point=null;name="";error=e;}GeoResult(GeoPoint p,String n){point=p;name=n;error=null;}}
+    private static final class GeoCandidate{final GeoPoint point;final String name,source;GeoCandidate(GeoPoint p,String n,String s){point=p;name=n==null||n.isEmpty()?"الوجهة":n;source=s;}}
+    private static final class GeoResult{final List<GeoCandidate> candidates;final String error;GeoResult(String e){candidates=Collections.emptyList();error=e==null?"فشل البحث":e;}GeoResult(List<GeoCandidate> c){candidates=c;error=null;}}
     private static final class Maneuver{final GeoPoint point;final String text;Maneuver(GeoPoint p,String t){point=p;text=t;}}
     private static final class RouteOption{final ArrayList<GeoPoint> points;final double km,minutes;final List<Maneuver> maneuvers;final int turns;RouteOption(ArrayList<GeoPoint> p,double k,double m,List<Maneuver> n,int t){points=p;km=k;minutes=m;maneuvers=n;turns=t;}}
     private static final class RouteResult{final List<RouteOption> options;final String error,provider;RouteResult(String e){options=Collections.emptyList();error=e;provider="";}RouteResult(List<RouteOption> o,String p){options=o;error=null;provider=p;}}
