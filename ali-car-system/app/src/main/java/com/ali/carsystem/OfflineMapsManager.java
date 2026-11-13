@@ -1,6 +1,7 @@
 package com.ali.carsystem;
 
 import android.content.Context;
+import android.content.res.AssetManager;
 import android.net.Uri;
 import android.os.Environment;
 
@@ -77,6 +78,62 @@ final class OfflineMapsManager {
         return "الخريطة: " + (map ? "جاهزة" : "غير مثبتة")
                 + " • الأماكن: " + (places ? "جاهزة" : "غير مثبتة")
                 + " • توجيه دون إنترنت: " + (routing ? "جاهز" : "بيانات التوجيه ناقصة");
+    }
+
+    static void ensureBundledAssets(Context context) throws Exception {
+        if (getMapFile(context) != null && getPlacesDatabase(context) != null && hasOfflineRouting(context)) return;
+        AssetManager assets = context.getAssets();
+        String[] bundled = assets.list("offline");
+        if (bundled == null || bundled.length == 0) return;
+
+        File root = getRoot(context);
+        File staging = new File(root.getParentFile(), "offline-assets-staging");
+        deleteTree(staging);
+        if (!staging.mkdirs() && !staging.isDirectory())
+            throw new IllegalStateException("تعذر إنشاء مجلد تثبيت الخرائط المضمّنة");
+        copyAssetDirectory(assets, "offline", staging);
+
+        if (!new File(staging, "syria.map").isFile()
+                || !new File(staging, "syria-places.sqlite").isFile()
+                || !new File(staging, "brouter/segments4/E35_N30.rd5").isFile()
+                || !new File(staging, "brouter/segments4/E35_N35.rd5").isFile()
+                || !new File(staging, "brouter/segments4/E40_N30.rd5").isFile()
+                || !new File(staging, "brouter/segments4/E40_N35.rd5").isFile()
+                || !new File(staging, "brouter/profiles2/car-fast.brf").isFile()
+                || !new File(staging, "brouter/profiles2/lookups.dat").isFile()) {
+            deleteTree(staging);
+            throw new IllegalStateException("بيانات الخرائط المضمّنة في APK غير مكتملة");
+        }
+
+        File backup = new File(root.getParentFile(), "offline-bundled-backup");
+        deleteTree(backup);
+        if (root.exists() && !root.renameTo(backup))
+            throw new IllegalStateException("تعذر حفظ نسخة الخرائط المحلية السابقة");
+        if (!staging.renameTo(root)) {
+            if (backup.exists()) backup.renameTo(root);
+            throw new IllegalStateException("تعذر تثبيت بيانات الخرائط المضمّنة");
+        }
+        deleteTree(backup);
+    }
+
+    private static void copyAssetDirectory(AssetManager assets, String assetPath, File target) throws Exception {
+        String[] children = assets.list(assetPath);
+        if (children != null && children.length > 0) {
+            if (!target.exists() && !target.mkdirs()) throw new IllegalStateException("تعذر إنشاء " + target.getName());
+            for (String child : children)
+                copyAssetDirectory(assets, assetPath + "/" + child, new File(target, child));
+            return;
+        }
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs())
+            throw new IllegalStateException("تعذر إنشاء مجلد " + parent.getName());
+        try (InputStream input = new BufferedInputStream(assets.open(assetPath));
+             FileOutputStream output = new FileOutputStream(target)) {
+            byte[] buffer = new byte[64 * 1024];
+            int count;
+            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+            output.flush();
+        }
     }
 
     static void installArchive(Context context, Uri source) throws Exception {
