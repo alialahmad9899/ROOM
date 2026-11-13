@@ -217,7 +217,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         b.append("الشبكة: ").append(providerReport(LocationManager.NETWORK_PROVIDER)).append(" • حالة المزود: ").append(networkProviderStatus).append("\n");
         b.append("Passive: ").append(providerReport(LocationManager.PASSIVE_PROVIDER)).append("\n");
         b.append("مسار Criteria/Fused: ").append(criteriaRegistered?"تم تسجيل الطلب":"لم يتم تسجيل الطلب").append(" • أفضل مزود: ").append(criteriaProvider).append("\n");
-        b.append("محرك GPS: ").append(gpsEngineStarted?"بدأ":"لم يبدأ / لا توجد إشارة حالة").append("\n");\n        b.append("A-GPS/XTRA: ").append(assistanceResult).append("\n");
+        b.append("محرك GPS: ").append(gpsEngineStarted?"بدأ":"لم يبدأ / لا توجد إشارة حالة").append("\n");
+        b.append("A-GPS/XTRA: ").append(assistanceResult).append("\n");
         b.append("الأقمار: مرئية ").append(satellitesVisible).append(" • مستخدمة ").append(satellitesUsed);
         if(timeToFirstFixMs>=0)b.append(" • زمن أول تثبيت ").append(timeToFirstFixMs/1000f).append(" ثانية");
         b.append("\n");
