@@ -103,12 +103,13 @@ final class OfflineRoutingEngine {
         double distance = number(properties == null ? null : properties.optString("track-length", "0"));
         double duration = number(properties == null ? null : properties.optString("total-time", "0"));
 
+        JSONArray steps = buildManeuverSteps(properties, coordinates);
         JSONObject route = new JSONObject();
         route.put("geometry", geometry);
         route.put("distance", Math.max(0d, distance));
         route.put("duration", Math.max(0d, duration));
         JSONObject leg = new JSONObject();
-        leg.put("steps", new JSONArray());
+        leg.put("steps", steps);
         route.put("legs", new JSONArray().put(leg));
 
         JSONObject result = new JSONObject();
@@ -116,6 +117,56 @@ final class OfflineRoutingEngine {
         result.put("_ali_provider", "offline-brouter");
         result.put("routes", new JSONArray().put(route));
         return result;
+    }
+
+    private static JSONArray buildManeuverSteps(JSONObject properties, JSONArray coordinates) throws Exception {
+        JSONArray steps = new JSONArray();
+        JSONArray hints = properties == null ? null : properties.optJSONArray("voicehints");
+        if (hints != null) {
+            for (int i = 0; i < hints.length(); i++) {
+                JSONArray hint = hints.optJSONArray(i);
+                if (hint == null || hint.length() < 5) continue;
+                int pointIndex = hint.optInt(0, -1);
+                int command = hint.optInt(1, 1);
+                int exit = hint.optInt(2, 0);
+                double distance = hint.optDouble(3, 0d);
+                if (pointIndex < 0 || pointIndex >= coordinates.length()) continue;
+                JSONArray point = coordinates.optJSONArray(pointIndex);
+                if (point == null || point.length() < 2) continue;
+
+                String modifier = command == 2 || command == 3 || command == 4 || command == 8 || command == 10
+                        ? "left"
+                        : command == 5 || command == 6 || command == 7 || command == 9 || command == 11
+                        ? "right"
+                        : command == 10 || command == 11 || command == 15 ? "uturn" : "straight";
+                if (command == 10 || command == 11 || command == 15) modifier = "uturn";
+                String type = command == 13 || command == 14 ? "roundabout" : command == 1 || command == 16 ? "continue" : "turn";
+
+                JSONObject maneuver = new JSONObject();
+                maneuver.put("type", type);
+                maneuver.put("modifier", modifier);
+                maneuver.put("location", new JSONArray().put(point.optDouble(0)).put(point.optDouble(1)));
+                if (exit > 0) maneuver.put("exit", exit);
+
+                JSONObject step = new JSONObject();
+                step.put("maneuver", maneuver);
+                step.put("distance", Math.max(0d, distance));
+                step.put("name", "");
+                steps.put(step);
+            }
+        }
+
+        if (coordinates.length() > 0) {
+            JSONArray last = coordinates.optJSONArray(coordinates.length() - 1);
+            if (last != null && last.length() >= 2) {
+                JSONObject arrival = new JSONObject();
+                arrival.put("type", "arrive");
+                arrival.put("modifier", "straight");
+                arrival.put("location", new JSONArray().put(last.optDouble(0)).put(last.optDouble(1)));
+                steps.put(new JSONObject().put("maneuver", arrival).put("distance", 0d).put("name", ""));
+            }
+        }
+        return steps;
     }
 
     private static double number(String value) {
