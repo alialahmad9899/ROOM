@@ -306,17 +306,22 @@ public final class MainActivity extends Activity implements LocationListener {
                                        boolean voiceReady,boolean arrived){
         if(navigationPanel==null)return;
         navigationPanel.setVisibility(View.VISIBLE);
-        String turn=instruction==null||instruction.trim().isEmpty()?"جارٍ تثبيت موقع GPS":instruction;
+        boolean hasTurn=instruction!=null&&!instruction.trim().isEmpty();
+        String turn=hasTurn?instruction:(arrived?"وصلت إلى وجهتك":"جارٍ تثبيت موقع GPS");
         if(arrived)turn="وصلت إلى وجهتك";
         navigationInstruction.setText(turn);
         navigationArrow.setText(arrived?"●":turn.contains("يسار")?"↰":turn.contains("يمين")?"↱":"↑");
 
-        String distance=turnMeters>=1000
-                ?arabicNumber(turnMeters/1000.0,1)+" كم"
-                :arabicNumber(turnMeters,0)+" متر";
-        String stats="المنعطف بعد "+distance+"  •  متبقي "+arabicNumber(remainingKm,1)
-                +" كم  •  قطعت "+arabicNumber(traveledKm,1)+" كم  •  "+arabicNumber(eta,0)+" د تقريباً";
-        navigationStats.setText(stats);
+        if(!hasTurn&&!arrived){
+            navigationStats.setText("جارٍ تحديد الموقع وتثبيت المسار قبل حساب المسافات");
+        }else{
+            String distance=turnMeters>=1000
+                    ?arabicNumber(turnMeters/1000.0,1)+" كم"
+                    :arabicNumber(turnMeters,0)+" متر";
+            String stats="المنعطف بعد "+distance+"  •  متبقي "+arabicNumber(remainingKm,1)
+                    +" كم  •  قطعت "+arabicNumber(traveledKm,1)+" كم  •  "+arabicNumber(eta,0)+" د تقريباً";
+            navigationStats.setText(stats);
+        }
 
         String state=message==null||message.trim().isEmpty()?"المسار نشط":message;
         navigationStatus.setText(voiceReady?"الصوت العربي جاهز • "+state:
