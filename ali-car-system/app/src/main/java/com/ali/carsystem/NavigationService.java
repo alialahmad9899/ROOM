@@ -443,6 +443,25 @@ public final class NavigationService extends Service implements LocationListener
         } else {
             arabicVoiceReady = false;
         }
+        if (arabicVoiceReady) {
+            tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String utteranceId) { }
+                @Override public void onDone(String utteranceId) {
+                    mainHandler.post(() -> {
+                        if (audioManager != null) {
+                            audioManager.abandonAudioFocus(audioFocusListener);
+                        }
+                    });
+                }
+                @Override public void onError(String utteranceId) {
+                    mainHandler.post(() -> {
+                        if (audioManager != null) {
+                            audioManager.abandonAudioFocus(audioFocusListener);
+                        }
+                    });
+                }
+            });
+        }
         statusText = arabicVoiceReady
                 ? "التوجيه الصوتي العربي جاهز"
                 : "الصوت العربي غير مثبت؛ افتح إعدادات تحويل النص إلى كلام وثبّت العربية";
