@@ -287,6 +287,9 @@ public final class MainActivity extends Activity implements LocationListener {
         boolean active=update.getBooleanExtra("active",false);
         if(!active){
             navigationPanel.setVisibility(View.GONE);
+            // The foreground route service has released its GPS listener; resume
+            // dashboard-only tracking without running two clients in parallel.
+            if(isResumed)startGps();
             return;
         }
         String instruction=update.getStringExtra("instruction");
@@ -763,7 +766,7 @@ public final class MainActivity extends Activity implements LocationListener {
         super.onResume();isResumed=true;immersive();
         restoreConnectivityAfterSleep();
         registerNavigationStateReceiver();
-        startGps();
+        if(!isNavigationActive())startGps();
         refreshSongTitle();renderNavigationFromPreferences();
         handler.removeCallbacks(clockTick);handler.post(clockTick);
         if(screenWakePending){screenWakePending=false;showWelcomeSplash();}
