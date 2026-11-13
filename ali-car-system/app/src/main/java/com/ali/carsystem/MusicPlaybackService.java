@@ -13,6 +13,8 @@ import java.util.*;
 
 public final class MusicPlaybackService extends Service {
     public static final String ACTION_STATE="com.ali.carsystem.MUSIC_STATE";
+    private static final String AUDIO_PREFS="ali_car_audio";
+    public static boolean isAudioPlaying(Context context){return context.getSharedPreferences(AUDIO_PREFS,MODE_PRIVATE).getBoolean("playing",false);}
     private static final String ACTION_TOGGLE="com.ali.carsystem.TOGGLE",ACTION_NEXT="com.ali.carsystem.NEXT",ACTION_PREVIOUS="com.ali.carsystem.PREVIOUS";
     private final IBinder binder=new LocalBinder();private final ArrayList<Song> songs=new ArrayList<>();
     private MediaPlayer player;private int index=-1;private boolean prepared,repeat,shuffle;private Listener listener;
@@ -73,9 +75,11 @@ public final class MusicPlaybackService extends Service {
     public void setShuffle(boolean v){shuffle=v;notifyChanged();}public boolean isShuffle(){return shuffle;}
     public void setRepeat(boolean v){repeat=v;notifyChanged();}public boolean isRepeat(){return repeat;}
     private void notifyChanged(){
+        boolean playing=isPlaying();
+        getSharedPreferences(AUDIO_PREFS,MODE_PRIVATE).edit().putBoolean("playing",playing).apply();
         if(listener!=null)listener.onMusicStateChanged();Song s=getCurrentSong();Intent i=new Intent(ACTION_STATE);
-        i.putExtra("title",s==null?"":s.name);i.putExtra("playing",isPlaying());sendBroadcast(i);
+        i.putExtra("title",s==null?"":s.name);i.putExtra("playing",playing);sendBroadcast(i);
     }
     private void releasePlayer(){prepared=false;if(player!=null){try{player.reset();player.release();}catch(Exception ignored){}player=null;}}
-    @Override public void onDestroy(){releasePlayer();listener=null;super.onDestroy();}
+    @Override public void onDestroy(){releasePlayer();getSharedPreferences(AUDIO_PREFS,MODE_PRIVATE).edit().putBoolean("playing",false).apply();listener=null;super.onDestroy();}
 }
