@@ -36,7 +36,9 @@ for segment in E35_N30 E35_N35 E40_N30 E40_N35; do
 done
 
 echo "Preparing the offline car routing profile..."
-git clone --depth 1 --branch v1.7.10 https://github.com/abrensch/brouter.git "$WORK/brouter"
+if [ ! -d "$WORK/brouter/.git" ]; then
+  git clone --depth 1 --branch v1.7.10 https://github.com/abrensch/brouter.git "$WORK/brouter"
+fi
 cp "$WORK/brouter/misc/profiles2/lookups.dat" "$PACKAGE/brouter/profiles2/lookups.dat"
 python3 - "$WORK/brouter/misc/profiles2/car-vario.brf" "$PACKAGE/brouter/profiles2/car-fast.brf" <<'PY'
 import pathlib, re, sys
