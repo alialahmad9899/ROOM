@@ -6,9 +6,17 @@ import android.content.Intent;
 
 public final class PowerReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
-        if (intent == null || !Intent.ACTION_POWER_CONNECTED.equals(intent.getAction())) return;
+        if (intent == null) return;
+        if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
+            if (NavigationGuidanceService.isActive(context)) {
+                try { context.startService(new Intent(context, NavigationGuidanceService.class)); }
+                catch (Exception ignored) { }
+            }
+            return;
+        }
+        if (!Intent.ACTION_POWER_CONNECTED.equals(intent.getAction())) return;
         Intent launch = new Intent(context, MainActivity.class);
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        try { context.startActivity(launch); } catch (Exception ignored) {}
+        try { context.startActivity(launch); } catch (Exception ignored) { }
     }
 }
