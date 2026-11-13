@@ -42,7 +42,6 @@ public final class NavigationActivity extends Activity implements LocationListen
     private TextView routeStatus, maneuverBanner, trafficStatus;
     private LinearLayout routeChoices;
     private HorizontalScrollView routeChoicesScroll;
-    private EditText query;
     private Button searchButton, retryRouteButton;
     private TextView modeToggle;
     private boolean keyboardRequested, driverMode;
