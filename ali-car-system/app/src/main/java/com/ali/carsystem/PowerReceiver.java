@@ -58,7 +58,7 @@ public final class PowerReceiver extends BroadcastReceiver {
             }
             // For an already bonded vehicle, Android's Bluetooth profile service
             // is responsible for reconnecting A2DP/HFP after the adapter turns on.
-        } catch (SecurityException | RuntimeException error) {
+        } catch (RuntimeException error) {
             preferences.edit().putString("last_power_event", "bluetooth_permission_or_state_error").apply();
         }
     }
