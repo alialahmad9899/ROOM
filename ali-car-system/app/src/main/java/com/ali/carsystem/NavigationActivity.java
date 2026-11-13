@@ -103,11 +103,11 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private boolean isFreshLocation(Location l,long maxAgeMs){
         if(l==null)return false;
         long fixElapsed=l.getElapsedRealtimeNanos(),nowElapsed=SystemClock.elapsedRealtimeNanos();
-        if(fixElapsed>0&&nowElapsed>=fixElapsed)return nowElapsed-fixElapsed<=maxAgeMs*1000000L;
+        if(fixElapsed>0)return GeoMath.isFreshElapsedFix(fixElapsed,nowElapsed,maxAgeMs);
         return GeoMath.isUsableFix(l.getTime(),System.currentTimeMillis(),maxAgeMs,0);
     }
     private boolean isNavigationFixUsable(Location l){
-        return isFreshLocation(l,180000)&&l.hasAccuracy()&&l.getAccuracy()<=250f;
+        return isFreshLocation(l,180000)&&l.hasAccuracy()&&GeoMath.isAccuracyUsable(l.getAccuracy(),250f);
     }
     private void loadLastKnown(){
         if(lm==null)return;
