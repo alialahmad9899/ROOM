@@ -17,6 +17,8 @@ public final class MusicActivity extends BaseActivity {
     private RecyclerView list;private SongAdapter adapter;private VinylDiscView cover;private WaveView wave;
     private TextView title,artist,time,playButton,shuffleButton,repeatButton;private SeekBar progress;private Visualizer visualizer;
     private long loadedAlbum=-1;private final Handler handler=new Handler(Looper.getMainLooper());
+    private boolean charging,playing;
+    private BroadcastReceiver stateReceiver,powerReceiver;
     private final Runnable ticker=new Runnable(){@Override public void run(){updateProgress();handler.postDelayed(this,250);}};
     private final ServiceConnection connection=new ServiceConnection(){
         @Override public void onServiceConnected(ComponentName n,IBinder b){
@@ -25,6 +27,14 @@ public final class MusicActivity extends BaseActivity {
         }
         @Override public void onServiceDisconnected(ComponentName n){bound=false;service=null;stopVisualizer();}
     };
+    private void refreshCharging(){
+        try{Intent i=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));charging=i!=null&&i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED,0)!=0;}
+        catch(Exception ignored){charging=false;}
+    }
+    private void applyScreenPolicy(){
+        if(charging||playing)getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     private GradientDrawable card(int fill,int stroke,int radius){
         GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{fill,0xEE07111D});
@@ -37,14 +47,20 @@ public final class MusicActivity extends BaseActivity {
         t.setIncludeFontPadding(false);return t;
     }
     @Override protected void onCreate(Bundle b){
-        super.onCreate(b);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        super.onCreate(b);
+        playing=MusicPlaybackService.isAudioPlaying(this);
+        stateReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){playing=i.getBooleanExtra("playing",false);applyScreenPolicy();}};
+        registerReceiver(stateReceiver,new IntentFilter(MusicPlaybackService.ACTION_STATE));
+        powerReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){refreshCharging();applyScreenPolicy();}};
+        IntentFilter filter=new IntentFilter();filter.addAction(Intent.ACTION_POWER_CONNECTED);filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+        registerReceiver(powerReceiver,filter);refreshCharging();
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(10),dp(16),dp(10));
         root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xFF142D43,0xFF030912,0xFF071B2C}));
         LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);
         TextView back=text("‹",34,0xFF93E9FF,true);back.setGravity(Gravity.CENTER);back.setOnClickListener(v->finish());
         head.addView(back,new LinearLayout.LayoutParams(dp(48),dp(42)));
-        TextView heading=text("مركز الموسيقى",21,Color.WHITE,true);heading.setGravity(Gravity.CENTER);
-        head.addView(heading,new LinearLayout.LayoutParams(0,dp(42),1));head.addView(text("مكتبتك المحلية  •  ALI CAR",11,0xFF8ABAD0,false));root.addView(head);
+        TextView heading=text("مركز الموسيقى",24,Color.WHITE,true);heading.setGravity(Gravity.CENTER);
+        head.addView(heading,new LinearLayout.LayoutParams(0,dp(42),1));head.addView(text("مكتبتك المحلية  •  ALI CAR",13,0xFF8ABAD0,false));root.addView(head);
         LinearLayout body=new LinearLayout(this);LinearLayout.LayoutParams bodyLp=new LinearLayout.LayoutParams(-1,0,1);
         bodyLp.topMargin=dp(8);root.addView(body,bodyLp);
         LinearLayout now=panel();now.setOrientation(LinearLayout.VERTICAL);now.setPadding(dp(14),dp(12),dp(14),dp(10));
@@ -55,12 +71,12 @@ public final class MusicActivity extends BaseActivity {
         cover=new VinylDiscView(this);
         LinearLayout.LayoutParams coverLp=new LinearLayout.LayoutParams(dp(184),dp(184));
         coverLp.gravity=Gravity.CENTER;coverLp.topMargin=dp(4);now.addView(cover,coverLp);
-        title=text("اختر أغنية من مكتبتك",18,Color.WHITE,true);title.setGravity(Gravity.CENTER);title.setMaxLines(1);
+        title=text("اختر أغنية من مكتبتك",20,Color.WHITE,true);title.setGravity(Gravity.CENTER);title.setMaxLines(1);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams titleLp=new LinearLayout.LayoutParams(-1,dp(32));titleLp.topMargin=dp(8);now.addView(title,titleLp);
         artist=text("لا يوجد مسار قيد التشغيل",12,0xFF9DB6C6,false);artist.setGravity(Gravity.CENTER);
         now.addView(artist,new LinearLayout.LayoutParams(-1,dp(22)));
-        wave=new WaveView(this);LinearLayout.LayoutParams waveLp=new LinearLayout.LayoutParams(-1,dp(38));
+        wave=new WaveView(this);LinearLayout.LayoutParams waveLp=new LinearLayout.LayoutParams(-1,dp(56));
         waveLp.topMargin=dp(4);now.addView(wave,waveLp);
         progress=new SeekBar(this);progress.setMax(1000);
         progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
@@ -72,13 +88,13 @@ public final class MusicActivity extends BaseActivity {
         time=text("00:00  /  00:00",11,0xFF9FBCCB,false);time.setGravity(Gravity.CENTER);now.addView(time);
         LinearLayout controls=new LinearLayout(this);controls.setGravity(Gravity.CENTER);
         shuffleButton=control("⇄",()->{if(service!=null)service.setShuffle(!service.isShuffle());});
-        controls.addView(shuffleButton,new LinearLayout.LayoutParams(dp(44),dp(44)));
-        controls.addView(control("⏮",()->{if(service!=null)service.previous();}),new LinearLayout.LayoutParams(dp(48),dp(44)));
+        controls.addView(shuffleButton,new LinearLayout.LayoutParams(dp(54),dp(50)));
+        controls.addView(control("⏮",()->{if(service!=null)service.previous();}),new LinearLayout.LayoutParams(dp(58),dp(50)));
         playButton=control("▶",()->{if(service!=null)service.toggle();});
-        controls.addView(playButton,new LinearLayout.LayoutParams(dp(58),dp(50)));
-        controls.addView(control("⏭",()->{if(service!=null)service.next();}),new LinearLayout.LayoutParams(dp(48),dp(44)));
+        controls.addView(playButton,new LinearLayout.LayoutParams(dp(68),dp(58)));
+        controls.addView(control("⏭",()->{if(service!=null)service.next();}),new LinearLayout.LayoutParams(dp(58),dp(50)));
         repeatButton=control("↻",()->{if(service!=null)service.setRepeat(!service.isRepeat());});
-        controls.addView(repeatButton,new LinearLayout.LayoutParams(dp(44),dp(44)));now.addView(controls);
+        controls.addView(repeatButton,new LinearLayout.LayoutParams(dp(54),dp(50)));now.addView(controls);
 
         LinearLayout library=panel();library.setOrientation(LinearLayout.VERTICAL);library.setPadding(dp(12),dp(10),dp(12),dp(8));
         body.addView(library,new LinearLayout.LayoutParams(0,-1,.92f));
@@ -90,7 +106,7 @@ public final class MusicActivity extends BaseActivity {
         setContentView(root);startService(new Intent(this,MusicPlaybackService.class));
     }
     private TextView control(String symbol,Runnable action){
-        TextView t=text(symbol,23,Color.WHITE,true);t.setGravity(Gravity.CENTER);
+        TextView t=text(symbol,28,Color.WHITE,true);t.setGravity(Gravity.CENTER);
         t.setBackground(card(0xCC1B4059,0x665CD9F4,24));t.setOnClickListener(v->action.run());return t;
     }
     private void refreshPlayer(){
@@ -134,11 +150,14 @@ public final class MusicActivity extends BaseActivity {
         if(visualizer!=null){try{visualizer.setEnabled(false);visualizer.release();}catch(Exception ignored){}visualizer=null;}
     }
     @Override protected void onStart(){
-        super.onStart();if(!bound)bindService(new Intent(this,MusicPlaybackService.class),connection,BIND_AUTO_CREATE);
+        super.onStart();refreshCharging();playing=MusicPlaybackService.isAudioPlaying(this);applyScreenPolicy();
+        if(!bound)bindService(new Intent(this,MusicPlaybackService.class),connection,BIND_AUTO_CREATE);
         handler.post(ticker);
     }
     @Override protected void onStop(){
         handler.removeCallbacks(ticker);
+        if(stateReceiver!=null)try{unregisterReceiver(stateReceiver);}catch(Exception ignored){}
+        if(powerReceiver!=null)try{unregisterReceiver(powerReceiver);}catch(Exception ignored){}
         if(bound){if(service!=null)service.setListener(null);unbindService(connection);bound=false;service=null;}
         stopVisualizer();if(cover!=null)cover.setSpinning(false);super.onStop();
     }
@@ -211,37 +230,40 @@ public final class MusicActivity extends BaseActivity {
     }
     private final class WaveView extends View {
         private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final float[] levels=new float[28];
+        private final float[] levels=new float[36];
         private boolean unavailable;
-        WaveView(Context context){super(context);}
+        WaveView(Context context){super(context);setLayerType(View.LAYER_TYPE_SOFTWARE,null);}
         void setWave(byte[] data){
             if(data==null||data.length==0)return;
             for(int i=0;i<levels.length;i++){
                 int from=i*data.length/levels.length,to=Math.max(from+1,(i+1)*data.length/levels.length);
                 int peak=0;
                 for(int j=from;j<Math.min(to,data.length);j++)peak=Math.max(peak,Math.abs((data[j]&255)-128));
-                float value=Math.max(.08f,peak/128f);
-                levels[i]=Math.min(1f,Math.max(value,levels[i]*.64f));
+                float raw=Math.max(.05f,peak/128f);
+                levels[i]=Math.min(1f,Math.max(raw,levels[i]*.72f));
             }
             unavailable=false;postInvalidate();
         }
         void setUnavailable(){unavailable=true;invalidate();}
         @Override protected void onDraw(Canvas canvas){
-            super.onDraw(canvas);float width=getWidth(),height=getHeight(),gap=dp(3),barWidth=(width-gap*(levels.length-1))/levels.length;
-            if(unavailable){
-                p.setColor(0xFF8197A7);p.setTextSize(dp(10));p.setTextAlign(Paint.Align.CENTER);
-                canvas.drawText("المؤشر الصوتي غير متاح على هذا الجهاز",width/2,height/2+dp(4),p);return;
-            }
-            p.setShader(new LinearGradient(0,height,0,0,
-                    new int[]{0xFF27D9E8,0xFF368FFF,0xFF8D63F7,0xFFFF5FA7},null,Shader.TileMode.CLAMP));
+            super.onDraw(canvas);
+            float w=getWidth(),h=getHeight();
+            if(unavailable){p.setShader(null);p.setColor(0xFF9BB8C8);p.setTextSize(dp(12));p.setTextAlign(Paint.Align.CENTER);
+                canvas.drawText("المؤشر الصوتي غير متاح على هذا الجهاز",w/2f,h/2f+dp(4),p);return;}
+            float gap=dp(3),barW=(w-gap*(levels.length-1))/levels.length,cx=w/2f;
+            p.setShader(new LinearGradient(0,h*.12f,0,h*.88f,
+                    new int[]{0xFF76EEFF,0xFF24BBD8,0xFF2483BC},null,Shader.TileMode.CLAMP));
+            p.setShadowLayer(dp(4),0,0,0x5536D9F5);
             for(int i=0;i<levels.length;i++){
-                float x=i*(barWidth+gap),max=height*.88f;
-                float barH=Math.max(dp(3),levels[i]*max);
-                float top=(height-barH)/2f;
-                canvas.drawRoundRect(x,top,x+barWidth,top+barH,dp(2),dp(2),p);
+                float x=i*(barW+gap),factor=.32f+.68f*levels[i];
+                float barH=Math.max(dp(4),factor*h*.78f),top=(h-barH)/2f;
+                canvas.drawRoundRect(x,top,x+barW,top+barH,barW/2f,barW/2f,p);
             }
-            p.setShader(null);
-            p.setColor(0x334ADBF0);p.setStrokeWidth(1f);canvas.drawLine(0,height/2f,width,height/2f,p);
+            p.clearShadowLayer();p.setShader(null);
+            p.setColor(0x5569B7CA);p.setStrokeWidth(dp(1));
+            canvas.drawLine(0,h/2f,w,h/2f,p);
+            p.setColor(0x2257AFC7);
+            for(int i=0;i<5;i++){float x=cx+(i-2)*dp(18);canvas.drawCircle(x,h/2f,dp(1.4f),p);}
         }
     }
 }
