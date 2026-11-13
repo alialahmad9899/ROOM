@@ -510,9 +510,9 @@ public final class MainActivity extends Activity implements LocationListener {
         menu.getMenu().add("دخول وضع السكون يدوياً الآن").setOnMenuItemClickListener(item->{
             handler.removeCallbacks(idleTimer);showAmbientClock();return true;
         });
-        menu.getMenu().add("إعدادات التوجيه الصوتي العربي").setOnMenuItemClickListener(item->{
-            try{startActivity(new Intent(Settings.ACTION_TEXT_TO_SPEECH_SETTINGS));}
-            catch(Exception e){toast("تعذر فتح إعدادات تحويل النص إلى كلام");}
+        menu.getMenu().add("تثبيت بيانات الصوت العربي").setOnMenuItemClickListener(item->{
+            try{startActivity(new Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA));}
+            catch(Exception e){toast("تعذر فتح تثبيت بيانات تحويل النص إلى كلام");}
             return true;
         });
         menu.getMenu().add("إعدادات الجهاز").setOnMenuItemClickListener(item->{try{startActivity(new Intent(Settings.ACTION_SETTINGS));}catch(Exception e){toast("تعذر فتح الإعدادات");}return true;});
