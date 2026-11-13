@@ -600,8 +600,10 @@ public final class NavigationActivity extends Activity implements LocationListen
             maneuverBanner.setText("بانتظار موقع GPS حديث لتحديد المنعطف بدقة");return;
         }
         float accuracy=location.hasAccuracy()?location.getAccuracy():999f;
+        float bearing=location.hasBearing()?location.getBearing():Float.NaN;
+        float speed=location.hasSpeed()?location.getSpeed():0f;
         RouteProgressEngine.Progress progress=progressEngine.update(
-                location.getLatitude(),location.getLongitude(),accuracy);
+                location.getLatitude(),location.getLongitude(),accuracy,bearing,speed);
         if(!progress.onRoute){
             maneuverBanner.setText("موقع GPS خارج المسار أو دقته غير كافية — ننتظر قراءة أدق");
             return;
