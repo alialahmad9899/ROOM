@@ -1,4 +1,4 @@
-name: ALI CAR 3.5 API21 x86 clean rebuild
+name: ALI CAR 3.6 API21 x86 clean rebuild
 on:
   push:
     branches: ["ali-car-system/3.0.0-clean-rebuild"]
@@ -47,6 +47,17 @@ jobs:
                 });
               }
             }
+      - name: Build BRouter offline car-routing engine
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v1.7.10 https://github.com/abrensch/brouter.git "$RUNNER_TEMP/brouter"
+          cd "$RUNNER_TEMP/brouter"
+          ./gradlew --no-daemon :brouter-server:smallJar
+          JAR="$(find brouter-server/build/libs -maxdepth 1 -type f -name 'brouter-*-ro.jar' | head -n 1)"
+          test -s "$JAR"
+          mkdir -p "$GITHUB_WORKSPACE/ali-car-system/app/libs"
+          cp "$JAR" "$GITHUB_WORKSPACE/ali-car-system/app/libs/brouter-1.7.10-ro.jar"
+          test -s "$GITHUB_WORKSPACE/ali-car-system/app/libs/brouter-1.7.10-ro.jar"
       - name: Install image validation dependency
         run: python3 -m pip install --disable-pip-version-check Pillow
       - name: Resize and verify dashboard photo
@@ -81,12 +92,12 @@ jobs:
           grep -F "targetSdkVersion:'22'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           mkdir -p output
-          cp "$APK" output/ALI-Car-System-3.5.0-api21-x86-debug.apk
+          cp "$APK" output/ALI-Car-System-3.6.0-api21-x86-debug.apk
           sha256sum output/ALI-Car-System-3.5.0-api21-x86-debug.apk > output/SHA256SUMS.txt
           {
             echo "Project: ALI CAR"
             echo "Package: com.ali.carsystem"
-            echo "Version: 3.5.0"
+            echo "Version: 3.6.0"
             echo "Device baseline: ASUS Z170CG / P01Y, Intel SoFIA 3GR, x86 32-bit"
             echo "Minimum Android: 5.0 / API 21"
             echo "Target SDK: 22"
@@ -98,7 +109,7 @@ jobs:
       - name: Upload APK and metadata
         uses: actions/upload-artifact@v4
         with:
-          name: ALI-CAR-3.5.0-API21-X86-APK
+          name: ALI-CAR-3.6.0-API21-X86-APK
           path: |
             output/ALI-Car-System-3.5.0-api21-x86-debug.apk
             output/SHA256SUMS.txt
@@ -133,7 +144,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ALI-CAR-3.5.0-API21-X86-DIAGNOSTICS
+          name: ALI-CAR-3.6.0-API21-X86-DIAGNOSTICS
           path: ali-car-system/emulator-diagnostics/
           if-no-files-found: ignore
           retention-days: 30
