@@ -58,7 +58,8 @@ public final class NavigationGuidanceService extends Service implements Location
     private boolean ttsReady, arabicAvailable, foregroundStarted, rerouting;
     private String destinationName = "الوجهة";
     private double destinationLat, destinationLon, totalMeters, routeSeconds;
-    private double currentProgressMeters, offRouteSince;
+    private double currentProgressMeters;
+    private long offRouteSince;
     private int offRouteFixes, nextManeuverIndex, lastAnnouncedStage = -1;
     private long lastPoorGpsNotice, lastStateNotice, lastRerouteAt;
     private float lastAccuracy = -1f;
@@ -238,7 +239,7 @@ public final class NavigationGuidanceService extends Service implements Location
             offRouteFixes++;
             if (offRouteSince == 0d) offRouteSince = android.os.SystemClock.elapsedRealtime();
             long now = android.os.SystemClock.elapsedRealtime();
-            if (offRouteFixes >= 2 && now - (long) offRouteSince >= 10000L
+            if (offRouteFixes >= 2 && now - offRouteSince >= 10000L
                     && now - lastRerouteAt > 20000L && !rerouting) {
                 lastRerouteAt = now;
                 recalculateRoute(location);
@@ -306,8 +307,8 @@ public final class NavigationGuidanceService extends Service implements Location
                 : distance <= 800d ? 0 : -1;
         if (stage >= 0 && stage > lastAnnouncedStage) {
             lastAnnouncedStage = stage;
-            String spoken = (stage == 3 ? "الآن، " : "بعد " + (stage == 0 ? "ثمانمئة" :
-                    stage == 1 ? "ثلاثمئة" : "مئة") + " متر، ") + next.text;
+            String spoken = stage == 3 ? "الآن، " + next.text
+                    : "بعد " + Math.max(50, Math.round((float) distance / 50f) * 50) + " متر، " + next.text;
             speakArabic(spoken);
         }
     }
@@ -472,7 +473,7 @@ public final class NavigationGuidanceService extends Service implements Location
             long eta = routeSeconds > 0d && totalMeters > 0d
                     ? Math.round(routeSeconds * remaining / totalMeters / 60d) : -1L;
             String message = "بعد " + Math.round(distance) + " متر، " + m.text
-                    + " • متبقٍ " + distanceLabel(remaining)
+                    + " • قطعت " + distanceLabel(currentProgressMeters) + " • متبقٍ " + distanceLabel(remaining)
                     + (eta >= 0 ? " • " + eta + " دقيقة" : "");
             latestState = message;
             ensureForeground(message);
