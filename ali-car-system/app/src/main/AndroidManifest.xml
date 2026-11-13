@@ -38,7 +38,8 @@
         <activity android:name=".VideoPlayerActivity" android:screenOrientation="landscape"
             android:exported="false" android:configChanges="keyboardHidden|orientation|screenSize"/>
         <activity android:name=".NavigationActivity" android:screenOrientation="landscape"
-            android:exported="false" android:configChanges="keyboardHidden|orientation|screenSize"/>
+            android:exported="false" android:windowSoftInputMode="adjustResize"
+            android:configChanges="keyboardHidden|orientation|screenSize"/>
         <activity android:name=".MusicActivity" android:screenOrientation="landscape"
             android:exported="false" android:configChanges="keyboardHidden|orientation|screenSize"/>
         <activity android:name=".AdminToolsActivity" android:screenOrientation="landscape"
