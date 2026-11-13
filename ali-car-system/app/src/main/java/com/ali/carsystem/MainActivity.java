@@ -142,7 +142,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         }catch(Exception ignored){}}
         if(wallpaper!=null)bg.setImageBitmap(wallpaper);
         root.addView(bg,new FrameLayout.LayoutParams(-1,-1));
-        View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xCC020812,0x22020812,0xAA020812}));root.addView(shade,new FrameLayout.LayoutParams(-1,-1));
+        View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x88020812,0x18020812,0x66020812}));root.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout all=vertical();all.setPadding(dp(18),dp(8),dp(18),dp(8));root.addView(all,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout top=horizontal();
         TextView brand=label("ALI CAR",28,Color.WHITE,true);brand.setLetterSpacing(.14f);brand.setShadowLayer(dp(10),0,0,0xFF47DFFF);
