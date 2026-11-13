@@ -7,6 +7,7 @@ import android.os.*;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.*;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import org.json.*;
 import org.osmdroid.config.Configuration;
@@ -106,7 +107,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private void searchDestination(){
         String q=search.getText().toString().trim();if(q.length()<2){search.setError("أدخل اسم وجهة");return;}
         long now=SystemClock.elapsedRealtime();if(now-lastSearch<1100){status.setText("انتظر لحظة بين طلبات البحث");return;}lastSearch=now;
-        if(geocodeTask!=null)geocodeTask.cancel(true);if(routeTask!=null)routeTask.cancel(true);
+        InputMethodManager keyboard=(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+        if(keyboard!=null)keyboard.hideSoftInputFromWindow(search.getWindowToken(),0);
+        if(geocodeTask!=null)geocodeTask.cancel(true);
+        if(routeTask!=null){routeTask.cancel(true);routeTask=null;}
         status.setText("جارٍ البحث عن الوجهة...");
         geocodeTask=new AsyncTask<String,Void,GeoResult>(){
             protected GeoResult doInBackground(String...v){try{
@@ -383,10 +387,14 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         requestRoute(current,destination,destinationName);
     }
     private void requestRoute(Location start,GeoPoint end,String name){
-        if(routeTask!=null)routeTask.cancel(true);
+        // GPS updates arrive every second. Keep one route request alive instead of
+        // cancelling/restarting it on every fix (which starves the routing server).
+        if(routeTask!=null)return;
+        final Location routeStart=new Location(start);
+        final GeoPoint routeEnd=end;
         routeTask=new AsyncTask<Void,Void,RouteResult>(){
             protected RouteResult doInBackground(Void...v){try{
-                String u=String.format(Locale.US,"https://router.project-osrm.org/route/v1/driving/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=geojson&steps=true&alternatives=false",start.getLongitude(),start.getLatitude(),end.getLongitude(),end.getLatitude());
+                String u=String.format(Locale.US,"https://router.project-osrm.org/route/v1/driving/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=geojson&steps=true&alternatives=true",routeStart.getLongitude(),routeStart.getLatitude(),routeEnd.getLongitude(),routeEnd.getLatitude());
                 JSONObject root=new JSONObject(VideoApi.read(getApplicationContext(),u));if(!"Ok".equals(root.optString("code")))return new RouteResult("تعذر إيجاد مسار قيادة");
                 JSONArray routes=root.getJSONArray("routes");if(routes.length()==0)return new RouteResult("لا يوجد مسار");
                 JSONObject r=routes.getJSONObject(0);JSONArray coords=r.getJSONObject("geometry").getJSONArray("coordinates");
@@ -395,7 +403,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 if(legs.length()>0){JSONArray steps=legs.getJSONObject(0).optJSONArray("steps");if(steps!=null)for(int i=0;i<steps.length();i++){JSONObject step=steps.getJSONObject(i);JSONObject m=step.optJSONObject("maneuver");if(m==null)continue;JSONArray loc=m.optJSONArray("location");if(loc==null||loc.length()<2)continue;maneuvers.add(new Maneuver(new GeoPoint(loc.getDouble(1),loc.getDouble(0)),instruction(step)));}}
                 return new RouteResult(points,r.optDouble("distance")/1000,r.optDouble("duration")/60,maneuvers);
             }catch(Exception e){return new RouteResult("تعذر الاتصال بخدمة المسارات: "+e.getMessage());}}
-            protected void onPostExecute(RouteResult r){routeTask=null;if(isFinishing())return;if(r.error!=null){status.setText(r.error);waitingForFix=true;return;}
+            protected void onPostExecute(RouteResult r){routeTask=null;if(isFinishing())return;if(r.error!=null){status.setText(r.error+" — اضغط «اذهب» لإعادة المحاولة");waitingForFix=false;return;}
                 if(routeLine!=null)map.getOverlays().remove(routeLine);routeLine=new Polyline(map);routeLine.setPoints(r.points);routeLine.setColor(0xFF00DFFF);routeLine.setWidth(dp(5));map.getOverlays().add(routeLine);
                 BoundingBox bounds=BoundingBox.fromGeoPoints(r.points);map.zoomToBoundingBox(bounds,true);
                 status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %.0f دقيقة",r.km,r.minutes));
