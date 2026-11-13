@@ -207,7 +207,8 @@ public final class NavigationActivity extends Activity implements LocationListen
         hideKeyboard();
         if(searchTask!=null)searchTask.cancel(true);
         if(routeTask!=null)routeTask.cancel(true);
-        routeTask=null;routeOptions.clear();selectedRoute=null;waitingForGps=false;activeManeuverIndex=0;
+        routeTask=null;routeOptions.clear();selectedRoute=null;progressEngine=null;waitingForGps=false;activeManeuverIndex=0;
+        if(backgroundRouteButton!=null)backgroundRouteButton.setVisibility(View.GONE);
         if(routeLine!=null){map.getOverlays().remove(routeLine);routeLine=null;}
         if(destinationMarker!=null){map.getOverlays().remove(destinationMarker);destinationMarker=null;}
         pendingDestination=null;pendingDestinationName=null;
@@ -513,12 +514,10 @@ public final class NavigationActivity extends Activity implements LocationListen
     private String buildBackgroundRoutePayload(RouteOption route)throws Exception{
         if(route==null||route.points==null||route.points.size()<2)
             throw new IllegalStateException("لا يوجد مسار صالح لتشغيله بالخلفية");
-        final int maxPoints=9000;
-        int stride=Math.max(1,(int)Math.ceil(route.points.size()/(double)maxPoints));
-        ArrayList<GeoPoint> sampled=new ArrayList<>();
-        for(int i=0;i<route.points.size();i+=stride)sampled.add(route.points.get(i));
-        GeoPoint last=route.points.get(route.points.size()-1);
-        if(sampled.get(sampled.size()-1)!=last)sampled.add(last);
+        // Preserve every routing vertex so the background map matcher does
+        // not cut corners or lose small urban turns through point decimation.
+        ArrayList<GeoPoint> sampled=route.points;
+        int stride=1;
 
         org.json.JSONObject root=new org.json.JSONObject();
         root.put("destination",pendingDestinationName==null?"الوجهة المحددة":pendingDestinationName);
@@ -533,10 +532,9 @@ public final class NavigationActivity extends Activity implements LocationListen
 
         org.json.JSONArray maneuversJson=new org.json.JSONArray();
         for(Maneuver maneuver:route.maneuvers){
-            int originalIndex=nearestRoutePointIndex(route.points,maneuver.point);
-            int sampledIndex=Math.min(sampled.size()-1,(int)Math.round(originalIndex/(double)stride));
+            int routeIndex=nearestRoutePointIndex(route.points,maneuver.point);
             org.json.JSONObject item=new org.json.JSONObject();
-            item.put("route_index",sampledIndex);
+            item.put("route_index",routeIndex);
             item.put("instruction",maneuver.text);
             maneuversJson.put(item);
         }
