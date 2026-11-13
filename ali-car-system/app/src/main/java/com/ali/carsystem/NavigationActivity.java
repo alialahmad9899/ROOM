@@ -187,7 +187,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         googleNavigationButton.setOnClickListener(v->launchGoogleMapsNavigation());
         offlineMapsButton.setOnClickListener(v->startOfflineMapImport());
         retryRouteButton.setOnClickListener(v->drawRouteIfPossible());
-        loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());setGuidedMode(true);
+        loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());setGuidedMode(true);ensureBundledOfflineData();
     }
     private void searchDestination(){
         String q=search.getText().toString().trim();if(q.length()<2){search.setError("أدخل اسم وجهة");return;}
@@ -235,6 +235,23 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             map.setTileSource(TileSourceFactory.MAPNIK);
             if(status!=null)status.setText("تعذر فتح الخريطة المحلية: "+error.getClass().getSimpleName());
         }
+    }
+
+    private void ensureBundledOfflineData(){
+        if(OfflineMapsManager.getMapFile(this)!=null&&OfflineMapsManager.getPlacesDatabase(this)!=null&&OfflineMapsManager.hasOfflineRouting(this))return;
+        new AsyncTask<Void,Void,String>(){
+            protected String doInBackground(Void...ignored){
+                try{OfflineMapsManager.ensureBundledAssets(getApplicationContext());return null;}
+                catch(Exception error){return error.getMessage()==null?error.getClass().getSimpleName():error.getMessage();}
+            }
+            protected void onPostExecute(String error){
+                if(isFinishing())return;
+                configureMapTiles();
+                String packageState=OfflineMapsManager.status(NavigationActivity.this);
+                if(error!=null)status.setText("تعذر تجهيز خريطة سوريا المضمّنة: "+error);
+                else status.setText(packageState);
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
     private void startOfflineMapImport(){
