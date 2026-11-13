@@ -167,19 +167,21 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
     private void searchDestination(){
         String q=search.getText().toString().trim();if(q.length()<2){search.setError("أدخل اسم وجهة");return;}
-        long now=SystemClock.elapsedRealtime();if(now-lastSearch<1100){status.setText("انتظر لحظة بين طلبات البحث");return;}lastSearch=now;
+        long now=SystemClock.elapsedRealtime();if(now-lastSearch<500){status.setText("جارٍ تنفيذ البحث السابق...");return;}lastSearch=now;
         InputMethodManager keyboard=(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
-        if(keyboard!=null)keyboard.hideSoftInputFromWindow(search.getWindowToken(),0);
-        if(geocodeTask!=null)geocodeTask.cancel(true);
-        if(routeTask!=null){routeTask.cancel(true);routeTask=null;}
-        status.setText("جارٍ البحث عن الوجهة...");
+        if(keyboard!=null)keyboard.hideSoftInputFromWindow(search.getWindowToken(),0);search.clearFocus();
+        if(geocodeTask!=null)geocodeTask.cancel(true);final int requestId=++geocodeRequestId;
+        if(routeTask!=null){routeRequestId++;routeTask.cancel(true);routeTask=null;}
+        routeAttemptedForDestination=false;routeOptions=Collections.emptyList();selectedRouteIndex=-1;activeManeuvers=Collections.emptyList();
+        if(routeLine!=null){map.getOverlays().remove(routeLine);routeLine=null;}routeChoices.removeAllViews();
+        status.setText("جارٍ البحث عن الوجهة...");maneuver.setText("تم إرسال البحث عن الوجهة");
         geocodeTask=new AsyncTask<String,Void,GeoResult>(){
             protected GeoResult doInBackground(String...v){try{
                 String u="https://nominatim.openstreetmap.org/search?q="+URLEncoder.encode(v[0],"UTF-8")+"&format=jsonv2&limit=1&accept-language=ar,en";
                 JSONArray a=new JSONArray(VideoApi.read(getApplicationContext(),u));if(a.length()==0)return new GeoResult("لم يتم العثور على الوجهة");
                 JSONObject x=a.getJSONObject(0);return new GeoResult(new GeoPoint(x.getDouble("lat"),x.getDouble("lon")),x.optString("display_name","الوجهة"));
             }catch(Exception e){return new GeoResult(e.getMessage());}}
-            protected void onPostExecute(GeoResult r){if(isFinishing())return;if(r.error!=null){status.setText(r.error);return;}destination=r.point;destinationName=r.name;showDestination();drawRouteIfPossible();}
+            protected void onPostExecute(GeoResult r){if(requestId!=geocodeRequestId||isFinishing())return;geocodeTask=null;if(r.error!=null){status.setText("تعذر البحث عن الوجهة: "+r.error);return;}destination=r.point;destinationName=r.name;routeAttemptedForDestination=false;showDestination();drawRouteIfPossible();}
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,q);
     }
     private boolean hasLocationPermission(){
@@ -440,7 +442,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         else map.invalidate();
     }
     private void showCar(Location l){
-        GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());if(carMarker==null){carMarker=new Marker(map);carMarker.setTitle("موقع السيارة");map.getOverlays().add(carMarker);}carMarker.setPosition(p);if(l.hasBearing())carMarker.setRotation(l.getBearing());map.invalidate();
+        GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());if(carMarker==null){carMarker=new Marker(map);carMarker.setTitle("موقع السيارة");carMarker.setIcon(createCarIcon());carMarker.setAnchor(Marker.ANCHOR_CENTER,Marker.ANCHOR_CENTER);map.getOverlays().add(carMarker);}carMarker.setPosition(p);if(l.hasBearing())carMarker.setRotation(l.getBearing());map.invalidate();
     }
     private void drawRouteIfPossible(){
         if(destination==null)return;
@@ -448,30 +450,41 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         requestRoute(current,destination,destinationName);
     }
     private void requestRoute(Location start,GeoPoint end,String name){
-        // GPS updates arrive every second. Keep one route request alive instead of
-        // cancelling/restarting it on every fix (which starves the routing server).
-        if(routeTask!=null)return;
-        final Location routeStart=new Location(start);
-        final GeoPoint routeEnd=end;
+        // Keep one request in flight; failed requests are not restarted by GPS callbacks.
+        if(routeTask!=null)return;routeAttemptedForDestination=true;final int requestId=++routeRequestId;
+        final Location routeStart=new Location(start);final GeoPoint routeEnd=end;status.setText("جارٍ حساب المسارات البديلة...");
         routeTask=new AsyncTask<Void,Void,RouteResult>(){
             protected RouteResult doInBackground(Void...v){try{
-                String u=String.format(Locale.US,"https://router.project-osrm.org/route/v1/driving/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=geojson&steps=true&alternatives=true",routeStart.getLongitude(),routeStart.getLatitude(),routeEnd.getLongitude(),routeEnd.getLatitude());
-                JSONObject root=new JSONObject(VideoApi.read(getApplicationContext(),u));if(!"Ok".equals(root.optString("code")))return new RouteResult("تعذر إيجاد مسار قيادة");
-                JSONArray routes=root.getJSONArray("routes");if(routes.length()==0)return new RouteResult("لا يوجد مسار");
-                JSONObject r=routes.getJSONObject(0);JSONArray coords=r.getJSONObject("geometry").getJSONArray("coordinates");
-                ArrayList<GeoPoint> points=new ArrayList<>();for(int i=0;i<coords.length();i++){JSONArray pair=coords.getJSONArray(i);points.add(new GeoPoint(pair.getDouble(1),pair.getDouble(0)));}
-                ArrayList<Maneuver> maneuvers=new ArrayList<>();JSONArray legs=r.getJSONArray("legs");
-                if(legs.length()>0){JSONArray steps=legs.getJSONObject(0).optJSONArray("steps");if(steps!=null)for(int i=0;i<steps.length();i++){JSONObject step=steps.getJSONObject(i);JSONObject m=step.optJSONObject("maneuver");if(m==null)continue;JSONArray loc=m.optJSONArray("location");if(loc==null||loc.length()<2)continue;maneuvers.add(new Maneuver(new GeoPoint(loc.getDouble(1),loc.getDouble(0)),instruction(step)));}}
-                return new RouteResult(points,r.optDouble("distance")/1000,r.optDouble("duration")/60,maneuvers);
-            }catch(Exception e){return new RouteResult("تعذر الاتصال بخدمة المسارات: "+e.getMessage());}}
-            protected void onPostExecute(RouteResult r){routeTask=null;if(isFinishing())return;if(r.error!=null){status.setText(r.error+" — اضغط «اذهب» لإعادة المحاولة");waitingForFix=false;return;}
-                if(routeLine!=null)map.getOverlays().remove(routeLine);routeLine=new Polyline(map);routeLine.setPoints(r.points);routeLine.setColor(0xFF00DFFF);routeLine.setWidth(dp(5));map.getOverlays().add(routeLine);
-                BoundingBox bounds=BoundingBox.fromGeoPoints(r.points);map.zoomToBoundingBox(bounds,true);
-                status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %.0f دقيقة",r.km,r.minutes));
-                activeManeuvers=r.maneuvers==null?Collections.emptyList():r.maneuvers;updateManeuver(current,activeManeuvers);waitingForFix=false;map.invalidate();
+                String u=String.format(Locale.US,"https://router.project-osrm.org/route/v1/driving/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=geojson&steps=true&alternatives=3",routeStart.getLongitude(),routeStart.getLatitude(),routeEnd.getLongitude(),routeEnd.getLatitude());
+                JSONObject root=new JSONObject(VideoApi.read(getApplicationContext(),u));
+                if(!"Ok".equals(root.optString("code")))return new RouteResult("محرك المسارات رفض الطلب: "+root.optString("message",root.optString("code","خطأ غير معروف")));
+                JSONArray routes=root.getJSONArray("routes");if(routes.length()==0)return new RouteResult("لم يعثر محرك المسارات على طريق قيادة");
+                ArrayList<RouteOption> options=new ArrayList<>();
+                for(int ri=0;ri<routes.length();ri++){
+                    JSONObject route=routes.getJSONObject(ri);JSONArray coords=route.getJSONObject("geometry").getJSONArray("coordinates");ArrayList<GeoPoint> points=new ArrayList<>();
+                    for(int i=0;i<coords.length();i++){JSONArray pair=coords.getJSONArray(i);points.add(new GeoPoint(pair.getDouble(1),pair.getDouble(0)));}
+                    ArrayList<Maneuver> maneuvers=new ArrayList<>();int turns=0;JSONArray legs=route.optJSONArray("legs");
+                    if(legs!=null)for(int li=0;li<legs.length();li++){JSONArray steps=legs.getJSONObject(li).optJSONArray("steps");if(steps==null)continue;
+                        for(int i=0;i<steps.length();i++){JSONObject step=steps.getJSONObject(i);JSONObject m=step.optJSONObject("maneuver");if(m==null)continue;String type=m.optString("type","");
+                            if("turn".equals(type)||"fork".equals(type)||"end of road".equals(type)||"roundabout".equals(type)||"rotary".equals(type)||"roundabout turn".equals(type)||"uturn".equals(type))turns++;
+                            JSONArray loc=m.optJSONArray("location");if(loc!=null&&loc.length()>=2)maneuvers.add(new Maneuver(new GeoPoint(loc.getDouble(1),loc.getDouble(0)),instruction(step)));
+                        }
+                    }
+                    if(points.size()>1)options.add(new RouteOption(points,route.optDouble("distance")/1000,route.optDouble("duration")/60,maneuvers,turns));
+                }
+                return options.isEmpty()?new RouteResult("وصل رد المسارات دون هندسة صالحة"):new RouteResult(options);
+            }catch(Exception e){String detail=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();return new RouteResult("تعذر الاتصال بخدمة المسارات: "+detail);}}
+            protected void onPostExecute(RouteResult r){
+                if(requestId!=routeRequestId||isFinishing())return;routeTask=null;
+                if(r.error!=null){waitingForFix=false;routeAttemptedForDestination=true;status.setText(r.error+" — اضغط «ابحث» لإعادة المحاولة");maneuver.setText("لم يتم تحميل المسار");return;}
+                routeOptions=r.options;selectedRouteIndex=RouteChoiceLogic.shortestIndex(routeDistances(routeOptions));if(selectedRouteIndex<0)selectedRouteIndex=0;
+                rebuildRouteChoices();selectRoute(selectedRouteIndex);BoundingBox bounds=BoundingBox.fromGeoPoints(routeOptions.get(selectedRouteIndex).points);
+                map.zoomToBoundingBox(bounds,true);waitingForFix=false;map.invalidate();
+                if(routeOptions.size()>1)trafficInfo.setText("تم توفير "+routeOptions.size()+" بدائل • لا تتوفر بيانات ازدحام مباشر");
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
+    private static double[] routeDistances(List<RouteOption> o){double[] a=new double[o.size()];for(int i=0;i<a.length;i++)a[i]=o.get(i).km;return a;}
     private static String instruction(JSONObject step){
         JSONObject m=step.optJSONObject("maneuver");String type=m==null?"":m.optString("type","");String mod=m==null?"":m.optString("modifier","");
         String road=step.optString("name","");String dir=mod.contains("left")?"يسار":mod.contains("right")?"يمين":mod.contains("uturn")?"استدر":"مباشرة";
@@ -479,15 +492,17 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         return action+(road.isEmpty()?"":" باتجاه "+road);
     }
     private void updateManeuver(Location l,List<Maneuver> steps){
-        if(steps==null||steps.isEmpty()||l==null){maneuver.setText("اتبع الخط السماوي");return;}
+        if(maneuver==null||!guidedMode)return;if(steps==null||steps.isEmpty()||l==null){maneuver.setText("اتبع الخط السماوي");return;}
         double best=Double.MAX_VALUE;String next=steps.get(steps.size()-1).text;
         for(Maneuver m:steps){double d=GeoMath.distanceMeters(l.getLatitude(),l.getLongitude(),m.point.getLatitude(),m.point.getLongitude());if(d>15&&d<best){best=d;next=m.text+" — بعد "+Math.round(d)+" متر";}}
         maneuver.setText(next);
     }
     @Override public void onLocationChanged(Location l){
         if(l==null)return;current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
+        if(guidedMode&&followCar&&map!=null){long now=SystemClock.elapsedRealtime();GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());
+            if(now-lastFollowAt>1800&&(lastFollowPoint==null||GeoMath.distanceMeters(lastFollowPoint.getLatitude(),lastFollowPoint.getLongitude(),p.getLatitude(),p.getLongitude())>18)){map.getController().animateTo(p);lastFollowPoint=p;lastFollowAt=now;}}
         float accuracy=l.hasAccuracy()?l.getAccuracy():999;
-        if(destination!=null&&(waitingForFix||routeLine==null)&&isNavigationFixUsable(l))drawRouteIfPossible();
+        if(destination!=null&&waitingForFix&&!routeAttemptedForDestination&&isNavigationFixUsable(l))drawRouteIfPossible();
         lastFixProvider=l.getProvider()==null?"غير معروف":l.getProvider();
         lastFixAccuracy=accuracy;lastFixElapsedNanos=l.getElapsedRealtimeNanos();
         if(status!=null&&destination==null)status.setText("تم استقبال موقع "+lastFixProvider+" — الدقة ±"+Math.round(accuracy)+" متر");
@@ -541,5 +556,6 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
     private static final class GeoResult{final GeoPoint point;final String name,error;GeoResult(String e){point=null;name="";error=e;}GeoResult(GeoPoint p,String n){point=p;name=n;error=null;}}
     private static final class Maneuver{final GeoPoint point;final String text;Maneuver(GeoPoint p,String t){point=p;text=t;}}
-    private static final class RouteResult{final ArrayList<GeoPoint> points;final double km,minutes;final List<Maneuver> maneuvers;final String error;RouteResult(String e){points=null;km=minutes=0;maneuvers=null;error=e;}RouteResult(ArrayList<GeoPoint> p,double k,double m,List<Maneuver> n){points=p;km=k;minutes=m;maneuvers=n;error=null;}}
+    private static final class RouteOption{final ArrayList<GeoPoint> points;final double km,minutes;final List<Maneuver> maneuvers;final int turns;RouteOption(ArrayList<GeoPoint> p,double k,double m,List<Maneuver> n,int t){points=p;km=k;minutes=m;maneuvers=n;turns=t;}}
+    private static final class RouteResult{final List<RouteOption> options;final String error;RouteResult(String e){options=Collections.emptyList();error=e;}RouteResult(List<RouteOption> o){options=o;error=null;}}
 }
