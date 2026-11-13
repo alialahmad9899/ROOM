@@ -55,7 +55,7 @@ public final class LegacyTls {
         c.setReadTimeout(Math.max(1000, readTimeoutMs));
         c.setUseCaches(false);
         c.setRequestMethod(method == null ? "GET" : method);
-        c.setRequestProperty("User-Agent", "ALI-CAR/3.6.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
+        c.setRequestProperty("User-Agent", "ALI-CAR/3.7.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
         c.setRequestProperty("Accept", "application/json,text/plain,*/*");
         c.setRequestProperty("Accept-Encoding", "identity");
         c.setRequestProperty("Accept-Language", "ar,en;q=0.8");
