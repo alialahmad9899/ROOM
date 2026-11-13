@@ -40,6 +40,7 @@ jobs:
             const response = await github.rest.actions.listWorkflowRunsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
+              workflow_id: context.workflow.id,
               branch,
               status: "in_progress",
               per_page: 100
