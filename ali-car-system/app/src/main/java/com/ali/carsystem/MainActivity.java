@@ -33,8 +33,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private long lastTripTimestamp;
     private final Runnable clockTick=new Runnable(){@Override public void run(){updateClock();handler.postDelayed(this,1000);}};
     private final Runnable idleTick=()->showAmbientClock();
-    private View ambientOverlay;
-    private BroadcastReceiver screenReceiver;
+    private View ambientOverlay,welcomeOverlay;
+    private BroadcastReceiver screenReceiver,musicReceiver;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -54,8 +54,10 @@ public final class MainActivity extends BaseActivity implements LocationListener
                 updateStats();
             }
         });
-        screenReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){if(Intent.ACTION_SCREEN_ON.equals(i.getAction()))handler.postDelayed(()->showWelcome(),450);}};
+        screenReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){if(Intent.ACTION_SCREEN_ON.equals(i.getAction()))handler.postDelayed(()->showWelcome(),350);}};
         registerReceiver(screenReceiver,new IntentFilter(Intent.ACTION_SCREEN_ON));
+        musicReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){if(songTitle!=null){String name=i.getStringExtra("title");songTitle.setText(name==null||name.isEmpty()?"لا توجد أغنية قيد التشغيل":name);}}};
+        registerReceiver(musicReceiver,new IntentFilter(MusicPlaybackService.ACTION_STATE));
         handler.post(clockTick);
         if(splashPending){handler.postDelayed(()->showWelcome(),250);splashPending=false;}
     }
@@ -105,13 +107,18 @@ public final class MainActivity extends BaseActivity implements LocationListener
     }
     private void dismissAmbient(){if(ambientOverlay!=null){ViewGroup p=(ViewGroup)ambientOverlay.getParent();if(p!=null)p.removeView(ambientOverlay);ambientOverlay=null;}}
     private void showWelcome(){
-        if(isFinishing()||pager==null)return;dismissAmbient();handler.removeCallbacks(idleTick);
-        NeonSplashView splash=new NeonSplashView(this);FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(-1,-1);
-        addContentView(splash,lp);
-        splash.setAlpha(0);splash.animate().alpha(1).setDuration(180).start();
+        if(isFinishing()||pager==null||welcomeOverlay!=null)return;
+        dismissAmbient();handler.removeCallbacks(idleTick);
+        NeonSplashView splash=new NeonSplashView(this);welcomeOverlay=splash;
+        addContentView(splash,new FrameLayout.LayoutParams(-1,-1));
+        splash.setAlpha(0);splash.animate().alpha(1).setDuration(350).start();
         if(ttsReady)try{tts.speak("Welcome Ali",TextToSpeech.QUEUE_FLUSH,null,"ali-welcome");}catch(Exception ignored){pendingSpeak=true;}
         else pendingSpeak=true;
-        handler.postDelayed(()->{ViewGroup p=(ViewGroup)splash.getParent();if(p!=null)p.removeView(splash);scheduleIdle();},4100);
+        handler.postDelayed(this::dismissWelcome,5200);
+    }
+    private void dismissWelcome(){
+        if(welcomeOverlay!=null){View v=welcomeOverlay;welcomeOverlay=null;ViewGroup p=(ViewGroup)v.getParent();if(p!=null)p.removeView(v);}
+        if(!isFinishing())scheduleIdle();
     }
     @Override public void onInit(int status){
         ttsReady=status==TextToSpeech.SUCCESS;
@@ -191,7 +198,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     }
     private TextView mediaButton(String symbol,String action){
         TextView b=label(symbol,22,Color.WHITE,true);b.setGravity(Gravity.CENTER);b.setBackground(glass(0x444B91B0,0x556EEBFF,24));
-        b.setOnClickListener(v->{Intent i=new Intent(this,MusicActivity.class);i.putExtra("action",action);startActivity(i);});return b;
+        b.setOnClickListener(v->MusicPlaybackService.dispatch(MainActivity.this,action));return b;
     }
     private void onDock(int which){
         switch(which){
@@ -274,7 +281,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     @Override protected void onPause(){handler.removeCallbacks(idleTick);if(locationManager!=null){try{locationManager.removeUpdates(this);}catch(Exception ignored){}}gpsStarted=false;super.onPause();}
     @Override protected void onDestroy(){
         handler.removeCallbacksAndMessages(null);
-        if(screenReceiver!=null)try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}
+        if(screenReceiver!=null)try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}\n        if(musicReceiver!=null)try{unregisterReceiver(musicReceiver);}catch(Exception ignored){}\n        dismissWelcome();
         if(tts!=null){try{tts.stop();tts.shutdown();}catch(Exception ignored){}}
         super.onDestroy();
     }
