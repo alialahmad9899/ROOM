@@ -14,6 +14,7 @@
     <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
     <application
         android:name=".CarApplication"
@@ -39,6 +40,7 @@
         <activity android:name=".NavigationActivity" android:screenOrientation="landscape" android:exported="false" android:windowSoftInputMode="stateAlwaysHidden|adjustResize"/>
         <activity android:name=".MusicActivity" android:screenOrientation="landscape" android:exported="false"/>
         <service android:name=".MusicPlaybackService" android:exported="false"/>
+        <service android:name=".LocationTrackingService" android:enabled="true" android:exported="false"/>
         <activity android:name=".SettingsActivity" android:screenOrientation="landscape" android:exported="false"/>
         <receiver android:name=".CarAdminReceiver" android:permission="android.permission.BIND_DEVICE_ADMIN" android:exported="true">
             <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin"/>
