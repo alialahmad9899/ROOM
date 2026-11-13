@@ -62,7 +62,6 @@ final class OfflineRoutingEngine {
             Map<String, String> params = new HashMap<>();
             params.put("outputFormat", "json");
             params.put("turnInstructionMode", "1");
-            params.put("maxRunningTime", "45");
             Method setParams = collectorClass.getMethod("setParams", contextClass, List.class, Map.class);
             setParams.invoke(collector, routingContext, waypoints, params);
 
