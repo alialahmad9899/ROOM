@@ -36,6 +36,14 @@ public final class MainActivity extends Activity implements LocationListener {
     private SpeedGaugeView mainGauge, clusterGauge;
     private TextView digitalClock,dateText,gpsText,songTitle,clusterTrip,clusterOdometer,clusterMax;
     private LinearLayout ambientOverlay;
+    private FrameLayout navigationPanel;
+    private TextView navigationArrow,navigationInstruction,navigationStats,navigationStatus;
+    private boolean navigationReceiverRegistered;
+    private final BroadcastReceiver navigationStateReceiver=new BroadcastReceiver(){
+        @Override public void onReceive(Context context,Intent intent){
+            if(intent!=null&&NavigationService.ACTION_STATE.equals(intent.getAction()))renderNavigationState(intent);
+        }
+    };
     private View splashOverlay;
     private SeekBar volumeSeek;
     private TextView muteButton;
@@ -59,7 +67,7 @@ public final class MainActivity extends Activity implements LocationListener {
         }
         handler.postDelayed(this,1000);
     }};
-    private final Runnable idleTimer=this::showAmbientClock;
+    private final Runnable idleTimer=this::enterAutomaticSleepIfAllowed;
     private final BroadcastReceiver screenOnReceiver=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
             if(Intent.ACTION_SCREEN_ON.equals(intent.getAction())){
@@ -86,7 +94,12 @@ public final class MainActivity extends Activity implements LocationListener {
         audio=(AudioManager)getSystemService(AUDIO_SERVICE);
         prefs=getSharedPreferences("ali_car_trip_data",MODE_PRIVATE);
         tripKm=readDouble("trip_km",0);odometerKm=readDouble("odometer_km",0);maxSpeed=readDouble("max_speed",0);
-        try{tts=new TextToSpeech(this,status->{if(status==TextToSpeech.SUCCESS){tts.setLanguage(Locale.US);}});}catch(Exception ignored){}
+        try{tts=new TextToSpeech(this,status->{
+            if(status==TextToSpeech.SUCCESS&&tts!=null){
+                Locale arabic=new Locale("ar");
+                if(tts.isLanguageAvailable(arabic)>=TextToSpeech.LANG_AVAILABLE)tts.setLanguage(arabic);
+            }
+        });}catch(Exception ignored){}
         buildDashboard();
         if(!receiverRegistered){registerReceiver(screenOnReceiver,new IntentFilter(Intent.ACTION_SCREEN_ON));receiverRegistered=true;}
         showWelcomeSplash();
@@ -193,6 +206,8 @@ public final class MainActivity extends Activity implements LocationListener {
         right.addView(new AnalogClock(this),new LinearLayout.LayoutParams(dp(145),dp(145)));
         dateText=label("",13,Color.WHITE,true);dateText.setGravity(Gravity.CENTER);
         right.addView(dateText,new LinearLayout.LayoutParams(-1,dp(26)));
+        left.setTranslationX(dp(10));
+        right.setTranslationX(-dp(10));
         content.addView(left,new LinearLayout.LayoutParams(0,-2,0.40f));
         content.addView(centerSpace,new LinearLayout.LayoutParams(0,1,0.20f));
         content.addView(right,new LinearLayout.LayoutParams(0,-2,0.40f));
@@ -207,6 +222,10 @@ public final class MainActivity extends Activity implements LocationListener {
         dock.addView(dockItem(R.drawable.ic_car_bluetooth,"بلوتوث",0xFF65BFFF,this::toggleBluetooth),dockParams());
         dock.addView(dockItem(R.drawable.ic_car_wifi,"واي فاي",0xFF6DF5E2,this::toggleWifi),dockParams());
         dock.addView(dockItem(R.drawable.ic_car_brightness,"السطوع",0xFFFFD36B,this::showBrightnessPill),dockParams());
+        page.addView(buildNavigationPanel(),new FrameLayout.LayoutParams(dp(350),dp(104),Gravity.TOP|Gravity.CENTER_HORIZONTAL));
+        FrameLayout.LayoutParams navigationPanelLp=(FrameLayout.LayoutParams)navigationPanel.getLayoutParams();
+        navigationPanelLp.topMargin=dp(58);navigationPanel.setLayoutParams(navigationPanelLp);
+
         FrameLayout.LayoutParams dockLp=new FrameLayout.LayoutParams(-1,dp(82),Gravity.BOTTOM);
         dockLp.bottomMargin=dp(22);page.addView(dock,dockLp);
         TextView credit=label("تم تطوير الواجهة بواسطة : ali ahmad",10,0xFFF4EBD9,true);credit.setGravity(Gravity.CENTER);
@@ -218,6 +237,189 @@ public final class MainActivity extends Activity implements LocationListener {
         FrameLayout.LayoutParams hintLp=new FrameLayout.LayoutParams(-1,dp(20),Gravity.BOTTOM);
         hintLp.bottomMargin=dp(104);page.addView(swipeHint,hintLp);
         return page;
+    }
+
+
+    private View buildNavigationPanel(){
+        navigationPanel=new FrameLayout(this);
+        GradientDrawable background=new GradientDrawable();
+        background.setColor(0xEE0A1C2B);background.setCornerRadius(dp(16));
+        background.setStroke(dp(1),0xCC46DEFF);
+        navigationPanel.setBackground(background);
+        navigationPanel.setElevation(dp(8));
+
+        LinearLayout column=new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setPadding(dp(11),dp(7),dp(11),dp(7));
+
+        LinearLayout top=new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        navigationArrow=label("↑",32,0xFF70E6FF,true);
+        navigationArrow.setGravity(Gravity.CENTER);
+        top.addView(navigationArrow,new LinearLayout.LayoutParams(dp(42),dp(38)));
+
+        navigationInstruction=label("الملاحة غير نشطة",14,Color.WHITE,true);
+        navigationInstruction.setSingleLine(true);
+        navigationInstruction.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        navigationInstruction.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
+        top.addView(navigationInstruction,new LinearLayout.LayoutParams(0,dp(38),1f));
+        column.addView(top,new LinearLayout.LayoutParams(-1,dp(38)));
+
+        navigationStats=label("حدد وجهة لتظهر إرشادات الطريق هنا",10,0xFFD4EAF5,false);
+        navigationStats.setSingleLine(true);
+        navigationStats.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        navigationStats.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
+        column.addView(navigationStats,new LinearLayout.LayoutParams(-1,dp(23)));
+
+        navigationStatus=label("التوجيه الصوتي العربي",9,0xFF8DAFC2,false);
+        navigationStatus.setSingleLine(true);
+        navigationStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        navigationStatus.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
+        column.addView(navigationStatus,new LinearLayout.LayoutParams(-1,dp(20)));
+
+        navigationPanel.addView(column,new FrameLayout.LayoutParams(-1,-1));
+        navigationPanel.setVisibility(View.GONE);
+        return navigationPanel;
+    }
+
+    private void renderNavigationState(Intent update){
+        if(navigationPanel==null||update==null)return;
+        boolean active=update.getBooleanExtra("active",false);
+        if(!active){
+            navigationPanel.setVisibility(View.GONE);
+            return;
+        }
+        String instruction=update.getStringExtra("instruction");
+        String message=update.getStringExtra("message");
+        boolean arrived=update.getBooleanExtra("arrived",false);
+        boolean voiceReady=update.getBooleanExtra("voice_ready",false);
+        double turnMeters=update.getDoubleExtra("turn_distance_m",0);
+        double remainingKm=update.getDoubleExtra("remaining_km",0);
+        double traveledKm=update.getDoubleExtra("traveled_km",0);
+        double eta=update.getDoubleExtra("eta_minutes",0);
+        updateNavigationPanel(instruction,turnMeters,remainingKm,traveledKm,eta,
+                message,voiceReady,arrived);
+    }
+
+    private void updateNavigationPanel(String instruction,double turnMeters,double remainingKm,
+                                       double traveledKm,double eta,String message,
+                                       boolean voiceReady,boolean arrived){
+        if(navigationPanel==null)return;
+        navigationPanel.setVisibility(View.VISIBLE);
+        String turn=instruction==null||instruction.trim().isEmpty()?"جارٍ تثبيت موقع GPS":instruction;
+        if(arrived)turn="وصلت إلى وجهتك";
+        navigationInstruction.setText(turn);
+        navigationArrow.setText(arrived?"●":turn.contains("يسار")?"↰":turn.contains("يمين")?"↱":"↑");
+
+        String distance=turnMeters>=1000
+                ?arabicNumber(turnMeters/1000.0,1)+" كم"
+                :arabicNumber(turnMeters,0)+" متر";
+        String stats="المنعطف بعد "+distance+"  •  متبقي "+arabicNumber(remainingKm,1)
+                +" كم  •  قطعت "+arabicNumber(traveledKm,1)+" كم  •  "+arabicNumber(eta,0)+" د تقريباً";
+        navigationStats.setText(stats);
+
+        String state=message==null||message.trim().isEmpty()?"المسار نشط":message;
+        navigationStatus.setText(voiceReady?"الصوت العربي جاهز • "+state:
+                "الصوت العربي غير جاهز • "+state);
+        navigationStatus.setTextColor(voiceReady?0xFF83E7C5:0xFFFFC978);
+    }
+
+    private String arabicNumber(double value,int decimals){
+        java.text.NumberFormat format=java.text.NumberFormat.getNumberInstance(new Locale("ar"));
+        format.setMaximumFractionDigits(decimals);
+        format.setMinimumFractionDigits(decimals);
+        return format.format(Math.max(0,value));
+    }
+
+    private void renderNavigationFromPreferences(){
+        if(navigationPanel==null)return;
+        SharedPreferences saved=getSharedPreferences("ali_car_navigation",MODE_PRIVATE);
+        if(!saved.getBoolean("active",false)){
+            navigationPanel.setVisibility(View.GONE);return;
+        }
+        updateNavigationPanel(saved.getString("instruction",""),
+                saved.getFloat("turn_distance_m",0f),
+                saved.getFloat("remaining_km",0f),
+                saved.getFloat("traveled_km",0f),
+                saved.getFloat("eta_minutes",0f),
+                saved.getString("last_state","المسار نشط"),
+                saved.getBoolean("voice_ready",false),
+                saved.getBoolean("arrived",false));
+    }
+
+    private void registerNavigationStateReceiver(){
+        if(navigationReceiverRegistered)return;
+        try{
+            registerReceiver(navigationStateReceiver,new IntentFilter(NavigationService.ACTION_STATE));
+            navigationReceiverRegistered=true;
+        }catch(Exception ignored){}
+    }
+
+    private void unregisterNavigationStateReceiver(){
+        if(!navigationReceiverRegistered)return;
+        try{unregisterReceiver(navigationStateReceiver);}catch(Exception ignored){}
+        navigationReceiverRegistered=false;
+    }
+
+    private boolean isCharging(){
+        try{
+            Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if(battery==null)return false;
+            int status=battery.getIntExtra(BatteryManager.EXTRA_STATUS,-1);
+            int plugged=battery.getIntExtra(BatteryManager.EXTRA_PLUGGED,0);
+            return plugged!=0||status==BatteryManager.BATTERY_STATUS_CHARGING
+                    ||status==BatteryManager.BATTERY_STATUS_FULL;
+        }catch(Exception ignored){return false;}
+    }
+
+    private boolean isMusicActive(){
+        try{return audio!=null&&audio.isMusicActive();}catch(Exception ignored){return false;}
+    }
+
+    private boolean isNavigationActive(){
+        return getSharedPreferences("ali_car_navigation",MODE_PRIVATE).getBoolean("active",false);
+    }
+
+    private void enterAutomaticSleepIfAllowed(){
+        if(root==null||pager==null||pager.getCurrentItem()!=0||isAmbientShowing()||!isResumed)return;
+        if(isCharging()||isMusicActive()||isNavigationActive()){
+            scheduleIdleForMainPage();
+            return;
+        }
+        showAmbientClock();
+    }
+
+    private void applySleepPowerPolicy(){
+        // The navigation foreground service has its own GPS client and stays alive.
+        stopGps();
+        if(isCharging()||isMusicActive()||isNavigationActive())return;
+
+        SharedPreferences state=getSharedPreferences("ali_car_sleep_state",MODE_PRIVATE);
+        SharedPreferences.Editor edit=state.edit();
+        if(wifi!=null&&wifi.isWifiEnabled()){
+            edit.putBoolean("restore_wifi",true);
+            try{wifi.setWifiEnabled(false);}catch(Exception ignored){}
+        }
+        BluetoothAdapter adapter=BluetoothAdapter.getDefaultAdapter();
+        if(adapter!=null&&adapter.isEnabled()){
+            edit.putBoolean("restore_bluetooth",true);
+            try{adapter.disable();}catch(Exception ignored){}
+        }
+        edit.apply();
+    }
+
+    private void restoreConnectivityAfterSleep(){
+        SharedPreferences state=getSharedPreferences("ali_car_sleep_state",MODE_PRIVATE);
+        boolean restoreWifi=state.getBoolean("restore_wifi",false);
+        boolean restoreBluetooth=state.getBoolean("restore_bluetooth",false);
+        if(restoreWifi&&wifi!=null){
+            try{wifi.setWifiEnabled(true);}catch(Exception ignored){}
+        }
+        if(restoreBluetooth){
+            BluetoothAdapter adapter=BluetoothAdapter.getDefaultAdapter();
+            if(adapter!=null){try{adapter.enable();}catch(Exception ignored){}}
+        }
+        state.edit().clear().apply();
     }
 
     private View buildClusterPage(){
@@ -305,6 +507,9 @@ public final class MainActivity extends Activity implements LocationListener {
     private void updateMuteIcon(){if(muteButton!=null)muteButton.setText(muted?"×":"◖");}
     private void openDeviceSettings(View anchor){
         PopupMenu menu=new PopupMenu(this,anchor);
+        menu.getMenu().add("دخول وضع السكون يدوياً الآن").setOnMenuItemClickListener(item->{
+            handler.removeCallbacks(idleTimer);showAmbientClock();return true;
+        });
         menu.getMenu().add("إعدادات الجهاز").setOnMenuItemClickListener(item->{try{startActivity(new Intent(Settings.ACTION_SETTINGS));}catch(Exception e){toast("تعذر فتح الإعدادات");}return true;});
         menu.getMenu().add("إدارة الجهاز ووضع القيادة").setOnMenuItemClickListener(item->{openActivity(AdminToolsActivity.class);return true;});
         menu.show();
@@ -351,6 +556,7 @@ public final class MainActivity extends Activity implements LocationListener {
     @Override public void onUserInteraction(){super.onUserInteraction();if(pager!=null&&pager.getCurrentItem()==0){dismissAmbientClock();scheduleIdleForMainPage();}}
     private void showAmbientClock(){
         if(root==null||pager==null||pager.getCurrentItem()!=0||ambientOverlay!=null||!isResumed||splashOverlay!=null)return;
+        applySleepPowerPolicy();
         ambientOverlay=new LinearLayout(this);ambientOverlay.setGravity(Gravity.CENTER);ambientOverlay.setOrientation(LinearLayout.VERTICAL);
         ambientOverlay.setBackgroundColor(Color.BLACK);ambientOverlay.setPadding(dp(16),dp(16),dp(16),dp(16));
         TextView clock=label(new SimpleDateFormat("hh:mm",Locale.US).format(new Date()),120,0xFFBDEEFF,true);
@@ -369,6 +575,7 @@ public final class MainActivity extends Activity implements LocationListener {
         if(ambientOverlay==null)return;
         if(root!=null)root.removeView(ambientOverlay);ambientOverlay=null;
         WindowManager.LayoutParams p=getWindow().getAttributes();p.screenBrightness=-1f;getWindow().setAttributes(p);
+        if(isResumed)restoreConnectivityAfterSleep();
     }
 
     private void showWelcomeSplash(){
@@ -376,7 +583,12 @@ public final class MainActivity extends Activity implements LocationListener {
         dismissAmbientClock();handler.removeCallbacks(idleTimer);
         SplashNeonView splash=new SplashNeonView(this);splashOverlay=splash;
         root.addView(splash,new FrameLayout.LayoutParams(-1,-1));splash.bringToFront();
-        if(tts!=null){try{tts.setLanguage(Locale.US);tts.speak("Welcome Ali",TextToSpeech.QUEUE_FLUSH,null);}catch(Exception ignored){}}
+        if(tts!=null){try{
+            Locale arabic=new Locale("ar");
+            if(tts.isLanguageAvailable(arabic)>=TextToSpeech.LANG_AVAILABLE){
+                tts.setLanguage(arabic);tts.speak("مرحباً بك في علي كار",TextToSpeech.QUEUE_FLUSH,null);
+            }
+        }catch(Exception ignored){}}
         splash.animate().alpha(1f).setDuration(160).start();
         handler.postDelayed(()->{
             if(root!=null&&splashOverlay==splash){root.removeView(splash);splashOverlay=null;scheduleIdleForMainPage();}
@@ -538,20 +750,24 @@ public final class MainActivity extends Activity implements LocationListener {
                 ?"لا توجد أغنية قيد التشغيل":savedTitle);
     }
     @Override protected void onResume(){
-        super.onResume();isResumed=true;immersive();startGps();
-        refreshSongTitle();
+        super.onResume();isResumed=true;immersive();
+        restoreConnectivityAfterSleep();
+        registerNavigationStateReceiver();
+        startGps();
+        refreshSongTitle();renderNavigationFromPreferences();
         handler.removeCallbacks(clockTick);handler.post(clockTick);
         if(screenWakePending){screenWakePending=false;showWelcomeSplash();}
         scheduleIdleForMainPage();
     }
     @Override protected void onPause(){
         isResumed=false;handler.removeCallbacks(idleTimer);handler.removeCallbacks(clockTick);
+        unregisterNavigationStateReceiver();
         if(splashOverlay!=null&&root!=null){root.removeView(splashOverlay);splashOverlay=null;}
         dismissAmbientClock();stopGps();super.onPause();
     }
     @Override protected void onDestroy(){
         if(receiverRegistered){try{unregisterReceiver(screenOnReceiver);}catch(Exception ignored){}receiverRegistered=false;}
-        handler.removeCallbacksAndMessages(null);stopGps();
+        handler.removeCallbacksAndMessages(null);stopGps();unregisterNavigationStateReceiver();
         if(tts!=null){try{tts.stop();tts.shutdown();}catch(Exception ignored){}}
         super.onDestroy();
     }
