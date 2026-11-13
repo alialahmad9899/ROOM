@@ -45,7 +45,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private boolean fusedRegistered,fusedRequestPending,offlinePreparationRunning;private int gmsAvailabilityCode=-1;
     private String gmsLocationStatus="لم يبدأ اتصال Google Fused";
     private EditText search;private TextView status,maneuver,trafficInfo;private LinearLayout routeChoices;
-    private Button freeModeButton,guidedModeButton,followButton,retryRouteButton;
+    private Button freeModeButton,guidedModeButton,followButton,retryRouteButton,backgroundNavigationButton,stopBackgroundNavigationButton;
+    private BroadcastReceiver navigationStateReceiver;
     private GeoPoint destination;private String destinationName="";private Polyline routeLine;private Marker destMarker,carMarker;
     private AsyncTask<Void,Void,RouteResult> routeTask;private AsyncTask<String,Void,GeoResult> geocodeTask;
     private List<Maneuver> activeManeuvers=Collections.emptyList();private List<RouteOption> routeOptions=Collections.emptyList();
@@ -124,7 +125,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private void selectRoute(int index){if(index<0||routeOptions==null||index>=routeOptions.size())return;selectedRouteIndex=index;RouteOption o=routeOptions.get(index);
         if(routeLine!=null)map.getOverlays().remove(routeLine);routeLine=new Polyline(map);routeLine.setPoints(o.points);routeLine.setColor(0xFF00C8F0);routeLine.setWidth(dp(6));if(guidedMode)map.getOverlays().add(routeLine);
         status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %.0f دقيقة  •  %d انعطاف",o.km,o.minutes,o.turns));
-        activeManeuvers=o.maneuvers;updateManeuver(current,activeManeuvers);rebuildRouteChoices();map.invalidate();}
+        activeManeuvers=o.maneuvers;updateManeuver(current,activeManeuvers);rebuildRouteChoices();
+        if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);map.invalidate();}
     @Override protected void onCreate(Bundle b){super.onCreate(b);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Configuration.getInstance().load(this,getSharedPreferences("osmdroid",MODE_PRIVATE));
         Configuration.getInstance().setUserAgentValue("ALI-CAR/3.7.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
@@ -173,6 +175,18 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         trafficInfo=new TextView(this);trafficInfo.setTextColor(0xFFFFD28A);trafficInfo.setTextSize(11);trafficInfo.setGravity(Gravity.RIGHT);trafficInfo.setText("الازدحام المباشر غير متاح من مصدر الخرائط الحالي");bottom.addView(trafficInfo);
         HorizontalScrollView routeScroll=new HorizontalScrollView(this);routeScroll.setHorizontalScrollBarEnabled(false);
         routeChoices=new LinearLayout(this);routeChoices.setTag("navigation_route_choices");routeChoices.setOrientation(LinearLayout.HORIZONTAL);routeChoices.setPadding(0,dp(7),0,0);routeScroll.addView(routeChoices,new HorizontalScrollView.LayoutParams(-2,-2));bottom.addView(routeScroll);
+        LinearLayout backgroundActions=new LinearLayout(this);backgroundActions.setOrientation(LinearLayout.HORIZONTAL);
+        backgroundNavigationButton=new Button(this);backgroundNavigationButton.setTag("navigation_start_background");
+        styleButton(backgroundNavigationButton,"تشغيل المسار بالخلفية",0xFF087FA4);backgroundNavigationButton.setTextSize(12);
+        backgroundNavigationButton.setEnabled(false);
+        stopBackgroundNavigationButton=new Button(this);stopBackgroundNavigationButton.setTag("navigation_stop_background");
+        styleButton(stopBackgroundNavigationButton,"إيقاف الملاحة",0xFF8A3340);stopBackgroundNavigationButton.setTextSize(12);
+        backgroundNavigationButton.setOnClickListener(v->startBackgroundNavigation());
+        stopBackgroundNavigationButton.setOnClickListener(v->stopBackgroundNavigation());
+        backgroundActions.addView(backgroundNavigationButton,new LinearLayout.LayoutParams(0,dp(42),1));
+        LinearLayout.LayoutParams stopLp=new LinearLayout.LayoutParams(0,dp(42),1);stopLp.setMargins(dp(7),0,0,0);
+        backgroundActions.addView(stopBackgroundNavigationButton,stopLp);bottom.addView(backgroundActions);
+
         FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(dp(660),-2,Gravity.BOTTOM|Gravity.LEFT);bp.setMargins(dp(16),0,dp(16),dp(16));root.addView(bottom,bp);
         TextView attribution=new TextView(this);attribution.setText("© OpenStreetMap contributors");attribution.setTextColor(-1);attribution.setTextSize(10);attribution.setBackground(rounded(0xAA061522,0x553B6074,8));attribution.setPadding(dp(8),dp(5),dp(8),dp(5));
         FrameLayout.LayoutParams ap=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);ap.setMargins(0,0,dp(8),dp(7));root.addView(attribution,ap);
@@ -182,7 +196,61 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 offlineMapsButton.setOnClickListener(v->startOfflineMapImport());
         retryRouteButton.setOnClickListener(v->drawRouteIfPossible());
         loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());setGuidedMode(true);ensureBundledOfflineData();
+        stopBackgroundNavigationButton.setEnabled(NavigationGuidanceService.isActive(this));
+        navigationStateReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
+            if(!NavigationGuidanceService.ACTION_STATE.equals(i.getAction()))return;
+            boolean active=i.getBooleanExtra("active",false);
+            String guidance=i.getStringExtra("guidance");
+            if(maneuver!=null&&guidance!=null)maneuver.setText(guidance);
+            if(stopBackgroundNavigationButton!=null)stopBackgroundNavigationButton.setEnabled(active);
+        }};
+        registerReceiver(navigationStateReceiver,new IntentFilter(NavigationGuidanceService.ACTION_STATE));
     }
+    private String buildBackgroundRoutePayload() throws Exception {
+        if(selectedRouteIndex<0||routeOptions==null||selectedRouteIndex>=routeOptions.size())return null;
+        RouteOption option=routeOptions.get(selectedRouteIndex);
+        JSONObject payload=new JSONObject();
+        JSONArray points=new JSONArray();
+        for(GeoPoint point:option.points)points.put(new JSONArray().put(point.getLatitude()).put(point.getLongitude()));
+        JSONArray turns=new JSONArray();
+        for(Maneuver turn:option.maneuvers){
+            turns.put(new JSONObject().put("lat",turn.point.getLatitude())
+                    .put("lon",turn.point.getLongitude()).put("text",turn.text));
+        }
+        payload.put("points",points);payload.put("maneuvers",turns);
+        payload.put("destination_name",destinationName);
+        payload.put("destination_lat",destination.getLatitude());
+        payload.put("destination_lon",destination.getLongitude());
+        payload.put("duration_seconds",option.minutes*60d);
+        return payload.toString();
+    }
+    private void startBackgroundNavigation(){
+        if(destination==null||selectedRouteIndex<0){
+            Toast.makeText(this,"احسب المسار واختره أولاً",Toast.LENGTH_LONG).show();return;
+        }
+        try{
+            String payload=buildBackgroundRoutePayload();
+            if(payload==null||payload.isEmpty())throw new IllegalStateException("بيانات المسار غير جاهزة");
+            Intent intent=new Intent(this,NavigationGuidanceService.class);
+            intent.setAction(NavigationGuidanceService.ACTION_START);
+            intent.putExtra(NavigationGuidanceService.EXTRA_ROUTE_JSON,payload);
+            intent.putExtra(NavigationGuidanceService.EXTRA_DEST_NAME,destinationName);
+            intent.putExtra(NavigationGuidanceService.EXTRA_DEST_LAT,destination.getLatitude());
+            intent.putExtra(NavigationGuidanceService.EXTRA_DEST_LON,destination.getLongitude());
+            startService(intent);
+            if(stopBackgroundNavigationButton!=null)stopBackgroundNavigationButton.setEnabled(true);
+            Toast.makeText(this,"تم حفظ المسار وتشغيل خدمة الملاحة الخلفية",Toast.LENGTH_LONG).show();
+        }catch(Exception error){
+            Toast.makeText(this,"تعذر تشغيل المسار بالخلفية: "+error.getMessage(),Toast.LENGTH_LONG).show();
+        }
+    }
+    private void stopBackgroundNavigation(){
+        Intent intent=new Intent(this,NavigationGuidanceService.class);
+        intent.setAction(NavigationGuidanceService.ACTION_STOP);
+        startService(intent);
+        if(stopBackgroundNavigationButton!=null)stopBackgroundNavigationButton.setEnabled(false);
+    }
+
     private void searchDestination(){
         if(offlinePreparationRunning){
             status.setText("جارٍ تجهيز خريطة سوريا والأماكن للعمل دون إنترنت...");
@@ -649,6 +717,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(geocodeTask!=null)geocodeTask.cancel(true);if(routeTask!=null)routeTask.cancel(true);
         if(lm!=null){try{lm.removeUpdates(this);}catch(Exception ignored){}if(gpsStatusRegistered)try{lm.removeGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}}
         stopGoogleFusedLocation();
+        if(navigationStateReceiver!=null)try{unregisterReceiver(navigationStateReceiver);}catch(Exception ignored){}
         if(map!=null){map.onDetach();map=null;}super.onDestroy();
     }
     @Override public void onProviderEnabled(String p){if(status!=null)status.setText("تم تفعيل "+p+" — جارٍ طلب تحديث جديد");requestLocationSources();}
