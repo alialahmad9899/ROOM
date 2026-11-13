@@ -9,6 +9,7 @@ on:
     paths:
       - "tools/maps/**"
       - ".github/workflows/build-syria-offline-maps.yml"
+      - ".github/workflows/build-car-app-3.yml"
 
 permissions:
   contents: read
