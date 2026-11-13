@@ -147,6 +147,7 @@ public final class LocationTrackingService extends Service implements LocationLi
         float reportedSpeed = location.hasSpeed() ? Math.max(0f, location.getSpeed() * 3.6f) : 0f;
         if (reportedSpeed > 250f) reportedSpeed = 0f;
 
+        boolean acceptedMovement = false;
         if (previousAccepted != null && now > oldTime) {
             long dtMs = (now - oldTime) / 1000000L;
             double distance = location.distanceTo(previousAccepted);
@@ -168,12 +169,19 @@ public final class LocationTrackingService extends Service implements LocationLi
                         .putFloat("trip_km", tripMeters / 1000f)
                         .putFloat("odometer_km", odometerMeters / 1000f)
                         .apply();
+                acceptedMovement = true;
                 if (reportedSpeed <= 0f) reportedSpeed = (float) (measuredSpeed * 3.6d);
             }
+            // If GPS has been unusable for too long, re-anchor rather than accumulating
+            // a stale distance that could be mistaken for driving.
+            if (dtMs > 30000L && accuracy <= 100f) previousAccepted = new Location(location);
+        } else if (accuracy <= 100f) {
+            previousAccepted = new Location(location);
         }
 
-        // Keep a fresh reference only when it is recent and has a meaningful accuracy.
-        if (accuracy <= 100f) previousAccepted = new Location(location);
+        // Keep the last good anchor across small noisy fixes, so sub-threshold
+        // movement accumulates instead of being discarded every second.
+        if (acceptedMovement && accuracy <= 100f) previousAccepted = new Location(location);
         if (reportedSpeed > 250f) reportedSpeed = 0f;
         speedKmh = reportedSpeed;
         maxSpeedKmh = Math.max(maxSpeedKmh, speedKmh);
