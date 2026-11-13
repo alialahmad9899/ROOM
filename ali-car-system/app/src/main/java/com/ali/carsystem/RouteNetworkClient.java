@@ -47,8 +47,8 @@ final class RouteNetworkClient {
         if (context == null || start == null || end == null) {
             throw new IOException("بيانات نقطة البداية أو الوجهة غير مكتملة");
         }
-        if (!Double.isFinite(start.getLatitude()) || !Double.isFinite(start.getLongitude())
-                || !Double.isFinite(end.getLatitude()) || !Double.isFinite(end.getLongitude())
+        if (invalidNumber(start.getLatitude()) || invalidNumber(start.getLongitude())
+                || invalidNumber(end.getLatitude()) || invalidNumber(end.getLongitude())
                 || Math.abs(start.getLatitude()) > 90 || Math.abs(end.getLatitude()) > 90
                 || Math.abs(start.getLongitude()) > 180 || Math.abs(end.getLongitude()) > 180) {
             throw new IOException("إحداثيات البداية أو الوجهة خارج النطاق الجغرافي الصحيح");
@@ -92,6 +92,10 @@ final class RouteNetworkClient {
         }
 
         throw new IOException("فشلت جميع محركات المسارات المتاحة. " + joinFailures(failures));
+    }
+
+    private static boolean invalidNumber(double value) {
+        return Double.isNaN(value) || Double.isInfinite(value);
     }
 
     static List<String> orderedEngines(String preferred) {
