@@ -2,7 +2,6 @@ package com.ali.carsystem;
 
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewGroup;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.platform.app.InstrumentationRegistry;
