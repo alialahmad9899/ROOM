@@ -22,7 +22,7 @@ final class VideoApi {
     }
     static String streamIdentity(String url,String audio,String kind){
         return (url==null?"":url)+"|"+(audio==null?"":audio)+"|"+(kind==null?"":kind);
-    } }
+    }
     private static volatile List<String> pipedCache, invidiousCache;
     private static volatile long discoveryTime;
     private static List<String> piped(Context c) {
