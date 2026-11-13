@@ -24,6 +24,8 @@ final class VideoApi {
         return (url==null?"":url)+"|"+(audio==null?"":audio)+"|"+(kind==null?"":kind);
     }
     private static volatile List<String> pipedCache, invidiousCache;
+    private static final java.util.concurrent.atomic.AtomicBoolean discoveryRunning=new java.util.concurrent.atomic.AtomicBoolean(false);
+    private static final long DISCOVERY_TTL_MS=20*60*1000L;
     private static final long SEARCH_CACHE_MS=180000L;
     private static final LinkedHashMap<String,SearchCache> SEARCH_CACHE=new LinkedHashMap<String,SearchCache>(16,.75f,true){
         @Override protected boolean removeEldestEntry(Map.Entry<String,SearchCache> e){return size()>24;}
@@ -33,10 +35,33 @@ final class VideoApi {
         SearchCache(List<Item> values){created=System.currentTimeMillis();items=Collections.unmodifiableList(new ArrayList<>(values));}
     }
     private static volatile long discoveryTime;
-    private static List<String> piped(Context c) {
-        refresh(c);return pipedCache==null?Collections.singletonList("https://pipedapi.kavin.rocks"):pipedCache;
+    private static void ensureDefaultEndpoints(){
+        if(pipedCache!=null&&invidiousCache!=null)return;
+        synchronized(VideoApi.class){
+            if(pipedCache==null)pipedCache=Collections.unmodifiableList(Arrays.asList(
+                    "https://api.piped.private.coffee",
+                    "https://piped-api.privacy.com.de",
+                    "https://pipedapi.kavin.rocks"));
+            if(invidiousCache==null)invidiousCache=Collections.emptyList();
+        }
     }
-    private static List<String> invidious(Context c){refresh(c);return invidiousCache==null?Collections.emptyList():invidiousCache;}
+    private static void scheduleDiscovery(Context context){
+        if(System.currentTimeMillis()-discoveryTime<DISCOVERY_TTL_MS)return;
+        if(!discoveryRunning.compareAndSet(false,true))return;
+        Context app=context.getApplicationContext();
+        Thread worker=new Thread(()->{
+            try{refresh(app);}
+            catch(Exception ignored){}
+            finally{discoveryRunning.set(false);}
+        },"ALI-CAR-Video-Discovery");
+        worker.setDaemon(true);worker.start();
+    }
+    private static List<String> piped(Context c){
+        ensureDefaultEndpoints();scheduleDiscovery(c);return pipedCache;
+    }
+    private static List<String> invidious(Context c){
+        ensureDefaultEndpoints();scheduleDiscovery(c);return invidiousCache;
+    }
     private static synchronized void refresh(Context context){
         if(pipedCache!=null&&System.currentTimeMillis()-discoveryTime<20*60*1000L)return;
         List<String> p=new ArrayList<>(),v=new ArrayList<>();
