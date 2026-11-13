@@ -1,6 +1,7 @@
 package com.ali.carsystem;
 
 import android.view.View;
+import android.view.ViewGroup;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -32,8 +33,8 @@ public final class DashboardSleepSmokeTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(sleep::performClick);
         View overlay = content.findViewWithTag("ambient_sleep_overlay");
         assertNotNull(overlay);
-        assertNotNull(overlay.findViewWithTag("ambient_sleep_time"));
-        View wake = overlay.findViewWithTag("ambient_wake_button");
+        assertNotNull(((ViewGroup) overlay).findViewWithTag("ambient_sleep_time"));
+        View wake = ((ViewGroup) overlay).findViewWithTag("ambient_wake_button");
         assertNotNull(wake);
         InstrumentationRegistry.getInstrumentation().runOnMainSync(wake::performClick);
         assertNull(content.findViewWithTag("ambient_sleep_overlay"));
