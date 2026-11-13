@@ -55,8 +55,9 @@ public final class MusicActivity extends Activity {
         super.onCreate(state);immersive();getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         buildUi();loadSongs();
         String action=getIntent().getStringExtra("ali.music.action");
+        if(!songs.isEmpty())index=lastMusicIndex();
         if(songs.isEmpty()){empty.setVisibility(View.VISIBLE);}
-        else if("next".equals(action)){playAt((lastMusicIndex()+1)%songs.size());}
+        else if("next".equals(action)){playAt((index+1)%songs.size());}
         else if("previous".equals(action)){playAt((lastMusicIndex()-1+ songs.size())%songs.size());}
         else if("play".equals(action)){playAt(lastMusicIndex());}
         handler.post(progressTick);
@@ -254,7 +255,7 @@ public final class MusicActivity extends Activity {
         if(value==null)return false;
         for(int i=0;i<value.length();i++){
             char c=value.charAt(i);
-            if(c>='\\u0600'&&c<='\\u06FF')return true;
+            if(c>=0x0600&&c<=0x06FF)return true;
         }
         return false;
     }
