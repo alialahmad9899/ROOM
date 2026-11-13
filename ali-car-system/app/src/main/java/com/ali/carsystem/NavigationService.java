@@ -240,8 +240,10 @@ public final class NavigationService extends Service implements LocationListener
             return;
         }
 
+        float bearing = location.hasBearing() ? location.getBearing() : Float.NaN;
+        float speed = location.hasSpeed() ? location.getSpeed() : 0f;
         RouteProgressEngine.Progress progress =
-                progressEngine.update(location.getLatitude(), location.getLongitude(), accuracy);
+                progressEngine.update(location.getLatitude(), location.getLongitude(), accuracy, bearing, speed);
 
         if (!progress.onRoute) {
             stableVoiceFixes = 0;
