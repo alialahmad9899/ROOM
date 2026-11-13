@@ -24,6 +24,14 @@ final class VideoApi {
         return (url==null?"":url)+"|"+(audio==null?"":audio)+"|"+(kind==null?"":kind);
     }
     private static volatile List<String> pipedCache, invidiousCache;
+    private static final long SEARCH_CACHE_MS=180000L;
+    private static final LinkedHashMap<String,SearchCache> SEARCH_CACHE=new LinkedHashMap<String,SearchCache>(16,.75f,true){
+        @Override protected boolean removeEldestEntry(Map.Entry<String,SearchCache> e){return size()>24;}
+    };
+    private static final class SearchCache{
+        final long created;final List<Item> items;
+        SearchCache(List<Item> values){created=System.currentTimeMillis();items=Collections.unmodifiableList(new ArrayList<>(values));}
+    }
     private static volatile long discoveryTime;
     private static List<String> piped(Context c) {
         refresh(c);return pipedCache==null?Collections.singletonList("https://pipedapi.kavin.rocks"):pipedCache;
@@ -67,27 +75,46 @@ final class VideoApi {
         return "UNKNOWN";
     }
     static List<Item> search(Context context,String query)throws Exception{
-        final String encoded=encodeQuery(query);
+        String normalized=query==null?"":query.trim();
+        if(normalized.isEmpty())throw new IOException("أدخل كلمات للبحث");
+        String cacheKey=normalized.toLowerCase(Locale.US);
+        synchronized(SEARCH_CACHE){
+            SearchCache cached=SEARCH_CACHE.get(cacheKey);
+            if(cached!=null&&System.currentTimeMillis()-cached.created<=SEARCH_CACHE_MS)
+                return new ArrayList<>(cached.items);
+            if(cached!=null)SEARCH_CACHE.remove(cacheKey);
+        }
+        final String encoded=encodeQuery(normalized);
         final List<String> endpoints=new ArrayList<>();
-        for(String s:piped(context))endpoints.add("PIPED|"+s);
-        for(String s:invidious(context))endpoints.add("INVIDIOUS|"+s);
-        ExecutorService pool=Executors.newFixedThreadPool(Math.min(6,Math.max(2,endpoints.size())));
+        List<String> p=piped(context),v=invidious(context);
+        // Start the known Piped hosts and the healthiest Invidious instances together.
+        // Keep the fan-out bounded for old 1 GB tablets, but avoid waiting for a long tail.
+        for(int i=0;i<Math.min(3,p.size());i++)endpoints.add("PIPED|"+p.get(i));
+        for(int i=0;i<Math.min(5,v.size());i++)endpoints.add("INVIDIOUS|"+v.get(i));
+        if(endpoints.isEmpty())throw new IOException("لا توجد خوادم بحث متاحة");
+        ExecutorService pool=Executors.newFixedThreadPool(Math.min(8,endpoints.size()));
         CompletionService<List<Item>> cs=new ExecutorCompletionService<>(pool);
         List<Future<List<Item>>> jobs=new ArrayList<>();
         for(String endpoint:endpoints)jobs.add(cs.submit(()->{
-            String[] p=endpoint.split("\\|",2);
-            if("PIPED".equals(p[0]))return searchPiped(context,p[1],encoded);
-            return searchInvidious(context,p[1],encoded);
+            String[] parts=endpoint.split("\\|",2);
+            if("PIPED".equals(parts[0]))return searchPiped(context,parts[1],encoded);
+            return searchInvidious(context,parts[1],encoded);
         }));
-        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(24);int done=0;
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(16);int done=0;
         try{
             while(done<jobs.size()){
                 long remaining=deadline-System.nanoTime();if(remaining<=0)break;
-                Future<List<Item>> f=cs.poll(remaining,TimeUnit.NANOSECONDS);if(f==null)break;done++;
-                try{List<Item> result=f.get();if(result!=null&&!result.isEmpty())return result;}catch(Exception ignored){}
+                Future<List<Item>> future=cs.poll(remaining,TimeUnit.NANOSECONDS);if(future==null)break;done++;
+                try{
+                    List<Item> result=future.get();
+                    if(result!=null&&!result.isEmpty()){
+                        synchronized(SEARCH_CACHE){SEARCH_CACHE.put(cacheKey,new SearchCache(result));}
+                        return result;
+                    }
+                }catch(Exception ignored){}
             }
-        }finally{for(Future<?> f:jobs)f.cancel(true);pool.shutdownNow();}
-        throw new IOException("لم تُرجع خوادم الفيديو نتائج صالحة. قد تكون الخوادم العامة متوقفة أو محجوبة.");
+        }finally{for(Future<?> future:jobs)future.cancel(true);pool.shutdownNow();}
+        throw new IOException("لم تُرجع خوادم الفيديو نتائج صالحة خلال المهلة. قد تكون الخوادم العامة متوقفة أو محجوبة.");
     }
     private static List<Item> searchPiped(Context c,String base,String q)throws Exception{
         String json=read(c,base+"/search?q="+q+"&filter=videos&hl=ar");
