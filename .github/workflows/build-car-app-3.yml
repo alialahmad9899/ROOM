@@ -1,21 +1,26 @@
 name: ALI CAR 3.6 API21 x86 clean rebuild
+
 on:
   push:
     branches: ["ali-car-system/3.0.0-clean-rebuild"]
-    paths: ["ali-car-system/**","tools/rom/**",".github/workflows/build-car-app-3.yml"]
+    paths: ["ali-car-system/**","tools/rom/**","tools/maps/**",".github/workflows/build-car-app-3.yml"]
   workflow_dispatch:
+
 concurrency:
   group: ali-car-system-api21-x86-${{ github.ref }}
   cancel-in-progress: true
+
 permissions:
   contents: write
   actions: write
+
 jobs:
   android-api21-x86:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+
       - name: Upload user-provided visual references for inspection
         uses: actions/upload-artifact@v4
         with:
@@ -26,6 +31,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
       - name: Cancel superseded builds of this branch
         uses: actions/github-script@v7
         with:
@@ -47,39 +53,78 @@ jobs:
                 });
               }
             }
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install offline map build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmosis zip unzip curl git
+          python -m pip install --disable-pip-version-check Pillow osmium
+
       - name: Build BRouter offline car-routing engine
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch v1.7.10 https://github.com/abrensch/brouter.git "$RUNNER_TEMP/brouter"
-          cd "$RUNNER_TEMP/brouter"
+          mkdir -p "$GITHUB_WORKSPACE/offline-map-build"
+          git clone --depth 1 --branch v1.7.10 https://github.com/abrensch/brouter.git "$GITHUB_WORKSPACE/offline-map-build/brouter"
+          cd "$GITHUB_WORKSPACE/offline-map-build/brouter"
           ./gradlew --no-daemon :brouter-server:smallJar
           JAR="$(find brouter-server/build/libs -maxdepth 1 -type f -name 'brouter-*-ro.jar' | head -n 1)"
           test -s "$JAR"
           mkdir -p "$GITHUB_WORKSPACE/ali-car-system/app/libs"
           cp "$JAR" "$GITHUB_WORKSPACE/ali-car-system/app/libs/brouter-1.7.10-ro.jar"
           test -s "$GITHUB_WORKSPACE/ali-car-system/app/libs/brouter-1.7.10-ro.jar"
-      - name: Install image validation dependency
-        run: python3 -m pip install --disable-pip-version-check Pillow
+
+      - name: Build Mapsforge writer and complete Syria offline data
+        env:
+          JAVACMD_OPTIONS: "-Xmx4G"
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch 0.21.0 https://github.com/mapsforge/mapsforge.git "$RUNNER_TEMP/mapsforge"
+          cd "$RUNNER_TEMP/mapsforge"
+          ./gradlew --no-daemon :mapsforge-map-writer:fatJar
+          JAR="$(find mapsforge-map-writer/build/libs -maxdepth 1 -type f -name '*jar-with-dependencies.jar' | head -n 1)"
+          test -s "$JAR"
+          mkdir -p "$GITHUB_WORKSPACE/offline-map-build"
+          cp "$JAR" "$GITHUB_WORKSPACE/offline-map-build/mapsforge-map-writer.jar"
+          cd "$GITHUB_WORKSPACE"
+          bash tools/maps/build_syria_offline_package.sh
+          mkdir -p ali-car-system/app/src/main/assets/offline
+          cp -a offline-map-output/package/. ali-car-system/app/src/main/assets/offline/
+          test -s ali-car-system/app/src/main/assets/offline/syria.map
+          test -s ali-car-system/app/src/main/assets/offline/syria-places.sqlite
+          test -s ali-car-system/app/src/main/assets/offline/brouter/segments4/E35_N30.rd5
+          du -sh ali-car-system/app/src/main/assets/offline
+
       - name: Resize and verify dashboard photo
-        run: python3 tools/rom/materialize_dashboard_asset.py
+        run: python tools/rom/materialize_dashboard_asset.py
+
       - name: Verify static contracts
-        run: python3 tools/rom/test_clean_rebuild.py
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+        run: python tools/rom/test_clean_rebuild.py
+
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
+
       - name: Install Android platform and emulator
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'system-images;android-21;default;x86'
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
+
       - name: Run unit tests and assemble
         working-directory: ali-car-system
         run: gradle --no-daemon clean testDebugUnitTest assembleDebug assembleAndroidTest
-      - name: Verify APK package, API levels and signature
+
+      - name: Verify APK package, API levels, signature and offline payload
         shell: bash
         run: |
           set -euo pipefail
@@ -91,9 +136,12 @@ jobs:
           grep -F "sdkVersion:'21'" apk-badging.txt
           grep -F "targetSdkVersion:'22'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria.map"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria-places.sqlite"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/brouter/segments4/E40_N35.rd5"
           mkdir -p output
           cp "$APK" output/ALI-Car-System-3.6.0-api21-x86-debug.apk
-          sha256sum output/ALI-Car-System-3.5.0-api21-x86-debug.apk > output/SHA256SUMS.txt
+          sha256sum output/ALI-Car-System-3.6.0-api21-x86-debug.apk > output/SHA256SUMS.txt
           {
             echo "Project: ALI CAR"
             echo "Package: com.ali.carsystem"
@@ -101,22 +149,40 @@ jobs:
             echo "Device baseline: ASUS Z170CG / P01Y, Intel SoFIA 3GR, x86 32-bit"
             echo "Minimum Android: 5.0 / API 21"
             echo "Target SDK: 22"
+            echo "Offline coverage: Syria OSM vector map, local POIs and BRouter driving segments"
             echo "Build type: Debug-signed testing APK"
             echo "Commit: $GITHUB_SHA"
-            stat --printf='APK bytes: %s\\n' output/ALI-Car-System-3.5.0-api21-x86-debug.apk
+            stat --printf='APK bytes: %s\\n' output/ALI-Car-System-3.6.0-api21-x86-debug.apk
             cat output/SHA256SUMS.txt
           } > output/BUILD-INFO.txt
+
       - name: Upload APK and metadata
         uses: actions/upload-artifact@v4
         with:
           name: ALI-CAR-3.6.0-API21-X86-APK
           path: |
-            output/ALI-Car-System-3.5.0-api21-x86-debug.apk
+            output/ALI-Car-System-3.6.0-api21-x86-debug.apk
             output/SHA256SUMS.txt
             output/BUILD-INFO.txt
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
+
+      - name: Upload separately installable Syria offline data package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALI-CAR-SYRIA-OFFLINE-MAPS
+          path: |
+            offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS.zip
+            offline-map-output/ALI-CAR-SYRIA-OFFLINE-MAPS.zip.sha256
+            offline-map-output/SHA256SUMS.txt
+            offline-map-output/syria-pbf.sha256
+            offline-map-output/package/ATTRIBUTION.txt
+            offline-map-output/package/BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
       - name: Run API21 x86 UI smoke test
         id: api21-ui-test
         continue-on-error: true
@@ -140,6 +206,7 @@ jobs:
             test -d app/build/reports/androidTests/connected/debug && cp -R app/build/reports/androidTests/connected/debug emulator-diagnostics/android-test-report || true
             echo "$test_rc" > emulator-diagnostics/exit-code.txt
             exit "$test_rc"
+
       - name: Upload emulator diagnostics
         if: always()
         uses: actions/upload-artifact@v4
