@@ -19,7 +19,7 @@ echo "Building offline Mapsforge vector map..."
 mkdir -p "$HOME/.openstreetmap/osmosis/plugins"
 cp "$WORK/mapsforge-map-writer.jar" "$HOME/.openstreetmap/osmosis/plugins/mapsforge-map-writer.jar"
 export JAVACMD_OPTIONS="${JAVACMD_OPTIONS:--Xmx4G}"
-osmosis --rb file="$PBF" --mapfile-writer file="$MAP" type=hd bbox=32.0,35.3,37.5,42.8
+osmosis --rb file="$PBF" --mapfile-writer file="$MAP" type=hd bbox=32.0,35.3,37.5,42.8 preferred-languages=ar,en map-start-position=34.8,38.5 map-start-zoom=6
 test -s "$MAP"
 
 echo "Building local Arabic/English POI and settlement database..."
@@ -76,7 +76,7 @@ ALI CAR Syria Offline Maps Package
 Created: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 OSM source: https://download.geofabrik.de/asia/syria-latest.osm.pbf
 Coverage: Syria country extract
-Offline map: Mapsforge vector map, Arabic labels requested
+Offline map: Mapsforge vector map with Arabic and English preferred labels
 POI database: Syria named places, roads and tagged amenities/shops/services
 Offline routing: BRouter car-fast profile and four required 5x5-degree road segments
 Segments: E35_N30, E35_N35, E40_N30, E40_N35
