@@ -51,6 +51,12 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/offline-map-build"
           cp "$JAR" "$GITHUB_WORKSPACE/offline-map-build/mapsforge-map-writer.jar"
 
+      - name: Switch to Java 21 for OSM PBF conversion
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Build Syria map, places, and offline car routes
         env:
           JAVACMD_OPTIONS: "-Xmx4G"
