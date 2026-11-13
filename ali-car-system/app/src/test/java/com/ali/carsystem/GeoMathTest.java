@@ -19,4 +19,14 @@ public class GeoMathTest {
     @Test public void rejectsStaleGps() {
         assertFalse(GeoMath.isUsableFix(1000,200000,120000,5));
     }
+    @Test public void acceptsMonotonicFreshFix() {
+        assertTrue(GeoMath.isFreshElapsedFix(5_000_000_000L,6_000_000_000L,2_000));
+    }
+    @Test public void rejectsFutureMonotonicFix() {
+        assertFalse(GeoMath.isFreshElapsedFix(7_000_000_000L,6_000_000_000L,2_000));
+    }
+    @Test public void rejectsFixBeyondNavigationAccuracyCeiling() {
+        assertFalse(GeoMath.isAccuracyUsable(350f,250f));
+        assertTrue(GeoMath.isAccuracyUsable(75f,250f));
+    }
 }
