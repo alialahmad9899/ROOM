@@ -25,12 +25,16 @@ public final class DashboardSleepSmokeTest {
         assertEquals(speed.getLayoutParams().height, clock.getLayoutParams().height);
     }
 
-    @Test public void sleepPolicyBlocksSleepWhileChargingOrPlayingMusic() {
-        assertTrue("Charging must prevent sleep", MainActivity.shouldBlockSleep(true, false));
-        assertTrue("Music playback must prevent sleep", MainActivity.shouldBlockSleep(false, true));
-        assertTrue("Either condition must prevent sleep", MainActivity.shouldBlockSleep(true, true));
-        assertFalse("Sleep is allowed only when unplugged and audio is stopped",
-                MainActivity.shouldBlockSleep(false, false));
+    @Test public void sleepPolicySeparatesManualAndAutomaticSleep() {
+        assertTrue("Manual sleep must always be available", MainActivity.shouldAllowManualSleep());
+        assertFalse("Charging blocks automatic sleep",
+                MainActivity.shouldAllowAutomaticSleep(true, false, false));
+        assertFalse("Music blocks automatic sleep",
+                MainActivity.shouldAllowAutomaticSleep(false, true, false));
+        assertFalse("Active navigation blocks automatic sleep",
+                MainActivity.shouldAllowAutomaticSleep(false, false, true));
+        assertTrue("Automatic sleep is allowed only when all blockers are absent",
+                MainActivity.shouldAllowAutomaticSleep(false, false, false));
     }
 
     @Test public void sleepModeDimsScreenUntilExplicitWakeButtonIsPressed() {
