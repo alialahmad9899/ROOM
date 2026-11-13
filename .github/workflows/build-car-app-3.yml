@@ -2,7 +2,7 @@ name: ALI CAR 3.7 API21 x86 clean rebuild
 
 on:
   push:
-    branches: ["ali-car-system/3.0.0-clean-rebuild", "ali-car-system/3.7.0-navigation-power"]
+    branches: ["ali-car-system/3.0.0-clean-rebuild", "ali-car-system/3.7.0-navigation-power", "ali-car-system/3.7.0-build-final"]
     paths: ["ali-car-system/**","tools/rom/**","tools/maps/**",".github/workflows/build-car-app-3.yml"]
   workflow_dispatch:
 
@@ -179,7 +179,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
       - name: Publish verified ALI CAR 3.7.0 release
-        if: success() && github.ref == 'refs/heads/ali-car-system/3.7.0-navigation-power'
+        if: success() && (github.ref == 'refs/heads/ali-car-system/3.7.0-navigation-power' || github.ref == 'refs/heads/ali-car-system/3.7.0-build-final')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ali-car-v3.7.0-api21-x86
