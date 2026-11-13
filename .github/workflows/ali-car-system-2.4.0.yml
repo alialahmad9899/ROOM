@@ -53,16 +53,24 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           mkdir -p artifacts
           sha256sum "$APK" | tee artifacts/ALI-CAR-2.4.0-API21-SHA256.txt
-          cp "$APK" artifacts/ALI-CAR-2.4.0-API21-x86-debug.apk
-          cat > artifacts/BUILD-INFO.txt <<'EOF'
+          NATIVE_LIBS="$(unzip -Z1 "$APK" | grep '^lib/' || true)"
+          if [[ -n "$NATIVE_LIBS" ]]; then
+            ABI_INFO="Native libraries bundled: $(echo "$NATIVE_LIBS" | tr '\n' ' ')"
+          else
+            ABI_INFO="No native libraries bundled; application bytecode is CPU-independent."
+          fi
+          cp "$APK" artifacts/ALI-CAR-2.4.0-API21-debug.apk
+          cat > artifacts/BUILD-INFO.txt <<EOF
           ALI CAR 2.4.0
           Package: com.ali.carsystem
           Minimum Android: 5.0 / API 21
           Target API: 22
-          Architecture: built as the application APK (device ABI compatibility to be checked on tablet)
-          Signature: Debug
+          Architecture: $ABI_INFO
+          Signature: Debug (testing build, not production-signed)
           Navigation: foreground GPS service with Arabic-only TextToSpeech
           Music: persistent playback service with navigation ducking
+          Route calculation: online OSRM; guidance continues locally after route is loaded
+          Hardware validation: physical P01Y tablet still required
           EOF
 
       - name: Upload verified APK and checksums
@@ -71,3 +79,56 @@ jobs:
           name: ALI-CAR-2.4.0-API21-APK
           path: ali-car-system/artifacts/
           if-no-files-found: error
+
+  publish-test-release:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-ali-car-2.4.0]')
+    needs: android
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ALI-CAR-2.4.0-API21-APK
+          path: release-assets
+
+      - name: Verify APK checksum before release
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="release-assets/ALI-CAR-2.4.0-API21-debug.apk"
+          CHECKSUM="release-assets/ALI-CAR-2.4.0-API21-SHA256.txt"
+          test -s "$APK"
+          EXPECTED="$(awk 'NR == 1 {print $1}' "$CHECKSUM")"
+          ACTUAL="$(sha256sum "$APK" | awk '{print $1}')"
+          test "$EXPECTED" = "$ACTUAL"
+          echo "Verified APK SHA-256: $ACTUAL"
+          ls -lh "$APK"
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ali-car-2.4.0-api21
+          name: ALI CAR 2.4.0 — Arabic Navigation (API 21)
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          body: |
+            ALI CAR 2.4.0 testing build for Android 5.0 / API 21.
+
+            Included: Arabic GPS voice guidance, route progress panel, background navigation service, persistent local music playback, and sleep-policy separation.
+
+            CI unit tests, APK package/version/API checks, checksum and APK signature verification passed.
+
+            Important:
+            - This is a Debug-signed test build, not a production-signed release.
+            - Route calculation uses the online OSRM service; once a route is loaded, background GPS guidance uses the saved route geometry.
+            - Arabic speech requires an Arabic voice installed in the Android Text-to-Speech engine.
+            - Physical GPS, Bluetooth reconnect and 1GB RAM behavior must still be verified on the actual P01Y tablet.
+          files: |
+            release-assets/ALI-CAR-2.4.0-API21-debug.apk
+            release-assets/ALI-CAR-2.4.0-API21-SHA256.txt
+            release-assets/BUILD-INFO.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
