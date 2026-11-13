@@ -50,6 +50,10 @@ pathlib.Path(sys.argv[2]).write_text(updated, encoding="utf-8")
 PY
 
 cp "$MAP" "$PACKAGE/syria.map"
+cp "$WORK/brouter/LICENSE" "$PACKAGE/BROUTER-LICENSE.txt"
+if [ -f "${RUNNER_TEMP:-/tmp}/mapsforge/COPYING.LESSER" ]; then
+  cp "${RUNNER_TEMP:-/tmp}/mapsforge/COPYING.LESSER" "$PACKAGE/MAPSFROGE-LGPL-3.0.txt"
+fi
 cat > "$PACKAGE/ATTRIBUTION.txt" <<'EOF'
 Map and place data
 - © OpenStreetMap contributors
