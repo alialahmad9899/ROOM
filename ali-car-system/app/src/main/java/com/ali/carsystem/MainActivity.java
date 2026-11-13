@@ -23,7 +23,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private final Handler handler=new Handler(Looper.getMainLooper());
     private ViewPager pager;
     private SpeedometerView speedometer, clusterGauge;
-    private TextView gpsStatus, songTitle, digitalClock, dateLabel;
+    private TextView gpsStatus, songTitle, digitalClock, dateLabel, ambientTime;
     private LocationManager locationManager;
     private Location previousFix;
     private boolean gpsStarted, dashboardCriteriaRegistered, splashPending=true, ttsReady, pendingSpeak;
@@ -34,6 +34,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private final Runnable clockTick=new Runnable(){@Override public void run(){updateClock();handler.postDelayed(this,1000);}};
     private final Runnable idleTick=()->showAmbientClock();
     private View ambientOverlay,welcomeOverlay;
+    private float previousWindowBrightness=-1f;
+    private boolean previousBrightnessCaptured;
     private BroadcastReceiver screenReceiver,musicReceiver;
 
     @Override protected void onCreate(Bundle state) {
@@ -76,7 +78,9 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private LinearLayout horizontal(){LinearLayout v=new LinearLayout(this);v.setGravity(Gravity.CENTER_VERTICAL);v.setOrientation(LinearLayout.HORIZONTAL);return v;}
     private void updateClock(){
         long now=System.currentTimeMillis();
-        if(digitalClock!=null)digitalClock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(new Date(now)));
+        String currentTime=new SimpleDateFormat("HH:mm",Locale.US).format(new Date(now));
+        if(digitalClock!=null)digitalClock.setText(currentTime);
+        if(ambientTime!=null)ambientTime.setText(currentTime);
         if(dateLabel!=null)dateLabel.setText(new SimpleDateFormat("EEEE، d MMMM yyyy",new Locale("ar")).format(new Date(now)));
         if(pager!=null&&pager.getCurrentItem()==0&&isNightMode())applyNightDim();
     }
@@ -91,21 +95,71 @@ public final class MainActivity extends BaseActivity implements LocationListener
         handler.removeCallbacks(idleTick);
         if(pager!=null&&pager.getCurrentItem()==0&&ambientOverlay==null)handler.postDelayed(idleTick,90000);
     }
-    @Override public void onUserInteraction(){super.onUserInteraction();dismissAmbient();scheduleIdle();}
+    @Override public void onUserInteraction(){
+        super.onUserInteraction();
+        // Do not dismiss sleep mode for an arbitrary touch; only the explicit wake control exits it.
+        if(ambientOverlay==null)scheduleIdle();
+    }
     private void showAmbientClock(){
         if(isFinishing()||pager==null||pager.getCurrentItem()!=0||ambientOverlay!=null)return;
-        FrameLayout overlay=new FrameLayout(this);overlay.setBackgroundColor(Color.BLACK);
+        FrameLayout overlay=new FrameLayout(this);
+        overlay.setTag("ambient_sleep_overlay");
+        overlay.setClickable(true);
+        overlay.setBackgroundColor(0xFF02060C);
         LinearLayout center=vertical();center.setGravity(Gravity.CENTER);
-        TextView time=label(new SimpleDateFormat("HH:mm",Locale.US).format(new Date()),126,0xFFE6F8FF,true);
-        time.setGravity(Gravity.CENTER);time.setShadowLayer(dp(18),0,0,0xFF32BFFF);
-        TextView date=label(new SimpleDateFormat("EEEE، d MMMM yyyy",new Locale("ar")).format(new Date()),20,0xFFA6C7D9,false);date.setGravity(Gravity.CENTER);
-        TextView motto=label("ALI CAR  •  قيادة آمنة وممتعة",15,0xFF64CBEA,true);motto.setGravity(Gravity.CENTER);
-        center.addView(time,new LinearLayout.LayoutParams(-1,dp(160)));center.addView(date);center.addView(motto);
+        ambientTime=label(new SimpleDateFormat("HH:mm",Locale.US).format(new Date()),124,0xFFD9F3FF,true);
+        ambientTime.setTag("ambient_sleep_time");
+        ambientTime.setGravity(Gravity.CENTER);
+        ambientTime.setShadowLayer(dp(20),0,0,0xFF218DB8);
+        TextView date=label(new SimpleDateFormat("EEEE، d MMMM yyyy",new Locale("ar")).format(new Date()),20,0xFF8DAABD,false);
+        date.setGravity(Gravity.CENTER);
+        TextView motto=label("REST  •  RESET  •  DRIVE SAFE",15,0xFF6BC9EA,true);
+        motto.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams timeLp=new LinearLayout.LayoutParams(-1,dp(160));
+        center.addView(ambientTime,timeLp);center.addView(date);
+        LinearLayout.LayoutParams mottoLp=new LinearLayout.LayoutParams(-1,dp(42));
+        mottoLp.topMargin=dp(18);center.addView(motto,mottoLp);
         overlay.addView(center,new FrameLayout.LayoutParams(-1,-1));
-        overlay.setOnClickListener(v->dismissAmbient());ambientOverlay=overlay;
+
+        TextView wake=label("إلغاء وضع السكون",11,0xFFD6EAF4,true);
+        wake.setTag("ambient_wake_button");
+        wake.setGravity(Gravity.CENTER);
+        wake.setPadding(dp(12),dp(6),dp(12),dp(6));
+        wake.setBackground(glass(0x443A596B,0x556CB6D0,18));
+        FrameLayout.LayoutParams wakeLp=new FrameLayout.LayoutParams(-2,dp(38),Gravity.TOP|Gravity.RIGHT);
+        wakeLp.setMargins(0,dp(14),dp(14),0);
+        overlay.addView(wake,wakeLp);
+        wake.setOnClickListener(v->{dismissAmbient();scheduleIdle();});
+
+        ambientOverlay=overlay;
+        dimWindowForSleep();
         addContentView(overlay,new ViewGroup.LayoutParams(-1,-1));
     }
-    private void dismissAmbient(){if(ambientOverlay!=null){ViewGroup p=(ViewGroup)ambientOverlay.getParent();if(p!=null)p.removeView(ambientOverlay);ambientOverlay=null;}}
+    private void dimWindowForSleep(){
+        WindowManager.LayoutParams params=getWindow().getAttributes();
+        if(!previousBrightnessCaptured){
+            previousWindowBrightness=params.screenBrightness;
+            previousBrightnessCaptured=true;
+        }
+        params.screenBrightness=0.045f;
+        getWindow().setAttributes(params);
+    }
+    private void restoreWindowBrightness(){
+        if(!previousBrightnessCaptured)return;
+        WindowManager.LayoutParams params=getWindow().getAttributes();
+        params.screenBrightness=previousWindowBrightness;
+        getWindow().setAttributes(params);
+        previousWindowBrightness=-1f;
+        previousBrightnessCaptured=false;
+    }
+    private void dismissAmbient(){
+        if(ambientOverlay!=null){
+            ViewGroup parent=(ViewGroup)ambientOverlay.getParent();
+            if(parent!=null)parent.removeView(ambientOverlay);
+            ambientOverlay=null;ambientTime=null;
+        }
+        restoreWindowBrightness();
+    }
     private void showWelcome(){
         if(isFinishing()||pager==null||welcomeOverlay!=null)return;
         dismissAmbient();handler.removeCallbacks(idleTick);
@@ -152,33 +206,57 @@ public final class MainActivity extends BaseActivity implements LocationListener
         TextView settings=label("⚙",26,0xFFEAFBFF,true);settings.setGravity(Gravity.CENTER);settings.setBackground(glass(0x443A7D99,0x886CDFFF,26));
         LinearLayout.LayoutParams gear=new LinearLayout.LayoutParams(dp(48),dp(44));gear.leftMargin=dp(12);top.addView(settings,gear);
         settings.setOnClickListener(v->startActivity(new Intent(this,SettingsActivity.class)));
+        TextView sleep=label("☾",22,0xFFEAFBFF,true);sleep.setTag("dashboard_sleep_toggle");
+        sleep.setContentDescription("تفعيل وضع السكون");sleep.setGravity(Gravity.CENTER);
+        sleep.setBackground(glass(0x443A7D99,0x886CDFFF,24));
+        LinearLayout.LayoutParams sleepLp=new LinearLayout.LayoutParams(dp(42),dp(40));
+        sleepLp.leftMargin=dp(8);top.addView(sleep,sleepLp);
+        sleep.setOnClickListener(v->showAmbientClock());
         all.addView(top,new LinearLayout.LayoutParams(-1,dp(50)));
 
-        LinearLayout main=horizontal();LinearLayout.LayoutParams mainLp=new LinearLayout.LayoutParams(-1,0,1);mainLp.topMargin=dp(4);all.addView(main,mainLp);
-        LinearLayout left=vertical();left.setGravity(Gravity.CENTER);
-        speedometer=new SpeedometerView(this);left.addView(speedometer,new LinearLayout.LayoutParams(dp(236),dp(236)));
-        gpsStatus=label("بانتظار إشارة GPS",12,0xFFC7EFFF,false);gpsStatus.setGravity(Gravity.CENTER);
-        left.addView(gpsStatus,new LinearLayout.LayoutParams(-1,dp(24)));
-        songTitle=label(prefs().getString("last_song","لا توجد أغنية قيد التشغيل"),12,Color.WHITE,true);songTitle.setGravity(Gravity.CENTER);
-        left.addView(songTitle,new LinearLayout.LayoutParams(-1,dp(24)));
+        // Put media controls in the top-center strip instead of stacking them below the speed dial.
+        LinearLayout mediaBar=horizontal();mediaBar.setGravity(Gravity.CENTER_VERTICAL);
+        mediaBar.setPadding(dp(10),dp(3),dp(10),dp(3));
+        mediaBar.setBackground(glass(0xAA14283A,0x5572BFD3,16));
+        songTitle=label(prefs().getString("last_song","لا توجد أغنية قيد التشغيل"),13,Color.WHITE,true);
+        songTitle.setTag("dashboard_song_title");songTitle.setSingleLine(true);songTitle.setGravity(Gravity.CENTER);
+        mediaBar.addView(songTitle,new LinearLayout.LayoutParams(0,dp(38),1));
         LinearLayout media=horizontal();media.setGravity(Gravity.CENTER);
-        media.addView(mediaButton("⏮","previous"),new LinearLayout.LayoutParams(dp(48),dp(42)));
-        media.addView(mediaButton("▶","play"),new LinearLayout.LayoutParams(dp(50),dp(42)));
-        media.addView(mediaButton("⏭","next"),new LinearLayout.LayoutParams(dp(48),dp(42)));
-        left.addView(media,new LinearLayout.LayoutParams(-1,dp(46)));
+        media.addView(mediaButton("⏮","previous"),new LinearLayout.LayoutParams(dp(44),dp(40)));
+        media.addView(mediaButton("▶","play"),new LinearLayout.LayoutParams(dp(46),dp(40)));
+        media.addView(mediaButton("⏭","next"),new LinearLayout.LayoutParams(dp(44),dp(40)));
+        LinearLayout.LayoutParams mediaLp=new LinearLayout.LayoutParams(-2,dp(40));
+        mediaLp.leftMargin=dp(8);mediaBar.addView(media,mediaLp);
         SeekBar vol=new SeekBar(this);AudioManager am=(AudioManager)getSystemService(AUDIO_SERVICE);
         vol.setMax(am.getStreamMaxVolume(AudioManager.STREAM_MUSIC));vol.setProgress(am.getStreamVolume(AudioManager.STREAM_MUSIC));
         vol.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int p,boolean u){if(u)am.setStreamVolume(AudioManager.STREAM_MUSIC,p,0);}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});
-        left.addView(vol,new LinearLayout.LayoutParams(dp(190),dp(28)));
-        LinearLayout.LayoutParams leftLp=new LinearLayout.LayoutParams(0,-1,.36f);leftLp.rightMargin=dp(10);main.addView(left,leftLp);
+        LinearLayout.LayoutParams volumeLp=new LinearLayout.LayoutParams(dp(145),dp(30));
+        volumeLp.leftMargin=dp(9);mediaBar.addView(vol,volumeLp);
+        LinearLayout.LayoutParams barLp=new LinearLayout.LayoutParams(-1,dp(48));
+        barLp.topMargin=dp(5);all.addView(mediaBar,barLp);
 
-        View center=new View(this);main.addView(center,new LinearLayout.LayoutParams(0,-1,.30f));
+        LinearLayout main=horizontal();LinearLayout.LayoutParams mainLp=new LinearLayout.LayoutParams(-1,0,1);
+        mainLp.topMargin=dp(5);all.addView(main,mainLp);
+        LinearLayout left=vertical();left.setGravity(Gravity.CENTER);
+        TextView speedTitle=label("SPEED  •  KM/H",12,0xFF8DE9FF,true);speedTitle.setGravity(Gravity.CENTER);
+        left.addView(speedTitle,new LinearLayout.LayoutParams(-1,dp(22)));
+        speedometer=new SpeedometerView(this);speedometer.setTag("dashboard_speed_gauge");
+        left.addView(speedometer,new LinearLayout.LayoutParams(dp(270),dp(270)));
+        gpsStatus=label("بانتظار إشارة GPS",12,0xFFC7EFFF,false);gpsStatus.setTag("dashboard_gps_status");
+        gpsStatus.setGravity(Gravity.CENTER);
+        left.addView(gpsStatus,new LinearLayout.LayoutParams(-1,dp(26)));
+        LinearLayout.LayoutParams leftLp=new LinearLayout.LayoutParams(0,-1,1f);
+        leftLp.rightMargin=dp(5);main.addView(left,leftLp);
+
         LinearLayout right=vertical();right.setGravity(Gravity.CENTER);
-        digitalClock=label("00:00",62,0xFFFFC65C,true);digitalClock.setGravity(Gravity.CENTER);digitalClock.setShadowLayer(dp(14),0,0,0xFFFFA82E);
-        right.addView(digitalClock,new LinearLayout.LayoutParams(-1,dp(80)));
-        AnalogClockView analog=new AnalogClockView(this);right.addView(analog,new LinearLayout.LayoutParams(dp(184),dp(184)));
-        dateLabel=label("",14,0xFFE5F4FF,true);dateLabel.setGravity(Gravity.CENTER);right.addView(dateLabel,new LinearLayout.LayoutParams(-1,dp(30)));
-        LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,-1,.34f);main.addView(right,rightLp);
+        TextView timeTitle=label("LOCAL TIME",12,0xFFFFD68A,true);timeTitle.setGravity(Gravity.CENTER);
+        right.addView(timeTitle,new LinearLayout.LayoutParams(-1,dp(22)));
+        AnalogClockView analog=new AnalogClockView(this);analog.setTag("dashboard_analog_clock");
+        right.addView(analog,new LinearLayout.LayoutParams(dp(270),dp(270)));
+        dateLabel=label("",14,0xFFE5F4FF,true);dateLabel.setGravity(Gravity.CENTER);
+        right.addView(dateLabel,new LinearLayout.LayoutParams(-1,dp(26)));
+        LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,-1,1f);
+        rightLp.leftMargin=dp(5);main.addView(right,rightLp);
 
         LinearLayout dock=horizontal();dock.setGravity(Gravity.CENTER);dock.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         String[] names={"يوتيوب","الملاحة","الموسيقى","بلوتوث","Wi-Fi","السطوع"};
@@ -297,7 +375,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         }return best;
     }
     @Override protected void onResume(){super.onResume();startGps();scheduleIdle();}
-    @Override protected void onPause(){handler.removeCallbacks(idleTick);if(locationManager!=null){try{locationManager.removeUpdates(this);}catch(Exception ignored){}}gpsStarted=false;dashboardCriteriaRegistered=false;super.onPause();}
+    @Override protected void onPause(){handler.removeCallbacks(idleTick);dismissAmbient();if(locationManager!=null){try{locationManager.removeUpdates(this);}catch(Exception ignored){}}gpsStarted=false;dashboardCriteriaRegistered=false;super.onPause();}
     @Override protected void onDestroy(){
         handler.removeCallbacksAndMessages(null);
         if(screenReceiver!=null)try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}
