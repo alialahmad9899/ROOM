@@ -2,7 +2,7 @@ name: ALI CAR 3.6 API21 x86 clean rebuild
 
 on:
   push:
-    branches: ["ali-car-system/3.0.0-clean-rebuild"]
+    branches: ["ali-car-system/3.0.0-clean-rebuild", "ali-car-system/3.7.0-navigation-power"]
     paths: ["ali-car-system/**","tools/rom/**","tools/maps/**",".github/workflows/build-car-app-3.yml"]
   workflow_dispatch:
 
