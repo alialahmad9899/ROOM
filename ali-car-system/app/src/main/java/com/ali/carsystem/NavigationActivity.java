@@ -396,6 +396,18 @@ public final class NavigationActivity extends Activity implements LocationListen
         if(action.isEmpty())action=direction;
         return action+(road.length()>0?" باتجاه "+road:"");
     }
+    private RouteOption routeForPreference(int preference){
+        if(routeOptions.isEmpty())return null;
+        RouteOption best=routeOptions.get(0);
+        for(RouteOption candidate:routeOptions){
+            boolean better=preference==0?candidate.minutes<best.minutes:
+                    preference==1?candidate.km<best.km:
+                    preference==2?(candidate.turns*4+candidate.bends)<(best.turns*4+best.bends):
+                    candidate.km>best.km;
+            if(better)best=candidate;
+        }
+        return best;
+    }
     private void renderRouteChoices(){
         if(routeChoices==null)return;
         routeChoices.removeAllViews();
@@ -404,15 +416,17 @@ public final class NavigationActivity extends Activity implements LocationListen
                     "الخادم أعاد مساراً واحداً فقط؛ لا توجد بدائل للمقارنة",11,0xFFCAD8E4,false);
             info.setGravity(Gravity.CENTER);routeChoices.addView(info,new LinearLayout.LayoutParams(-1,-1));return;
         }
-        addRouteChoice("الأسرع",0);
-        addRouteChoice("الأقصر",1);
-        addRouteChoice("الأقل انعطافاً",2);
-        addRouteChoice("الأطول",3);
+        RouteOption fastest=routeForPreference(0),shortest=routeForPreference(1);
+        RouteOption smooth=routeForPreference(2),longest=routeForPreference(3);
+        addRouteChoice("الأسرع  "+Math.round(fastest.minutes)+" د",0,"الأسرع");
+        addRouteChoice("الأقصر  "+String.format(Locale.US,"%.1f كم",shortest.km),1,"الأقصر");
+        addRouteChoice("أقل انعطاف  "+smooth.turns,2,"الأقل انعطافاً");
+        addRouteChoice("الأطول  "+String.format(Locale.US,"%.1f كم",longest.km),3,"الأطول");
     }
-    private void addRouteChoice(String label,int preference){
+    private void addRouteChoice(String label,int preference,String key){
         TextView choice=text(label,12,Color.WHITE,true);
         choice.setGravity(Gravity.CENTER);choice.setPadding(dp(13),0,dp(13),0);
-        boolean selected=label.equals(selectedPreference);
+        boolean selected=key.equals(selectedPreference);
         choice.setBackground(glass(selected?0xFF087F9E:0xFF203649,
                 selected?0xFF8BE8FF:0xFF5B7184,18));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,dp(38));
@@ -425,17 +439,9 @@ public final class NavigationActivity extends Activity implements LocationListen
             Toast.makeText(this,"محرك الطرق أعاد مساراً واحداً فقط، لذلك لا يمكن المقارنة بين البدائل",Toast.LENGTH_LONG).show();
             return;
         }
-        RouteOption best=routeOptions.get(0);
-        for(RouteOption candidate:routeOptions){
-            boolean better=false;
-            if(preference==0)better=candidate.minutes<best.minutes;
-            else if(preference==1)better=candidate.km<best.km;
-            else if(preference==2)better=(candidate.turns*4+candidate.bends)<(best.turns*4+best.bends);
-            else if(preference==3)better=candidate.km>best.km;
-            if(better)best=candidate;
-        }
         selectedPreference=preference==0?"الأسرع":preference==1?"الأقصر":preference==2?"الأقل انعطافاً":"الأطول";
-        selectedRoute=best;activeManeuverIndex=0;renderRouteChoices();drawSelectedRoute();
+        selectedRoute=routeForPreference(preference);activeManeuverIndex=0;
+        renderRouteChoices();drawSelectedRoute();
     }
     private void drawSelectedRoute(){
         if(selectedRoute==null)return;
@@ -557,7 +563,7 @@ public final class NavigationActivity extends Activity implements LocationListen
         }finally{connection.disconnect();}
     }
     @Override protected void onResume(){
-        super.onResume();if(map!=null)map.onResume();
+        super.onResume();if(map!=null)map.onResume();if(!keyboardRequested)immersive();
         if(locationManager==null)return;
         boolean fine=checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED;
         boolean coarse=checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED;
