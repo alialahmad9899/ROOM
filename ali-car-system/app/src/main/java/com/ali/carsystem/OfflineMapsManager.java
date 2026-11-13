@@ -87,13 +87,16 @@ final class OfflineMapsManager {
         if (!staging.mkdirs() && !staging.isDirectory()) throw new IllegalStateException("تعذر إنشاء مجلد الاستيراد");
 
         long total = 0L;
-        try (InputStream raw = context.getContentResolver().openInputStream(source);
+        InputStream opened = context.getContentResolver().openInputStream(source);
+        if (opened == null) throw new IllegalArgumentException("تعذر فتح ملف الحزمة");
+        try (InputStream raw = opened;
              ZipInputStream zip = new ZipInputStream(new BufferedInputStream(raw))) {
-            if (raw == null) throw new IllegalArgumentException("تعذر فتح ملف الحزمة");
             ZipEntry entry;
             byte[] buffer = new byte[32768];
             while ((entry = zip.getNextEntry()) != null) {
                 String name = entry.getName().replace('\\', '/');
+                while (name.startsWith("./")) name = name.substring(2);
+                if (name.isEmpty()) { zip.closeEntry(); continue; }
                 if (name.startsWith("/") || name.contains("../") || name.equals(".."))
                     throw new SecurityException("مسار غير آمن داخل حزمة الخرائط");
                 File out = new File(staging, name);
