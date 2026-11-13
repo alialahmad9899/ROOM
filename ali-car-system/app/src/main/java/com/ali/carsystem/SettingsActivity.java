@@ -17,6 +17,26 @@ public final class SettingsActivity extends BaseActivity {
         ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(0xFF07121E);box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(20),dp(14),dp(20),dp(14));scroll.addView(box);setContentView(scroll);render();}
     private void render(){
         box.removeAllViews();TextView title=label("إدارة الجهاز",22);title.setGravity(Gravity.CENTER);box.addView(title);
+        add("الملاحة الصوتية العربية");
+        SharedPreferences voicePrefs=getSharedPreferences("ali_car_navigation",MODE_PRIVATE);
+        CheckBox voiceEnabled=new CheckBox(this);voiceEnabled.setText("تفعيل الإرشادات الصوتية");voiceEnabled.setTextColor(-1);
+        voiceEnabled.setButtonTintList(android.content.res.ColorStateList.valueOf(0xFF55D8F0));
+        voiceEnabled.setChecked(voicePrefs.getBoolean("voice_enabled",true));
+        voiceEnabled.setOnCheckedChangeListener((button,checked)->voicePrefs.edit().putBoolean("voice_enabled",checked).apply());
+        box.addView(voiceEnabled);
+        TextView voiceLevel=label("مستوى صوت الإرشادات: "+Math.round(voicePrefs.getFloat("voice_volume",0.85f)*100)+"%",14);box.addView(voiceLevel);
+        SeekBar voiceVolume=new SeekBar(this);voiceVolume.setMax(100);
+        voiceVolume.setProgress(Math.round(voicePrefs.getFloat("voice_volume",0.85f)*100));
+        voiceVolume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            @Override public void onProgressChanged(SeekBar seek,int value,boolean fromUser){
+                float level=Math.max(10,value)/100f;voiceLevel.setText("مستوى صوت الإرشادات: "+Math.round(level*100)+"%");
+                if(fromUser)voicePrefs.edit().putFloat("voice_volume",level).apply();
+            }
+            @Override public void onStartTrackingTouch(SeekBar seek){}
+            @Override public void onStopTrackingTouch(SeekBar seek){}
+        });
+        box.addView(voiceVolume,new LinearLayout.LayoutParams(-1,dp(42)));
+
         ActivityManager.MemoryInfo info=new ActivityManager.MemoryInfo();((ActivityManager)getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(info);
         long total=info.totalMem/(1024*1024),avail=info.availMem/(1024*1024),pss=android.os.Debug.getPss()/1024;
         add("الذاكرة الكلية: "+total+" MB");add("الذاكرة المتاحة: "+avail+" MB");add("ذاكرة التطبيق الحالية PSS: "+pss+" MB");
