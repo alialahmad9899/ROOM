@@ -120,7 +120,12 @@ public final class MainActivity extends BaseActivity implements LocationListener
         v.setAlpha(.94f);
     }
     static boolean shouldBlockSleep(boolean isCharging,boolean isMusicPlaying){return isCharging||isMusicPlaying;}
-    private boolean sleepBlocked(){return shouldBlockSleep(charging,musicPlaying);}
+    static boolean shouldAllowManualSleep(){return true;}
+    static boolean shouldAllowAutomaticSleep(boolean isCharging,boolean isMusicPlaying,boolean isNavigationActive){
+        return !isCharging&&!isMusicPlaying&&!isNavigationActive;
+    }
+    private boolean sleepBlocked(){return !shouldAllowAutomaticSleep(charging,musicPlaying,false);}
+    private boolean manualSleep;
     private void refreshChargingState(){
         try{
             Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -131,7 +136,9 @@ public final class MainActivity extends BaseActivity implements LocationListener
         if(pager==null)return;
         if(sleepBlocked()){
             handler.removeCallbacks(idleTick);
-            if(ambientOverlay!=null)dismissAmbient();
+            // A manually requested sleep screen must remain visible even if charging
+            // starts or music begins. Only automatic sleep is blocked by those states.
+            if(ambientOverlay!=null&&!manualSleep)dismissAmbient();
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }else{
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -147,11 +154,13 @@ public final class MainActivity extends BaseActivity implements LocationListener
         // Do not dismiss sleep mode for an arbitrary touch; only the explicit wake control exits it.
         if(ambientOverlay==null)scheduleIdle();
     }
-    private void showAmbientClock(){showAmbientClock(false);}
-    void showAmbientClockForTest(){showAmbientClock(true);}
-    private void showAmbientClock(boolean ignorePowerLocks){
+    private void showAmbientClock(){showAmbientClock(false,false);}
+    void showAmbientClockForTest(){showAmbientClock(true,true);}
+    private void showAmbientClock(boolean manual){showAmbientClock(manual,false);}
+    private void showAmbientClock(boolean manual,boolean bypassPowerLocks){
         if(isFinishing()||pager==null||ambientOverlay!=null)return;
-        if(!ignorePowerLocks&&sleepBlocked())return;
+        if(!manual&&!bypassPowerLocks&&sleepBlocked())return;
+        manualSleep=manual;
         FrameLayout overlay=new FrameLayout(this);
         overlay.setTag("ambient_sleep_overlay");
         overlay.setClickable(true);
@@ -179,7 +188,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         FrameLayout.LayoutParams wakeLp=new FrameLayout.LayoutParams(-2,dp(46),Gravity.TOP|Gravity.RIGHT);
         wakeLp.setMargins(0,dp(14),dp(14),0);
         overlay.addView(wake,wakeLp);
-        wake.setOnClickListener(v->{dismissAmbient();scheduleIdle();});
+        wake.setOnClickListener(v->{manualSleep=false;dismissAmbient();scheduleIdle();});
 
         ambientOverlay=overlay;
         dimWindowForSleep();
@@ -266,7 +275,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         sleep.setBackground(glass(0x443A7D99,0x886CDFFF,24));
         LinearLayout.LayoutParams sleepLp=new LinearLayout.LayoutParams(dp(42),dp(40));
         sleepLp.leftMargin=dp(8);top.addView(sleep,sleepLp);
-        sleep.setOnClickListener(v->{if(sleepBlocked())Toast.makeText(this,"وضع السكون متوقف أثناء الشحن أو تشغيل الموسيقى",Toast.LENGTH_SHORT).show();else showAmbientClock();});
+        sleep.setOnClickListener(v->showAmbientClock(true));
         all.addView(top,new LinearLayout.LayoutParams(-1,dp(50)));
 
         // Put media controls in the top-center strip instead of stacking them below the speed dial.
@@ -297,6 +306,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         TextView timeTitle=label("LOCAL TIME",15,0xFFFFD68A,true);timeTitle.setGravity(Gravity.CENTER);
         left.addView(timeTitle,new LinearLayout.LayoutParams(-1,dp(26)));
         AnalogClockView analog=new AnalogClockView(this);analog.setTag("dashboard_analog_clock");
+        analog.setTranslationX(-dp(12));
         left.addView(analog,new LinearLayout.LayoutParams(dp(270),dp(270)));
         dateLabel=label("",16,0xFFE5F4FF,true);dateLabel.setGravity(Gravity.CENTER);
         left.addView(dateLabel,new LinearLayout.LayoutParams(-1,dp(28)));
@@ -307,6 +317,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         TextView speedTitle=label("SPEED  •  KM/H",15,0xFF8DE9FF,true);speedTitle.setGravity(Gravity.CENTER);
         right.addView(speedTitle,new LinearLayout.LayoutParams(-1,dp(26)));
         speedometer=new SpeedometerView(this);speedometer.setTag("dashboard_speed_gauge");
+        speedometer.setTranslationX(dp(12));
         right.addView(speedometer,new LinearLayout.LayoutParams(dp(270),dp(270)));
         gpsStatus=label("بانتظار إشارة GPS",13,0xFFC7EFFF,false);gpsStatus.setTag("dashboard_gps_status");
         gpsStatus.setGravity(Gravity.CENTER);
