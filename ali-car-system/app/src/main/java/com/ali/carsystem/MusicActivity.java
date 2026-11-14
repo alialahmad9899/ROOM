@@ -341,6 +341,7 @@ public final class MusicActivity extends BaseActivity {
                     return copied;
                 }
                 for(Uri uri:values[0]){
+                    File target=null;
                     try{
                         String name=displayName(uri);
                         String mime=getContentResolver().getType(uri);
@@ -355,7 +356,7 @@ public final class MusicActivity extends BaseActivity {
                             else name+=".audio";
                         }
                         name=name.replaceAll("[\\\\/:*?<>|]","_").replace((char)34,'_').trim();
-                        File target=new File(folder,name);
+                        target=new File(folder,name);
                         String base=name;int suffix=1;
                         while(target.exists()){
                             int dot=base.lastIndexOf('.');
@@ -366,12 +367,19 @@ public final class MusicActivity extends BaseActivity {
                         try(InputStream input=getContentResolver().openInputStream(uri);
                             OutputStream output=new BufferedOutputStream(new FileOutputStream(target))){
                             if(input==null)throw new IOException("تعذر قراءة الملف");
-                            byte[] buffer=new byte[64*1024];int count;
-                            while((count=input.read(buffer))!=-1)output.write(buffer,0,count);
+                            byte[] buffer=new byte[32*1024];int count;long total=0L;
+                            while((count=input.read(buffer))!=-1){
+                                total+=count;
+                                if(total>MusicFilePolicy.MAX_TRACK_BYTES)
+                                    throw new IOException("حجم الملف يتجاوز الحد الأقصى 4 ميغابايت");
+                                output.write(buffer,0,count);
+                            }
+                            if(total==0L)throw new IOException("الملف الصوتي فارغ");
                             output.flush();
                         }
                         copied.add(target);
                     }catch(Exception failure){
+                        if(target!=null&&target.exists())target.delete();
                         if(error==null)error=failure.getMessage()==null?"تعذر نسخ أحد الملفات":failure.getMessage();
                     }
                 }
