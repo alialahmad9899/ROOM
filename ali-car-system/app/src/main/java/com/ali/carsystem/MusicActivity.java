@@ -29,26 +29,28 @@ public final class MusicActivity extends BaseActivity {
     private final ArrayList<MusicPlaybackService.Song> allSongs=new ArrayList<>();
     private TextView emptyLibrary;
     private String activePlaylist="كل الأغاني";
+    private static final String[] SUPPORTED_ARTISTS={
+            "فيروز","نصيف زيتون","أصالة نصري","جورج وسوف","صباح فخري","ميادة بسيليس",
+            "ليندا بيطار","الشامي","فايا يونان","شادي جميل","إليسا","نانسي عجرم",
+            "وائل كفوري","راغب علامة","ملحم زين","مروان خوري","كارول سماحة","فضل شاكر",
+            "جوليا بطرس","عاصي الحلاني","فارس كرم","وائل جسار","مريام فارس","هبة طوجي","زياد برجي"
+    };
     private static final String[] PLAYLISTS={
             "كل الأغاني","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
             "صباح فخري","ميادة بسيليس","ليندا بيطار","الشامي","فايا يونان","شادي جميل",
             "إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين","مروان خوري",
             "كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني","فارس كرم",
             "وائل جسار","مريام فارس","هبة طوجي","زياد برجي",
-            "أغاني سورية","أغاني لبنانية","أغاني رومانسية",
-            "أغاني هادئة للقيادة","أغاني حماسية","ترند عربي 2026",
-            "المفضلة","آخر تشغيل"
+            "أغاني سورية","أغاني لبنانية","المفضلة","آخر تشغيل"
     };
     private static final String[] SYRIAN_ARTISTS={
-            "نصيف زيتون","أصالة","جورج وسوف","صباح فخري","ميادة بسيليس",
-            "ليندا بيطار","الشامي","فايا يونان","شادي جميل","نور مهنا","مجد القاسم",
-            "nassif zeytoun","asala","george wassouf","al shami","faya younan"
+            "نصيف زيتون","أصالة نصري","جورج وسوف","صباح فخري","ميادة بسيليس",
+            "ليندا بيطار","الشامي","فايا يونان","شادي جميل"
     };
     private static final String[] LEBANESE_ARTISTS={
             "فيروز","إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين",
             "مروان خوري","كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني",
-            "فارس كرم","وائل جسار","مريام فارس","هبة طوجي","زياد برجي",
-            "fairuz","elissa","nancy ajram","wael kfoury","ragheb alama"
+            "فارس كرم","وائل جسار","مريام فارس","هبة طوجي","زياد برجي"
     };
     private boolean charging,playing;
     private BroadcastReceiver stateReceiver,powerReceiver;
@@ -263,6 +265,7 @@ public final class MusicActivity extends BaseActivity {
             List<Long> manual=service.getPlaylistSongIds(activePlaylist);
             List<Long> recent=service.getRecentSongIds();
             for(MusicPlaybackService.Song song:allSongs){
+                if(!isSupportedArtist(song))continue;
                 boolean include;
                 switch(activePlaylist){
                     case "كل الأغاني": include=true; break;
@@ -281,6 +284,14 @@ public final class MusicActivity extends BaseActivity {
         }
         adapter.set(filtered);
         if(emptyLibrary!=null)emptyLibrary.setVisibility(filtered.isEmpty()?View.VISIBLE:View.GONE);
+    }
+
+    private boolean isSupportedArtist(MusicPlaybackService.Song song){
+        if(song==null)return false;
+        for(String artist:SUPPORTED_ARTISTS){
+            if(ArtistMatcher.matchesAny(song.artist,song.name,artist))return true;
+        }
+        return false;
     }
 
     private boolean artistMatches(MusicPlaybackService.Song song,String... values){
