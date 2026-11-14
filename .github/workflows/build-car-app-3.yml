@@ -160,7 +160,8 @@ jobs:
           compression-level: 0
 
       - name: Create writable API21 emulator SD card
-        run: "$ANDROID_HOME/emulator/mksdcard" 2G /tmp/ali-car-sdcard.img
+        run: |
+          "$ANDROID_HOME/emulator/mksdcard" 2G /tmp/ali-car-sdcard.img
 
       - name: Run API21 x86 UI smoke test
         id: api21-ui-test
