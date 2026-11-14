@@ -344,7 +344,7 @@ public final class NavigationGuidanceService extends Service implements Location
     }
 
     @Override public void onLocationChanged(Location location) {
-        if (location == null || progressEngine == null || !routeLoaded) return;
+        if (location == null || progressEngine == null || !routeLoaded || rerouting) return;
         lastAccuracy = location.hasAccuracy() ? location.getAccuracy() : -1f;
         long ageMs = location.getElapsedRealtimeNanos() > 0
                 ? Math.max(0L, (android.os.SystemClock.elapsedRealtimeNanos()
@@ -466,24 +466,18 @@ public final class NavigationGuidanceService extends Service implements Location
     }
 
     private void recalculateRoute(Location start) {
+        if (rerouting || !routeLoaded) return;
         rerouting = true;
         final Location origin = new Location(start);
         final double lat = destinationLat, lon = destinationLon;
         new AsyncTask<Void, Void, JSONObject>() {
             @Override protected JSONObject doInBackground(Void... ignored) {
                 try {
-                    return OfflineRoutingEngine.requestRoutes(getApplicationContext(), origin,
+                    JSONObject result = OfflineRoutingEngine.requestRoutes(getApplicationContext(), origin,
                             new GeoPoint(lat, lon));
-                } catch (Exception error) { return null; }
-            }
-            @Override protected void onPostExecute(JSONObject result) {
-                rerouting = false;
-                try {
                     JSONArray routes = result == null ? null : result.optJSONArray("routes");
-                    if (routes == null || routes.length() == 0) {
-                        publishState("خرجت عن المسار وتعذر إعادة الحساب محلياً؛ توقف بمكان آمن وافحص الخريطة", true);
-                        return;
-                    }
+                    if (routes == null || routes.length() == 0)
+                        throw new IOException("لم يُرجع محرك BRouter مساراً جديداً");
                     JSONObject route = routes.getJSONObject(0);
                     JSONObject geometry = route.getJSONObject("geometry");
                     JSONArray coordinates = geometry.getJSONArray("coordinates");
@@ -514,12 +508,54 @@ public final class NavigationGuidanceService extends Service implements Location
                     payload.put("destination_lat", destinationLat);
                     payload.put("destination_lon", destinationLon);
                     payload.put("duration_seconds", route.optDouble("duration", 0d));
+
+                    // Prepare and validate the replacement off the main thread.
                     parsePayload(payload);
-                    prefs.edit().putString(KEY_ROUTE, payload.toString()).apply();
-                    publishState("أُعيد حساب المسار محلياً بعد الانحراف", true);
+                    String activePath = prefs.getString(KEY_ROUTE_FILE, "");
+                    if (activePath == null || activePath.isEmpty())
+                        throw new IOException("ملف المسار النشط غير محفوظ");
+                    File target = new File(activePath);
+                    File temporary = new File(activePath + ".tmp");
+                    File backup = new File(activePath + ".bak");
+                    try (java.io.FileOutputStream output = new java.io.FileOutputStream(temporary, false)) {
+                        output.write(payload.toString().getBytes("UTF-8"));
+                        output.flush();
+                        output.getFD().sync();
+                    }
+                    if (backup.exists()) backup.delete();
+                    if (target.exists() && !target.renameTo(backup))
+                        throw new IOException("تعذر حفظ نسخة المسار السابقة");
+                    if (!temporary.renameTo(target)) {
+                        if (backup.exists()) backup.renameTo(target);
+                        throw new IOException("تعذر تثبيت المسار الجديد");
+                    }
+                    if (backup.exists()) backup.delete();
+                    return payload;
                 } catch (Exception error) {
-                    publishState("تعذر تحديث المسار المحلي؛ تحقق من الطريق يدوياً", true);
+                    JSONObject failure = new JSONObject();
+                    try { failure.put("_ali_error", error.getMessage() == null
+                            ? error.getClass().getSimpleName() : error.getMessage()); }
+                    catch (Exception ignoredError) { }
+                    return failure;
                 }
+            }
+
+            @Override protected void onPostExecute(JSONObject payload) {
+                rerouting = false;
+                if (payload == null || payload.has("_ali_error")) {
+                    publishState("تعذر إعادة حساب المسار محلياً: "
+                            + (payload == null ? "نتيجة فارغة" : payload.optString("_ali_error")), true);
+                    return;
+                }
+                currentProgressMeters = 0d;
+                latestProgress = null;
+                offRouteFixes = 0;
+                offRouteSince = 0L;
+                lastAnnouncedStage = -1;
+                prefs.edit().putString("destination_name", destinationName)
+                        .putFloat("destination_lat", (float) destinationLat)
+                        .putFloat("destination_lon", (float) destinationLon).apply();
+                publishState("أُعيد حساب المسار محلياً بعد الانحراف", true);
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
