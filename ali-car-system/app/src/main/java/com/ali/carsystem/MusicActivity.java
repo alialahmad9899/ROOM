@@ -339,7 +339,17 @@ public final class MusicActivity extends BaseActivity {
                 for(Uri uri:values[0]){
                     try{
                         String name=displayName(uri);
-                        name=name==null||name.trim().isEmpty()?"ALI-CAR-audio-"+System.currentTimeMillis()+".audio":name;
+                        String mime=getContentResolver().getType(uri);
+                        if(name==null||name.trim().isEmpty())name="ALI-CAR-audio-"+System.currentTimeMillis();
+                        if(name.lastIndexOf('.')<1){
+                            if("audio/mpeg".equals(mime))name+=".mp3";
+                            else if("audio/mp4".equals(mime))name+=".m4a";
+                            else if("audio/ogg".equals(mime))name+=".ogg";
+                            else if("audio/wav".equals(mime)||"audio/x-wav".equals(mime))name+=".wav";
+                            else if("audio/flac".equals(mime))name+=".flac";
+                            else if("audio/aac".equals(mime))name+=".aac";
+                            else name+=".audio";
+                        }
                         name=name.replaceAll("[\\\\/:*?<>|]","_").replace((char)34,'_').trim();
                         File target=new File(folder,name);
                         String base=name;int suffix=1;
