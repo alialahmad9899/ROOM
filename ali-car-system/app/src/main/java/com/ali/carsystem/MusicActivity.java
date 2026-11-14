@@ -1,6 +1,7 @@
 package com.ali.carsystem;
 
 import android.content.*;
+import android.app.AlertDialog;
 import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.media.audiofx.Visualizer;
@@ -17,6 +18,15 @@ public final class MusicActivity extends BaseActivity {
     private RecyclerView list;private SongAdapter adapter;private VinylDiscView cover;private WaveView wave;
     private TextView title,artist,time,playButton,shuffleButton,repeatButton;private SeekBar progress;private Visualizer visualizer;
     private long loadedAlbum=-1;private final Handler handler=new Handler(Looper.getMainLooper());
+    private final ArrayList<MusicPlaybackService.Song> allSongs=new ArrayList<>();
+    private TextView emptyLibrary;
+    private String activePlaylist="كل الأغاني";
+    private static final String[] PLAYLISTS={
+            "كل الأغاني","فيروزيات","نصيف زيتون","إليسا","أصالة",
+            "أغاني سورية","أغاني لبنانية","أغاني رومانسية",
+            "أغاني هادئة للقيادة","أغاني حماسية","ترند عربي 2026",
+            "المفضلة","آخر تشغيل"
+    };
     private boolean charging,playing;
     private BroadcastReceiver stateReceiver,powerReceiver;
     private FrameLayout sleepOverlay;
@@ -31,7 +41,13 @@ public final class MusicActivity extends BaseActivity {
     private final ServiceConnection connection=new ServiceConnection(){
         @Override public void onServiceConnected(ComponentName n,IBinder b){
             service=((MusicPlaybackService.LocalBinder)b).getService();bound=true;
-            service.setListener(()->runOnUiThread(()->refreshPlayer()));adapter.set(service.getSongs());refreshPlayer();
+            service.setListener(()->runOnUiThread(()->{
+                allSongs.clear();allSongs.addAll(service.getSongs());
+                applyPlaylistFilter();
+                refreshPlayer();
+            }));
+            allSongs.clear();allSongs.addAll(service.getSongs());
+            applyPlaylistFilter();refreshPlayer();
         }
         @Override public void onServiceDisconnected(ComponentName n){bound=false;service=null;stopVisualizer();}
     };
@@ -167,12 +183,98 @@ public final class MusicActivity extends BaseActivity {
         LinearLayout library=panel();library.setOrientation(LinearLayout.VERTICAL);library.setPadding(dp(12),dp(10),dp(12),dp(8));
         body.addView(library,new LinearLayout.LayoutParams(0,-1,.92f));
         LinearLayout libraryHead=new LinearLayout(this);libraryHead.setGravity(Gravity.CENTER_VERTICAL);
-        libraryHead.addView(text("قائمة التشغيل",17,Color.WHITE,true),new LinearLayout.LayoutParams(0,dp(34),1));
-        libraryHead.addView(text("اختيار وتشغيل",10,0xFF8ABAD0,false));library.addView(libraryHead);
+        libraryHead.addView(text("المكتبة وقوائم التشغيل",17,Color.WHITE,true),new LinearLayout.LayoutParams(0,dp(34),1));
+        libraryHead.addView(text("محلية • بدون إنترنت",10,0xFF8ABAD0,false));library.addView(libraryHead);
+
+        HorizontalScrollView playlistScroll=new HorizontalScrollView(this);
+        playlistScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout playlistRow=new LinearLayout(this);playlistRow.setGravity(Gravity.CENTER_VERTICAL);
+        for(String playlist:PLAYLISTS){
+            TextView chip=text(playlist,11,Color.WHITE,true);
+            chip.setGravity(Gravity.CENTER);chip.setPadding(dp(12),dp(7),dp(12),dp(7));
+            chip.setBackground(card(playlist.equals(activePlaylist)?0xFF0A7898:0x66325268,
+                    0x665CD9F4,18));
+            LinearLayout.LayoutParams chipLp=new LinearLayout.LayoutParams(-2,dp(36));
+            chipLp.rightMargin=dp(6);playlistRow.addView(chip,chipLp);
+            chip.setOnClickListener(v->{activePlaylist=playlist;applyPlaylistFilter();refreshPlaylistChipStyles(playlistRow);});
+        }
+        playlistScroll.addView(playlistRow);
+        LinearLayout.LayoutParams filtersLp=new LinearLayout.LayoutParams(-1,dp(42));
+        filtersLp.topMargin=dp(3);library.addView(playlistScroll,filtersLp);
+
+        emptyLibrary=text("لا توجد أغنيات ضمن هذه القائمة. أضف ملفاتك إلى مكتبة الجهاز أو اضغط مطولاً على أغنية لإضافتها إلى قائمة مخصصة.",
+                12,0xFFB7D0DC,false);
+        emptyLibrary.setGravity(Gravity.CENTER);emptyLibrary.setVisibility(View.GONE);
+        library.addView(emptyLibrary,new LinearLayout.LayoutParams(-1,dp(54)));
+
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new SongAdapter();list.setAdapter(adapter);
-        LinearLayout.LayoutParams listLp=new LinearLayout.LayoutParams(-1,0,1);listLp.topMargin=dp(5);library.addView(list,listLp);
+        LinearLayout.LayoutParams listLp=new LinearLayout.LayoutParams(-1,0,1);listLp.topMargin=dp(4);library.addView(list,listLp);
         setContentView(root);startService(new Intent(this,MusicPlaybackService.class));
     }
+    private void refreshPlaylistChipStyles(LinearLayout row){
+        for(int i=0;i<row.getChildCount();i++){
+            View child=row.getChildAt(i);
+            if(child instanceof TextView){
+                String value=((TextView)child).getText().toString();
+                child.setBackground(card(value.equals(activePlaylist)?0xFF0A7898:0x66325268,
+                        0x665CD9F4,18));
+            }
+        }
+    }
+
+    private void applyPlaylistFilter(){
+        if(adapter==null)return;
+        ArrayList<MusicPlaybackService.Song> filtered=new ArrayList<>();
+        if(service!=null){
+            List<Long> manual=service.getPlaylistSongIds(activePlaylist);
+            List<Long> recent=service.getRecentSongIds();
+            for(MusicPlaybackService.Song song:allSongs){
+                boolean include;
+                switch(activePlaylist){
+                    case "كل الأغاني": include=true; break;
+                    case "فيروزيات": include=artistMatches(song,"فيروز","fairuz","fairouz")||manual.contains(song.id); break;
+                    case "نصيف زيتون": include=artistMatches(song,"نصيف زيتون","nassif zeytoun","nassif")||manual.contains(song.id); break;
+                    case "إليسا": include=artistMatches(song,"إليسا","elissa","elissar")||manual.contains(song.id); break;
+                    case "أصالة": include=artistMatches(song,"أصالة","asala","assala")||manual.contains(song.id); break;
+                    case "أغاني سورية": include=artistMatches(song,"نصيف","أصالة","جورج وسوف","صباح فخري","ميادة","ليندا بيطار","nassif","asala")||manual.contains(song.id); break;
+                    case "أغاني لبنانية": include=artistMatches(song,"فيروز","إليسا","نانسي","وائل كفوري","راغب علامة","ملحم زين","مروان خوري","كارول سماحة","فضل شاكر","جوليا بطرس","زياد برجي","fairuz","elissa","nancy","wael kfoury")||manual.contains(song.id); break;
+                    case "المفضلة": include=service.isFavorite(song.id); break;
+                    case "آخر تشغيل": include=recent.contains(song.id); break;
+                    default: include=manual.contains(song.id); break;
+                }
+                if(include)filtered.add(song);
+            }
+        }
+        adapter.set(filtered);
+        if(emptyLibrary!=null)emptyLibrary.setVisibility(filtered.isEmpty()?View.VISIBLE:View.GONE);
+    }
+
+    private boolean artistMatches(MusicPlaybackService.Song song,String... values){
+        String artist=(song.artist==null?"":song.artist).toLowerCase(Locale.ROOT);
+        String titleText=(song.name==null?"":song.name).toLowerCase(Locale.ROOT);
+        for(String value:values){
+            String needle=value.toLowerCase(Locale.ROOT);
+            if(artist.contains(needle)||titleText.contains(needle))return true;
+        }
+        return false;
+    }
+
+    private void addSongToPlaylist(MusicPlaybackService.Song song){
+        if(service==null||song==null)return;
+        new AlertDialog.Builder(this).setTitle("إضافة إلى قائمة تشغيل")
+                .setItems(new String[]{"فيروزيات","نصيف زيتون","إليسا","أصالة",
+                        "أغاني سورية","أغاني لبنانية","أغاني رومانسية",
+                        "أغاني هادئة للقيادة","أغاني حماسية","ترند عربي 2026"},
+                        (dialog,which)->{
+                            String selected=new String[]{"فيروزيات","نصيف زيتون","إليسا","أصالة",
+                                    "أغاني سورية","أغاني لبنانية","أغاني رومانسية",
+                                    "أغاني هادئة للقيادة","أغاني حماسية","ترند عربي 2026"}[which];
+                            service.addSongToPlaylist(song.id,selected);
+                            activePlaylist=selected;applyPlaylistFilter();
+                            Toast.makeText(this,"تمت إضافة الأغنية إلى "+selected,Toast.LENGTH_SHORT).show();
+                        }).setNegativeButton("إلغاء",null).show();
+    }
+
     private TextView control(String symbol,Runnable action){
         TextView t=text(symbol,28,Color.WHITE,true);t.setGravity(Gravity.CENTER);
         t.setBackground(card(0xCC1B4059,0x665CD9F4,24));t.setOnClickListener(v->action.run());return t;
@@ -235,21 +337,34 @@ public final class MusicActivity extends BaseActivity {
     }
     private final class SongAdapter extends RecyclerView.Adapter<SongRow>{
         private List<MusicPlaybackService.Song> items=new ArrayList<>();
-        void set(List<MusicPlaybackService.Song> x){items=x;notifyDataSetChanged();}
-        @Override public SongRow onCreateViewHolder(ViewGroup p,int type){
+        void set(List<MusicPlaybackService.Song> x){items=x==null?new ArrayList<>():x;notifyDataSetChanged();}
+        @Override public SongRow onCreateViewHolder(ViewGroup parent,int type){
             LinearLayout row=new LinearLayout(MusicActivity.this);row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(10),dp(7),dp(10),dp(7));row.setBackground(card(0x66325268,0x223FD2EE,12));
-            TextView t=text("",13,Color.WHITE,true);row.addView(t,new LinearLayout.LayoutParams(-1,dp(52)));return new SongRow(row,t);
+            row.setPadding(dp(10),dp(5),dp(8),dp(5));row.setBackground(card(0x66325268,0x223FD2EE,12));
+            TextView label=text("",13,Color.WHITE,true);
+            row.addView(label,new LinearLayout.LayoutParams(0,dp(52),1f));
+            TextView favorite=text("☆",25,0xFFFFD27B,true);favorite.setGravity(Gravity.CENTER);
+            row.addView(favorite,new LinearLayout.LayoutParams(dp(42),dp(48)));
+            return new SongRow(row,label,favorite);
         }
-        @Override public void onBindViewHolder(SongRow h,int p){
-            MusicPlaybackService.Song s=items.get(p),current=service==null?null:service.getCurrentSong();
-            boolean active=current!=null&&current.id==s.id;
-            h.label.setText((active?"♫  ":"")+String.format(Locale.US,"%02d",p+1)+"   "+s.name+"\n"+(s.artist==null?"":s.artist));
-            h.itemView.setAlpha(active?1f:.78f);h.itemView.setOnClickListener(v->{if(service!=null)service.playAt(p);});
+        @Override public void onBindViewHolder(SongRow holder,int position){
+            MusicPlaybackService.Song song=items.get(position);
+            MusicPlaybackService.Song current=service==null?null:service.getCurrentSong();
+            boolean active=current!=null&&current.id==song.id;
+            holder.label.setText((active?"♫  ":"")+String.format(Locale.US,"%02d",position+1)
+                    +"   "+song.name+"\n"+(song.artist==null?"":song.artist));
+            boolean favorite=service!=null&&service.isFavorite(song.id);
+            holder.favorite.setText(favorite?"★":"☆");
+            holder.favorite.setOnClickListener(v->{
+                if(service!=null){service.toggleFavorite(song.id);applyPlaylistFilter();}
+            });
+            holder.itemView.setAlpha(active?1f:.82f);
+            holder.itemView.setOnClickListener(v->{if(service!=null)service.playSongId(song.id);});
+            holder.itemView.setOnLongClickListener(v->{addSongToPlaylist(song);return true;});
         }
         @Override public int getItemCount(){return items.size();}
     }
-    private static final class SongRow extends RecyclerView.ViewHolder{final TextView label;SongRow(View v,TextView t){super(v);label=t;}}
+    private static final class SongRow extends RecyclerView.ViewHolder{final TextView label,favorite;SongRow(View v,TextView t,TextView f){super(v);label=t;favorite=f;}}
     private final class VinylDiscView extends View {
         private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
         private Bitmap artwork;
