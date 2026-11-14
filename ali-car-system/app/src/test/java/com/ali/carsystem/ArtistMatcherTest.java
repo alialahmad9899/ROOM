@@ -18,10 +18,12 @@ public final class ArtistMatcherTest {
         assertEquals(ArtistMatcher.normalize("هبة طوجي"), ArtistMatcher.normalize("هَبَة طُوجِي"));
     }
 
-    @Test public void doesNotMatchUnrelatedArtists() {
+    @Test public void doesNotMatchUnrelatedArtistsOrPartialWords() {
         assertFalse(ArtistMatcher.matchesAny("Unknown Artist", "Unknown Song", "فيروز", "fairuz"));
-        assertFalse("The music library must exclude artists outside the requested list",
-                ArtistMatcher.isSupportedArtist("Unknown Singer", "Unknown Song"));
+        assertFalse("Partial Latin words must not match الشامي",
+                ArtistMatcher.matchesAny("The Shamir Ensemble", "A song", "الشامي"));
+        assertFalse("A partial title fragment must not identify الشامي",
+                ArtistMatcher.isSupportedArtist("Unknown Singer", "Shamisen"));
     }
 
     @Test public void everyConfiguredArtistHasAliases() {
@@ -32,10 +34,14 @@ public final class ArtistMatcherTest {
             "جوليا بطرس","عاصي الحلاني","فارس كرم","وائل جسار","ميريام فارس","هبة طوجي","زياد برجي"
         };
         for (String artist : artists) {
-            assertTrue("Missing alias mapping for " + artist,
-                    ArtistMatcher.aliasesFor(artist).length > 1);
+            String[] aliases = ArtistMatcher.aliasesFor(artist);
+            assertTrue("Missing alias mapping for " + artist, aliases.length > 1);
             assertTrue("Supported singer must be accepted: " + artist,
                     ArtistMatcher.isSupportedArtist(artist, "sample song"));
+            for (String alias : aliases) {
+                assertTrue("Configured alias must actually match: " + artist + " / " + alias,
+                        ArtistMatcher.matchesAny(alias, "sample song", artist));
+            }
         }
     }
 }

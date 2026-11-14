@@ -4,7 +4,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public final class MusicFilePolicyTest {
-    @Test public void acceptsFilesUpToAndIncludingFourMiB() {
+    @Test public void acceptsFilesUpToAndIncludingFourMegabytes() {
         assertTrue(MusicFilePolicy.isAllowed(1L));
         assertTrue(MusicFilePolicy.isAllowed(MusicFilePolicy.MAX_TRACK_BYTES));
     }

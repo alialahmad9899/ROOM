@@ -32,33 +32,35 @@ public final class ArtistMatcher {
     }
 
     public static boolean isSupportedArtist(String artist, String title) {
-        String a = normalize(artist);
-        String t = normalize(title);
+        String a = normalize(artist), t = normalize(title);
         if (a.isEmpty() && t.isEmpty()) return false;
         for (String[] aliases : NORMALIZED_SUPPORTED) {
             for (String alias : aliases) {
-                if (!alias.isEmpty() && (a.contains(alias) || t.contains(alias))) return true;
+                if (matchesPhrase(a, alias) || matchesPhrase(t, alias)) return true;
             }
         }
         return false;
     }
 
     public static boolean matchesAny(String artist, String title, String... aliases) {
-        String a = normalize(artist);
-        String t = normalize(title);
-        if (a.isEmpty() && t.isEmpty()) return false;
+        String a = normalize(artist), t = normalize(title);
+        if (a.isEmpty() && t.isEmpty() || aliases == null) return false;
         for (String alias : aliases) {
-            if (containsAlias(a, t, alias)) return true;
+            if (containsAlias(a, alias) || containsAlias(t, alias)) return true;
             for (String alternate : aliasesFor(alias)) {
-                if (containsAlias(a, t, alternate)) return true;
+                if (containsAlias(a, alternate) || containsAlias(t, alternate)) return true;
             }
         }
         return false;
     }
 
-    private static boolean containsAlias(String artist, String title, String alias) {
-        String n = normalize(alias);
-        return !n.isEmpty() && (artist.contains(n) || title.contains(n));
+    private static boolean containsAlias(String text, String alias) {
+        return matchesPhrase(text, normalize(alias));
+    }
+
+    private static boolean matchesPhrase(String text, String phrase) {
+        if (text == null || text.isEmpty() || phrase == null || phrase.isEmpty()) return false;
+        return (" " + text + " ").contains(" " + phrase + " ");
     }
 
     public static String normalize(String value) {
@@ -124,10 +126,6 @@ public final class ArtistMatcher {
             return new String[]{"هبة طوجي","hiba tawaji","hiba tawagy"};
         if (key.contains("زياد برجي") || key.contains("ziad bourji"))
             return new String[]{"زياد برجي","ziad bourji","ziad borji"};
-        if (key.contains("نور مهنا") || key.contains("nour mehanna"))
-            return new String[]{"نور مهنا","nour mehanna","nour mihanna"};
-        if (key.contains("مجد القاسم") || key.contains("majd al qassem"))
-            return new String[]{"مجد القاسم","majd al qassem","majd alkassem"};
         return new String[]{artist};
     }
 }

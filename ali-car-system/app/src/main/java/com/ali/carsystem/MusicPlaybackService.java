@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.database.ContentObserver;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
@@ -45,6 +46,19 @@ public final class MusicPlaybackService extends Service
         return thread;
     });
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable debouncedLibraryRefresh = () -> {
+        if (!isDestroyed()) refreshLibrary();
+    };
+    private final ContentObserver mediaStoreObserver = new ContentObserver(mainHandler) {
+        @Override public void onChange(boolean selfChange) {
+            super.onChange(selfChange);
+            mainHandler.removeCallbacks(debouncedLibraryRefresh);
+            mainHandler.postDelayed(debouncedLibraryRefresh, 1400L);
+        }
+        @Override public void onChange(boolean selfChange, Uri uri) {
+            onChange(selfChange);
+        }
+    };
     private AudioManager audioManager;
     private MediaPlayer player;
     private int index = -1;
@@ -119,6 +133,12 @@ public final class MusicPlaybackService extends Service
         repeat = prefs.getBoolean("repeat", false);
         resumePlaybackAfterLoad = prefs.getBoolean("resume_enabled", false);
         restoredPositionMs = Math.max(0, prefs.getInt("position_ms", 0));
+        try {
+            getContentResolver().registerContentObserver(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver);
+        } catch (Exception error) {
+            AppDiagnostics.record(this, "Register local music library observer", error);
+        }
         loadLibraryAsync();
     }
 
@@ -337,6 +357,9 @@ public final class MusicPlaybackService extends Service
             });
             player.setOnErrorListener((mp, what, extra) -> {
                 prepared = false;
+                AppDiagnostics.record(this, "MediaPlayer playback error what=" + what
+                        + " extra=" + extra + " track=" + song.name,
+                        new IllegalStateException("Android MediaPlayer rejected this local track"));
                 notifyChanged();
                 releasePlayer();
                 return true;
@@ -586,6 +609,8 @@ public final class MusicPlaybackService extends Service
 
     @Override public void onDestroy() {
         savePlaybackPosition();
+        try { getContentResolver().unregisterContentObserver(mediaStoreObserver); }
+        catch (Exception ignored) { }
         mainHandler.removeCallbacksAndMessages(null);
         releasePlayer();
         if (audioManager != null) audioManager.abandonAudioFocus(this);

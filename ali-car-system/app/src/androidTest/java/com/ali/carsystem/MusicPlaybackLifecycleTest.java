@@ -47,6 +47,8 @@ public final class MusicPlaybackLifecycleTest {
             IBinder binder = serviceRule.bindService(intent);
             assertTrue(binder instanceof MusicPlaybackService.LocalBinder);
             MusicPlaybackService service = ((MusicPlaybackService.LocalBinder) binder).getService();
+            // Service may have completed its first scan before the test inserted the WAV row.
+            service.refreshLibrary();
 
             long deadline = System.currentTimeMillis() + 20000L;
             while (System.currentTimeMillis() < deadline && !service.isLibraryLoaded()) {
@@ -57,7 +59,7 @@ public final class MusicPlaybackLifecycleTest {
             for (MusicPlaybackService.Song song : service.getSongs()) {
                 if (song.id == id) { found = true; break; }
             }
-            assertTrue("Service must discover the local test recording", found);
+            assertTrue("Service must discover the local test recording after a fresh MediaStore scan", found);
 
             service.playSongId(id);
             deadline = System.currentTimeMillis() + 15000L;

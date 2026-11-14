@@ -260,7 +260,6 @@ public final class MusicActivity extends BaseActivity {
             List<Long> manual=service.getPlaylistSongIds(activePlaylist);
             List<Long> recent=service.getRecentSongIds();
             for(MusicPlaybackService.Song song:allSongs){
-                if(!isSupportedArtist(song))continue;
                 boolean include;
                 switch(activePlaylist){
                     case "كل الأغاني": include=true; break;
@@ -279,10 +278,6 @@ public final class MusicActivity extends BaseActivity {
         }
         adapter.set(filtered);
         if(emptyLibrary!=null)emptyLibrary.setVisibility(filtered.isEmpty()?View.VISIBLE:View.GONE);
-    }
-
-    private boolean isSupportedArtist(MusicPlaybackService.Song song){
-        return song!=null && ArtistMatcher.isSupportedArtist(song.artist,song.name);
     }
 
     private boolean artistMatches(MusicPlaybackService.Song song,String... values){

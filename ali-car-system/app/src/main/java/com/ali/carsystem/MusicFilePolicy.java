@@ -2,7 +2,7 @@ package com.ali.carsystem;
 
 /** Per-track size policy for the requested offline music library. */
 public final class MusicFilePolicy {
-    public static final long MAX_TRACK_BYTES = 4L * 1024L * 1024L;
+    public static final long MAX_TRACK_BYTES = 4_000_000L;
 
     private MusicFilePolicy() {}
 
