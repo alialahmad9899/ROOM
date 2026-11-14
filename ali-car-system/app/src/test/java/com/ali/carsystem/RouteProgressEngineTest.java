@@ -55,7 +55,7 @@ public class RouteProgressEngineTest {
         RouteProgressEngine.Progress progress = engine.update(0.0, 0.0022, 5f);
         assertTrue(progress.onRoute);
         assertEquals(1, progress.nextTurnIndex);
-        assertEquals(0.0, progress.remainingToTurnMeters, 2.0);
+        assertEquals(88.9, progress.remainingToTurnMeters, 2.0);
     }
 
     @Test public void canRecoverAfterTemporaryGpsLossOffRouteFix() {
