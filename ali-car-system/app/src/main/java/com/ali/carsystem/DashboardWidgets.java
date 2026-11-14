@@ -271,8 +271,8 @@ final class NeonSplashView extends View {
         c.drawLine(cx+w*.38f,0,cx+w*.12f,h,p);
 
         // Fine orbit particles travel around the central emblem.
-        for(int i=0;i<18;i++){
-            float a=(float)(i*Math.PI*2/18d)+elapsed*.00023f;
+        for(int i=0;i<10;i++){
+            float a=(float)(i*Math.PI*2/10d)+elapsed*.00023f;
             float rr=radius*(.78f+.14f*(float)Math.sin(elapsed*.0015f+i));
             float x=cx+(float)Math.cos(a)*rr;
             float y=logoY+(float)Math.sin(a)*rr;
@@ -345,6 +345,6 @@ final class NeonSplashView extends View {
         centeredText(c,"DRIVE WITH CONFIDENCE",cx,h-23f*s,9.5f*s,
                 0x889DC3D2,medium);
 
-        if(elapsed<4800f)postInvalidateDelayed(33);
+        if(elapsed<4800f)postInvalidateDelayed(100L);
     }
 }
