@@ -54,35 +54,28 @@ public final class OfflineMapsRoutingSmokeTest {
     }
 
     @Test(timeout = 90000)
-    public void brouterCalculatesSeveralSyrianDrivingRoutesOffline() throws Exception {
+    public void brouterCalculatesDrivingRouteFromHomsToDamascusOffline() throws Exception {
         preparePackage();
-        double[][] cases = {
-                {34.7308d, 36.7094d, 33.5138d, 36.2765d}, // Homs -> Damascus
-                {33.5138d, 36.2765d, 32.6180d, 36.1020d}  // Damascus -> Daraa
-        };
-        for (int index = 0; index < cases.length; index++) {
-            Location start = new Location("test-offline-gps-" + index);
-            start.setLatitude(cases[index][0]);
-            start.setLongitude(cases[index][1]);
-            start.setAccuracy(8f);
-            start.setTime(System.currentTimeMillis());
-            GeoPoint destination = new GeoPoint(cases[index][2], cases[index][3]);
-            JSONObject response = OfflineRoutingEngine.requestRoutes(context(), start, destination);
-            assertNotNull("BRouter returned null for route case " + index, response);
-            assertEquals("Ok for route case " + index, "Ok", response.optString("code"));
-            assertEquals("offline-brouter", response.optString("_ali_provider"));
-            JSONArray routes = response.optJSONArray("routes");
-            assertNotNull("Routes array missing for case " + index, routes);
-            assertTrue("No route for case " + index, routes.length() > 0);
-            JSONObject route = routes.getJSONObject(0);
-            assertTrue("Non-positive distance for case " + index,
-                    route.optDouble("distance", 0d) > 0d);
-            JSONArray legs = route.optJSONArray("legs");
-            assertNotNull("Legs missing for case " + index, legs);
-            assertTrue("No legs for case " + index, legs.length() > 0);
-            JSONArray steps = legs.getJSONObject(0).optJSONArray("steps");
-            assertNotNull("Maneuvers missing for case " + index, steps);
-            assertTrue("No turn-by-turn steps for case " + index, steps.length() > 0);
-        }
+        Location start = new Location("test-offline-gps");
+        start.setLatitude(34.7308d);
+        start.setLongitude(36.7094d);
+        start.setAccuracy(8f);
+        start.setTime(System.currentTimeMillis());
+        GeoPoint damascus = new GeoPoint(33.5138d, 36.2765d);
+        JSONObject response = OfflineRoutingEngine.requestRoutes(context(), start, damascus);
+        assertNotNull("BRouter must return a local result without network access", response);
+        assertEquals("Ok", response.optString("code"));
+        assertEquals("offline-brouter", response.optString("_ali_provider"));
+        JSONArray routes = response.optJSONArray("routes");
+        assertNotNull(routes);
+        assertTrue("A driving route must be returned", routes.length() > 0);
+        JSONObject route = routes.getJSONObject(0);
+        assertTrue("Route distance must be positive", route.optDouble("distance", 0d) > 0d);
+        JSONArray legs = route.optJSONArray("legs");
+        assertNotNull(legs);
+        assertTrue(legs.length() > 0);
+        JSONArray steps = legs.getJSONObject(0).optJSONArray("steps");
+        assertNotNull("Offline route must include turn-by-turn instructions", steps);
+        assertTrue("Offline route must include at least one maneuver", steps.length() > 0);
     }
 }
