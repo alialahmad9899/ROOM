@@ -23,6 +23,12 @@ public final class DashboardSleepSmokeTest {
         assertNotNull(clock);
         assertEquals(speed.getLayoutParams().width, clock.getLayoutParams().width);
         assertEquals(speed.getLayoutParams().height, clock.getLayoutParams().height);
+        int[] clockPosition=new int[2],speedPosition=new int[2];
+        clock.getLocationOnScreen(clockPosition);speed.getLocationOnScreen(speedPosition);
+        assertTrue("Analog clock must be physically left of the speedometer",
+                clockPosition[0] < speedPosition[0]);
+        assertNotNull("Dashboard must host persistent navigation guidance",
+                content.findViewWithTag("navigation_guidance_banner"));
     }
 
     @Test public void sleepPolicySeparatesManualAndAutomaticSleep() {
