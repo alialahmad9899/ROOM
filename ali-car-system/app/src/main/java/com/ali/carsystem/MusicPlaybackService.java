@@ -52,6 +52,13 @@ public final class MusicPlaybackService extends Service
     private int restoredPositionMs;
     private String pendingAction;
     private Listener listener;
+    private final Runnable positionSaver = new Runnable() {
+        @Override public void run() {
+            if (!isPlaying()) return;
+            savePlaybackPosition();
+            mainHandler.postDelayed(this, 5000L);
+        }
+    };
 
     public static boolean isAudioPlaying(Context context) {
         return context.getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE)
@@ -93,7 +100,7 @@ public final class MusicPlaybackService extends Service
         SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
         shuffle = prefs.getBoolean("shuffle", false);
         repeat = prefs.getBoolean("repeat", false);
-        resumePlaybackAfterLoad = prefs.getBoolean("playing", false);
+        resumePlaybackAfterLoad = prefs.getBoolean("resume_enabled", false);
         restoredPositionMs = Math.max(0, prefs.getInt("position_ms", 0));
         loadLibraryAsync();
     }
@@ -289,6 +296,10 @@ public final class MusicPlaybackService extends Service
                     resumePlaybackAfterLoad = false;
                     restoredPositionMs = 0;
                     mp.start();
+                    getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
+                            .putBoolean("resume_enabled", true).apply();
+                    mainHandler.removeCallbacks(positionSaver);
+                    mainHandler.postDelayed(positionSaver, 5000L);
                 } catch (Exception error) {
                     AppDiagnostics.record(this, "Resume music after reload", error);
                 }
@@ -327,10 +338,17 @@ public final class MusicPlaybackService extends Service
                 if (player.isPlaying()) {
                     player.pause();
                     savePlaybackPosition();
+                    getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
+                            .putBoolean("resume_enabled", false).apply();
+                    mainHandler.removeCallbacks(positionSaver);
                 } else {
                     if (audioManager != null) audioManager.requestAudioFocus(this,
                             AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
                     player.start();
+                    getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
+                            .putBoolean("resume_enabled", true).apply();
+                    mainHandler.removeCallbacks(positionSaver);
+                    mainHandler.postDelayed(positionSaver, 5000L);
                 }
             }
         } catch (Exception ignored) { }
@@ -530,6 +548,10 @@ public final class MusicPlaybackService extends Service
             if (focusChange == AudioManager.AUDIOFOCUS_LOSS
                     || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
                 if (player.isPlaying()) player.pause();
+                savePlaybackPosition();
+                getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
+                        .putBoolean("resume_enabled", false).apply();
+                mainHandler.removeCallbacks(positionSaver);
             } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
                 player.setVolume(0.25f, 0.25f);
             } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
@@ -544,6 +566,7 @@ public final class MusicPlaybackService extends Service
         if (audioManager != null) audioManager.abandonAudioFocus(this);
         getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit().putBoolean("playing", false).apply();
         mainHandler.removeCallbacksAndMessages(null);
+        savePlaybackPosition();
         libraryExecutor.shutdownNow();
         listener = null;
         if (foreground) stopForeground(true);
