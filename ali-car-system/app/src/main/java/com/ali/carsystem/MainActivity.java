@@ -28,13 +28,14 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private TextView gpsStatus, songTitle, digitalClock, dateLabel, ambientTime;
     private LocationManager locationManager;
     private Location previousFix;
-    private boolean gpsStarted, dashboardCriteriaRegistered, splashPending=true, ttsReady, pendingSpeak;
+    private boolean gpsStarted, dashboardCriteriaRegistered, splashPending=true, ttsReady, welcomeKeepsScreenOn;
     private TextToSpeech tts;
     private double tripKm, odometerKm;
     private float maxSpeed;
     private long lastTripTimestamp;
     private final Runnable clockTick=new Runnable(){@Override public void run(){updateClock();handler.postDelayed(this,1000);}};
     private final Runnable idleTick=()->showAmbientClock();
+    private final Runnable welcomeDismiss=()->dismissWelcome();
     private View ambientOverlay,welcomeOverlay;
     private float previousWindowBrightness=-1f;
     private boolean previousBrightnessCaptured;
@@ -46,8 +47,6 @@ public final class MainActivity extends BaseActivity implements LocationListener
         tripKm=prefs().contains("trip_meters")?prefs().getLong("trip_meters",0L)/1000d:prefs().getFloat("trip_km",0f);
         odometerKm=prefs().contains("odometer_meters")?prefs().getLong("odometer_meters",0L)/1000d:prefs().getFloat("odometer_km",0f);
         maxSpeed=prefs().getFloat("max_speed",0f);
-        try{tts=new TextToSpeech(this,this);}
-        catch(Exception error){tts=null;ttsReady=false;AppDiagnostics.record(this,"Initialize dashboard TTS",error);}
         locationManager=(LocationManager)getSystemService(LOCATION_SERVICE);
         pager=new ViewPager(this);pager.setId(View.generateViewId());
         pager.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -102,8 +101,14 @@ public final class MainActivity extends BaseActivity implements LocationListener
         refreshChargingState();
         handler.post(clockTick);
         if(splashPending){handler.postDelayed(()->showWelcome(),250);splashPending=false;}
+        handler.postDelayed(this::initializeTts,6200L);
     }
 
+    private void initializeTts(){
+        if(tts!=null||isFinishing())return;
+        try{tts=new TextToSpeech(this,this);}
+        catch(Exception error){tts=null;ttsReady=false;AppDiagnostics.record(this,"Initialize dashboard TTS",error);}
+    }
     private android.content.SharedPreferences prefs(){return getSharedPreferences("ali_car_v3",MODE_PRIVATE);}
     private int dp(float x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     private GradientDrawable glass(int fill,int stroke,int radius){
@@ -146,6 +151,11 @@ public final class MainActivity extends BaseActivity implements LocationListener
     }
     private void applySleepPolicy(){
         if(pager==null)return;
+        if(welcomeKeepsScreenOn){
+            handler.removeCallbacks(idleTick);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            return;
+        }
         if(sleepBlocked()){
             handler.removeCallbacks(idleTick);
             // A manually requested sleep screen must remain visible even if charging
@@ -234,28 +244,52 @@ public final class MainActivity extends BaseActivity implements LocationListener
     }
     private void showWelcome(){
         if(isFinishing()||pager==null||welcomeOverlay!=null)return;
-        dismissAmbient();handler.removeCallbacks(idleTick);
-        NeonSplashView splash=new NeonSplashView(this);welcomeOverlay=splash;
-        splash.setBackgroundColor(0xFF030B16); splash.setClickable(true); splash.setFocusable(true);
-        if(android.os.Build.VERSION.SDK_INT>=21)splash.setElevation(dp(24));
+        dismissAmbient();
+        handler.removeCallbacks(idleTick);
+        handler.removeCallbacks(welcomeDismiss);
+        welcomeKeepsScreenOn=true;
+        applySleepPolicy();
+
+        NeonSplashView splash=new NeonSplashView(this);
+        welcomeOverlay=splash;
+        splash.setLayerType(View.LAYER_TYPE_SOFTWARE,null);
+        splash.setBackgroundColor(0xFF030B16);
+        splash.setClickable(true);
+        splash.setFocusable(true);
         addContentView(splash,new FrameLayout.LayoutParams(-1,-1));
-        splash.setAlpha(0);splash.animate().alpha(1).setDuration(520).setInterpolator(new DecelerateInterpolator()).start();
-        if(ttsReady)try{tts.speak("Welcome Ali",TextToSpeech.QUEUE_FLUSH,null,"ali-welcome");}catch(Exception ignored){pendingSpeak=true;}
-        else pendingSpeak=true;
-        handler.postDelayed(this::dismissWelcome,5200);
+        splash.setAlpha(0f);
+        splash.animate().alpha(1f).setDuration(520)
+                .setInterpolator(new DecelerateInterpolator()).start();
+        handler.postDelayed(welcomeDismiss,5200L);
     }
+    void showWelcomeForTest(){showWelcome();}
+    void dismissWelcomeForTest(){dismissWelcome();}
+    void applySleepPolicyForTest(){applySleepPolicy();}
+    boolean isWelcomeScreenLockActiveForTest(){return welcomeKeepsScreenOn;}
+
     private void dismissWelcome(){
+        handler.removeCallbacks(welcomeDismiss);
         if(welcomeOverlay!=null){
-            View v=welcomeOverlay;welcomeOverlay=null;
-            Runnable remove=()->{if(v.getParent() instanceof ViewGroup)((ViewGroup)v.getParent()).removeView(v);};
+            View v=welcomeOverlay;
+            welcomeOverlay=null;
+            Runnable remove=()->{
+                if(v.getParent() instanceof ViewGroup)((ViewGroup)v.getParent()).removeView(v);
+                welcomeKeepsScreenOn=false;
+                if(isFinishing())getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                else applySleepPolicy();
+            };
             if(isFinishing())remove.run();
-            else v.animate().alpha(0f).setDuration(420).setInterpolator(new DecelerateInterpolator()).withEndAction(remove).start();
+            else v.animate().alpha(0f).setDuration(420)
+                    .setInterpolator(new DecelerateInterpolator()).withEndAction(remove).start();
+        }else{
+            welcomeKeepsScreenOn=false;
+            if(isFinishing())getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else applySleepPolicy();
         }
-        if(!isFinishing())scheduleIdle();
     }
     @Override public void onInit(int status){
         ttsReady=status==TextToSpeech.SUCCESS;
-        if(ttsReady){try{tts.setLanguage(Locale.US);}catch(Exception ignored){}if(pendingSpeak){pendingSpeak=false;tts.speak("Welcome Ali",TextToSpeech.QUEUE_FLUSH,null,"ali-welcome");}}
+        if(ttsReady){try{tts.setLanguage(Locale.US);}catch(Exception ignored){}}
     }
 
     private void createNavigationHud(){
@@ -478,7 +512,21 @@ public final class MainActivity extends BaseActivity implements LocationListener
     @Override protected void onResume(){
         super.onResume();refreshChargingState();musicPlaying=MusicPlaybackService.isAudioPlaying(this);startGps();applySleepPolicy();
     }
-    @Override protected void onPause(){handler.removeCallbacks(idleTick);super.onPause();}
+    @Override protected void onPause(){
+        handler.removeCallbacks(idleTick);
+        if(welcomeKeepsScreenOn){
+            handler.removeCallbacks(welcomeDismiss);
+            welcomeKeepsScreenOn=false;
+            if(welcomeOverlay!=null){
+                View v=welcomeOverlay;
+                welcomeOverlay=null;
+                v.animate().cancel();
+                if(v.getParent() instanceof ViewGroup)((ViewGroup)v.getParent()).removeView(v);
+            }
+        }
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        super.onPause();
+    }
     @Override protected void onDestroy(){
         handler.removeCallbacksAndMessages(null);
         if(screenReceiver!=null)try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}
