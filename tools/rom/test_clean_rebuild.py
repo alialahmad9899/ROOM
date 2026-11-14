@@ -118,6 +118,13 @@ require(len(OPEN_MUSIC.get("tracks",[])) >= 30
 require("OpenMusicInstaller.install" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
         and "song.openArchive" in music and "الأرشيف العربي المجاني" in music,
         "first-run installation and dedicated Arabic music archive playlist are wired")
+require("WRITE_EXTERNAL_STORAGE" in MAN,
+        "API21 shared music archive has legacy write-storage permission")
+require("context.getFilesDir()" in (SRC/"java/com/ali/carsystem/OfflineMapsManager.java").read_text(encoding="utf-8"),
+        "offline map installer falls back to app-private storage when external storage is unavailable")
+require("-sdcard /tmp/ali-car-sdcard.img" in (ROOT/".github/workflows/build-car-app-3.yml").read_text(encoding="utf-8"),
+        "API21 emulator is provisioned with writable SD storage for music and map installation")
+
 require((SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").is_file(),
         "first-run public-domain music installer exists")
 require("install_open_music.py" in (ROOT/".github/workflows/build-car-app-3.yml").read_text(encoding="utf-8"),
