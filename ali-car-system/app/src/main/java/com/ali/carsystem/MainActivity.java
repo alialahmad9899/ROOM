@@ -286,6 +286,11 @@ public final class MainActivity extends BaseActivity implements LocationListener
         sleep.setOnClickListener(v->showAmbientClock(true));
         all.addView(top,new LinearLayout.LayoutParams(-1,dp(50)));
 
+        NavigationBannerView navigationBanner = new NavigationBannerView(this);
+        LinearLayout.LayoutParams navigationBannerLp = new LinearLayout.LayoutParams(-1,dp(58));
+        navigationBannerLp.topMargin = dp(4);
+        all.addView(navigationBanner, navigationBannerLp);
+
         // Put media controls in the top-center strip instead of stacking them below the speed dial.
         LinearLayout mediaBar=horizontal();mediaBar.setGravity(Gravity.CENTER_VERTICAL);
         mediaBar.setPadding(dp(10),dp(3),dp(10),dp(3));
