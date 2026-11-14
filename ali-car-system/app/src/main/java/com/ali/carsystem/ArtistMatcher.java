@@ -63,7 +63,7 @@ public final class ArtistMatcher {
 
     public static String normalize(String value) {
         if (value == null) return "";
-        String normalizedInput = value.replace('ئ','ي').replace('ؤ','و').replace('ء','');
+        String normalizedInput = value.replace('ئ','ي').replace('ؤ','و').replace("ء","");
         String s = MARKS.matcher(Normalizer.normalize(normalizedInput, Normalizer.Form.NFD))
                 .replaceAll("").toLowerCase(Locale.ROOT)
                 .replace('أ','ا').replace('إ','ا').replace('آ','ا')
