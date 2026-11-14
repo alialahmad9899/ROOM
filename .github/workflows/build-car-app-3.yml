@@ -1,8 +1,8 @@
-name: ALI CAR 3.8 API21 x86 full repair
+name: ALI CAR 3.8.1 API21 x86 full repair
 
 on:
   push:
-    branches: ["ali-car-system/3.0.0-clean-rebuild", "ali-car-system/3.7.0-navigation-power", "ali-car-system/3.7.0-build-final", "ali-car-system/3.8.0-full-repair-2026-11-14"]
+    branches: ["ali-car-system/3.0.0-clean-rebuild", "ali-car-system/3.7.0-navigation-power", "ali-car-system/3.7.0-build-final", "ali-car-system/3.8.0-full-repair-2026-11-14", "ali-car-system/3.8.1-full-repair-2026-11-14"]
     paths: ["ali-car-system/**","tools/rom/**","tools/maps/**",".github/workflows/build-car-app-3.yml"]
   workflow_dispatch:
 
@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Upload user-provided visual references for inspection
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ALI-CAR-USER-REFERENCES
           path: |
@@ -32,12 +32,12 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -62,14 +62,27 @@ jobs:
 
       # Reuse the separately verified Syria package; do not rebuild 180 MB of OSM data
       # during every Android code change.
-      - name: Download verified Syria offline map package
-        uses: actions/download-artifact@v4
-        with:
-          name: ALI-CAR-SYRIA-OFFLINE-MAPS
-          repository: ${{ github.repository }}
-          run-id: 43502967636
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: offline-map-artifact
+      - name: Download durable Syria offline map package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p offline-map-artifact
+          if gh release view ali-car-offline-maps-v1 >/dev/null 2>&1; then
+            gh release download ali-car-offline-maps-v1 --pattern 'ALI-CAR-SYRIA-OFFLINE-MAPS.zip' --dir offline-map-artifact
+          else
+            gh run download 43502967636 --name ALI-CAR-SYRIA-OFFLINE-MAPS --dir offline-map-artifact
+          fi
+          test -s offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip
+
+      - name: Publish permanent offline map source if this is the first build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! gh release view ali-car-offline-maps-v1 >/dev/null 2>&1; then
+            gh release create ali-car-offline-maps-v1 offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip --title "ALI CAR - Verified Syria Offline Maps v1" --notes "Immutable source bundle for ALI CAR API21 builds. Includes Syria vector map, local POI database and BRouter tiles. SHA-256: 0231cc2bfe35b68f1fb71b98e84a6e79de3878f54a521598ab8992f303b949f7"
+          fi
 
       - name: Install Syria map, POI database and offline routing assets in APK
         run: |
@@ -107,7 +120,7 @@ jobs:
       - name: Install Android platform and emulator
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'emulator' 'system-images;android-21;default;x86'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.7"
 
@@ -126,33 +139,34 @@ jobs:
           grep -F "package: name='com.ali.carsystem'" apk-badging.txt
           grep -F "sdkVersion:'21'" apk-badging.txt
           grep -F "targetSdkVersion:'22'" apk-badging.txt
+          grep -F "versionName='3.8.1'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria.map"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria-places.sqlite"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/brouter/segments4/E40_N35.rd5"
           mkdir -p output
-          cp "$APK" output/ALI-Car-System-3.8.0-api21-x86-debug.apk
-          sha256sum output/ALI-Car-System-3.8.0-api21-x86-debug.apk > output/SHA256SUMS.txt
+          cp "$APK" output/ALI-Car-System-3.8.1-api21-x86-debug.apk
+          sha256sum output/ALI-Car-System-3.8.1-api21-x86-debug.apk > output/SHA256SUMS.txt
           {
             echo "Project: ALI CAR"
             echo "Package: com.ali.carsystem"
-            echo "Version: 3.8.0"
+            echo "Version: 3.8.1"
             echo "Device baseline: ASUS Z170CG / P01Y, Intel SoFIA 3GR, x86 32-bit"
             echo "Minimum Android: 5.0 / API 21"
             echo "Target SDK: 22"
             echo "Offline coverage: Syria OSM vector map, local POIs and BRouter driving segments"
             echo "Build type: Debug-signed testing APK"
             echo "Commit: $GITHUB_SHA"
-            stat --printf='APK bytes: %s\\n' output/ALI-Car-System-3.8.0-api21-x86-debug.apk
+            stat --printf='APK bytes: %s\\n' output/ALI-Car-System-3.8.1-api21-x86-debug.apk
             cat output/SHA256SUMS.txt
           } > output/BUILD-INFO.txt
 
       - name: Upload APK and metadata
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: ALI-CAR-3.8.0-API21-X86-APK
+          name: ALI-CAR-3.8.1-API21-X86-APK
           path: |
-            output/ALI-Car-System-3.8.0-api21-x86-debug.apk
+            output/ALI-Car-System-3.8.1-api21-x86-debug.apk
             output/SHA256SUMS.txt
             output/BUILD-INFO.txt
           if-no-files-found: error
@@ -179,35 +193,35 @@ jobs:
 
       - name: Upload emulator diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: ALI-CAR-3.8.0-API21-X86-DIAGNOSTICS
+          name: ALI-CAR-3.8.1-API21-X86-DIAGNOSTICS
           path: ali-car-system/emulator-diagnostics/
           if-no-files-found: ignore
           retention-days: 30
-      - name: Publish verified ALI CAR 3.8.0 release
-        if: success() && github.ref == 'refs/heads/ali-car-system/3.8.0-full-repair-2026-11-14'
+      - name: Publish verified ALI CAR 3.8.1 release
+        if: success() && github.ref == 'refs/heads/ali-car-system/3.8.1-full-repair-2026-11-14'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ali-car-v3.8.0-api21-x86
+          tag_name: ali-car-v3.8.1-api21-x86
           target_commitish: ${{ github.sha }}
-          name: ALI CAR 3.8.0 — Android 5 / x86
+          name: ALI CAR 3.8.1 — Android 5 / x86
           draft: false
           prerelease: true
           make_latest: false
           generate_release_notes: false
           body: |
-            ALI CAR 3.8.0 for ASUS ZenPad C 7.0 / P01Y (Intel SoFIA 3GR, x86 32-bit).
+            ALI CAR 3.8.1 for ASUS ZenPad C 7.0 / P01Y (Intel SoFIA 3GR, x86 32-bit).
 
             - Minimum Android: 5.0 / API 21
             - Target SDK: 22
             - Package: com.ali.carsystem
             - Syria offline vector map, local POI database and BRouter offline driving data are embedded in the APK.
             - Map tile networking, web geocoding and online route fallback are disabled in the navigation screen.
-            - Build type: Debug-signed testing APK; not a production signing-key build.
+            - Bundled music: none; the player scans the user local library only.\n            - Build type: Debug-signed testing APK; not a production signing-key build.
             - Emulator validation is performed by this workflow; physical-device GPS/audio/Bluetooth validation is still required.
           files: |
-            output/ALI-Car-System-3.8.0-api21-x86-debug.apk
+            output/ALI-Car-System-3.8.1-api21-x86-debug.apk
             output/SHA256SUMS.txt
             output/BUILD-INFO.txt
           fail_on_unmatched_files: true
