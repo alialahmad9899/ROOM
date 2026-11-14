@@ -421,7 +421,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
 
     private void setDestination(GeoCandidate candidate){
-        destination=candidate.point;destinationName=candidate.name;routeAttemptedForDestination=false;
+        destination=candidate.point;destinationName=candidate.name;routeAttemptedForDestination=false;routeRetryAfterMs=0L;
         showDestination();drawRouteIfPossible();
     }
 
