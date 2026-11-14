@@ -15,7 +15,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 384" in GRADLE and "versionName '3.8.4'" in GRADLE,"ALI CAR version 3.8.3")
+require("versionCode 385" in GRADLE and "versionName '3.8.5'" in GRADLE,"ALI CAR version 3.8.5")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -27,7 +27,7 @@ require("new NeonIconView(this,i,colors[i])" in MAIN,"custom dashboard icons")
 require('getIdentifier("bg_dashboard","drawable"' in MAIN,"embedded drawable wallpaper")
 require("Bitmap.Config.RGB_565" in MAIN,"RGB565 decode")
 require("new AnalogClockView(this)" in MAIN and "new SpeedometerView(this)" in MAIN,"clock and speed gauge")
-require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN and "dp(270)" in MAIN,"equal large speed and analog clock dials")
+require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN and "dp(220)" in MAIN,"equal large speed and analog clock dials")
 require(DASH.count("InstrumentDialStyle.drawFace(c,p,cx,cy,r)") == 2,"shared speedometer and analog clock face")
 require("import android.graphics.Path;" in NAV,"navigation dot heading Path import")
 require('digitalClock=label("00:00"' not in MAIN,"digital dashboard clock removed")
@@ -88,8 +88,9 @@ HUD=(SRC/"java/com/ali/carsystem/NavigationBannerView.java").read_text(encoding=
 require("NavigationBannerView" in MAIN and
         (SRC/"java/com/ali/carsystem/NavigationBannerView.java").is_file()
         and "dashboard_navigation_hud" in HUD and "navigation_hud_distance" in HUD
-        and "Gravity.CENTER" in MAIN,
-        "floating dashboard HUD is centered over wallpaper with numeric turn distance")
+        and "all.addView(navigationHud,navigationHudParams)" in MAIN
+        and "setCompactMode(true)" in MAIN and "setCompactMode(boolean compact)" in HUD,
+        "compact collapsible navigation HUD is a real row directly below the music strip")
 require((APP/"src/androidTest/java/com/ali/carsystem/PowerReceiverSmokeTest.java").is_file(),
         "charger focus regression test exists")
 require((APP/"src/androidTest/java/com/ali/carsystem/BackgroundNavigationServiceSmokeTest.java").is_file(),
@@ -218,4 +219,17 @@ require(not (SRC/"java/com/ali/carsystem/GeocodingClient.java").exists(),"obsole
 require(not (APP/"src/test/java/com/ali/carsystem/RouteNetworkClientTest.java").exists(),"obsolete online routing tests removed")
 require("showImportAlbumPicker(selected)" in music and "addImportedSongsToAlbum" in music and "متنوعة" in music,"multi-select import chooses and persists an album")
 require("music_variety_album" in music and "music_archive_album" in music and "الأرشيف" in music and 'TextView label=text("",16,Color.WHITE,true)' in music,"variety album and larger track font")
-print("PASS: ALI CAR 3.8.3 API21 offline maps, album import, trip reset and navigation HUD contracts")
+require("dashboard_media_bar" in MAIN and "all.addView(navigationHud,navigationHudParams)" in MAIN and "setCompactMode(true)" in MAIN,"navigation HUD is a compact collapsible row directly below music controls")
+require("connectionStatus" in MAIN and "dashboard_night_overlay" in MAIN and "smart_night_mode" in MAIN,"live Wi-Fi/Bluetooth/GPS indicators and smart dashboard night mode")
+require("TripHistoryStore.record" in TRACK and "trip_started_at" in TRACK and "showTripHistory" in MAIN,"completed trip history is stored and visible")
+require("96L*1024*1024" in NAV and "64L*1024*1024" in NAV and "setTilesScaledToDpi(false)" in NAV and "sharedOfflineTileSource" in NAV,"bounded warm offline vector map cache and native-resolution rendering")
+require("restoreMapCamera" in NAV and "saved_destinations" in NAV and "recent_destinations" in NAV and "parking_lat" in NAV and "map_night_mode" in NAV,"persistent map camera, favorites, recent places, parking and map night mode")
+require("music_search" in music and "music_duplicates" in music and "knownHashes.add(fingerprint)" in music and "حذف نهائياً من الجهاز" in music,"music search, exact duplicate prevention, review workflow and confirmed permanent delete")
+service=(SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
+require("dataPath" in service and "deleteSong(long songId)" in service and "removeSongReferences" in service and "isHiddenFromPlaylist" in service,"safe MediaStore deletion and complete playlist reference cleanup")
+require("CarBackupManager.exportJson" in SETTINGS and "CarBackupManager.restoreJson" in SETTINGS and "إنشاء نسخة احتياطية" in SETTINGS and "استعادة نسخة احتياطية" in SETTINGS,"validated local backup and restore UI")
+for name in ("TripHistoryStore.java","CarBackupManager.java"):
+ require((SRC/"java/com/ali/carsystem"/name).is_file(),"new storage helper "+name)
+for name in ("TripHistoryStoreSmokeTest.java","CarBackupManagerSmokeTest.java"):
+ require((APP/"src/androidTest/java/com/ali/carsystem"/name).is_file(),"new instrumentation test "+name)
+print("PASS: ALI CAR 3.8.5 API21 offline maps, cockpit HUD, music management, backup, night mode and trip history contracts")

@@ -29,6 +29,7 @@ public final class NavigationBannerView extends LinearLayout {
     private final NavigationArrowView arrow;
     private final TextView distance;
     private final TextView instruction;
+    private final TextView kicker;
     private final TextView details;
     private boolean receiverRegistered;
 
@@ -79,7 +80,7 @@ public final class NavigationBannerView extends LinearLayout {
         column.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         addView(column, new LayoutParams(0, LayoutParams.MATCH_PARENT, 1f));
 
-        TextView kicker = new TextView(context);
+        kicker = new TextView(context);
         kicker.setText("الانعطاف التالي");
         kicker.setTextColor(0xFF83DFF3);
         kicker.setTextSize(10);
@@ -124,6 +125,24 @@ public final class NavigationBannerView extends LinearLayout {
 
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    /** Compact dashboard presentation that fits directly below the media controls. */
+    public void setCompactMode(boolean compact) {
+        if (!compact) return;
+        LinearLayout.LayoutParams arrowParams=(LinearLayout.LayoutParams)arrow.getLayoutParams();
+        arrowParams.width=dp(56);arrowParams.height=dp(56);arrowParams.rightMargin=dp(8);
+        arrow.setLayoutParams(arrowParams);
+        kicker.setVisibility(View.GONE);
+        LinearLayout.LayoutParams distanceParams=(LinearLayout.LayoutParams)distance.getLayoutParams();
+        distanceParams.height=dp(29);distance.setLayoutParams(distanceParams);distance.setTextSize(26);
+        LinearLayout.LayoutParams instructionParams=(LinearLayout.LayoutParams)instruction.getLayoutParams();
+        instructionParams.height=dp(19);instruction.setLayoutParams(instructionParams);instruction.setTextSize(12);
+        LinearLayout.LayoutParams detailsParams=(LinearLayout.LayoutParams)details.getLayoutParams();
+        detailsParams.height=dp(16);details.setLayoutParams(detailsParams);details.setTextSize(9);
+        setPadding(dp(10),dp(3),dp(10),dp(3));
+        setMinimumHeight(dp(70));
+        requestLayout();
     }
 
     private void refreshSavedState() {

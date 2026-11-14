@@ -5,6 +5,8 @@ import android.database.Cursor;
 import android.media.MediaScannerConnection;
 import android.provider.OpenableColumns;
 import android.provider.MediaStore;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.app.AlertDialog;
 import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
@@ -15,6 +17,7 @@ import android.view.*;
 import android.widget.*;
 import androidx.recyclerview.widget.*;
 import java.io.*;
+import java.security.MessageDigest;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
 
@@ -29,6 +32,9 @@ public final class MusicActivity extends BaseActivity {
     private long loadedAlbum=-1;private final Handler handler=new Handler(Looper.getMainLooper());
     private final ArrayList<MusicPlaybackService.Song> allSongs=new ArrayList<>();
     private TextView emptyLibrary;
+    private EditText musicSearch;
+    private String filterQuery="";
+    private int sortMode;
     private String activePlaylist="كل الأغاني";
     private static final String[] PLAYLISTS={
             "كل الأغاني","الأرشيف","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
@@ -226,6 +232,33 @@ public final class MusicActivity extends BaseActivity {
         libraryHead.addView(libraryTitle,new LinearLayout.LayoutParams(0,dp(36),1));
         libraryHead.addView(text("محلية • بدون إنترنت",10,0xFF8ABAD0,false));library.addView(libraryHead);
 
+        LinearLayout tools=new LinearLayout(this);tools.setGravity(Gravity.CENTER_VERTICAL);
+        musicSearch=new EditText(this);musicSearch.setTag("music_search");
+        musicSearch.setSingleLine(true);musicSearch.setTextSize(13);musicSearch.setTextColor(Color.WHITE);
+        musicSearch.setHintTextColor(0xFF8DA7B8);musicSearch.setHint("ابحث عن أغنية أو فنان");
+        musicSearch.setPadding(dp(10),0,dp(10),0);musicSearch.setBackground(card(0x8830475D,0x665CD9F4,12));
+        tools.addView(musicSearch,new LinearLayout.LayoutParams(0,dp(40),1f));
+        TextView sort=text("الاسم ↕",12,0xFF8DE9FF,true);sort.setTag("music_sort");
+        sort.setGravity(Gravity.CENTER);sort.setBackground(card(0xAA14374A,0x775CD9F4,12));
+        LinearLayout.LayoutParams sortLp=new LinearLayout.LayoutParams(dp(82),dp(40));sortLp.leftMargin=dp(6);tools.addView(sort,sortLp);
+        TextView duplicates=text("المتشابه",11,0xFFFFD27B,true);duplicates.setTag("music_duplicates");
+        duplicates.setGravity(Gravity.CENTER);duplicates.setBackground(card(0x663D3440,0x887C6882,12));
+        LinearLayout.LayoutParams duplicateLp=new LinearLayout.LayoutParams(dp(82),dp(40));duplicateLp.leftMargin=dp(6);tools.addView(duplicates,duplicateLp);
+        library.addView(tools,new LinearLayout.LayoutParams(-1,dp(44)));
+        musicSearch.addTextChangedListener(new TextWatcher(){
+            @Override public void beforeTextChanged(CharSequence value,int start,int count,int after){}
+            @Override public void onTextChanged(CharSequence value,int start,int before,int count){
+                filterQuery=value==null?"":value.toString().trim();applyPlaylistFilter();
+            }
+            @Override public void afterTextChanged(Editable value){}
+        });
+        sort.setOnClickListener(v->{
+            sortMode=(sortMode+1)%3;
+            sort.setText(sortMode==0?"الاسم ↕":sortMode==1?"الفنان ↕":"الأحدث");
+            applyPlaylistFilter();
+        });
+        duplicates.setOnClickListener(v->showSimilarDuplicates());
+
         HorizontalScrollView playlistScroll=new HorizontalScrollView(this);
         playlistScroll.setTag("music_playlist_filters");
         playlistScroll.setHorizontalScrollBarEnabled(false);
@@ -285,8 +318,29 @@ public final class MusicActivity extends BaseActivity {
                     case "آخر تشغيل": include=recent.contains(song.id); break;
                     default: include=artistMatches(song,activePlaylist)||manual.contains(song.id); break;
                 }
+                if(include&&service.isHiddenFromPlaylist(song.id,activePlaylist))include=false;
+                if(include&&!filterQuery.isEmpty()){
+                    String query=normalizeMetadata(filterQuery);
+                    include=normalizeMetadata(song.name+" "+song.artist).contains(query);
+                }
                 if(include)filtered.add(song);
             }
+        }
+        final java.text.Collator arabicCollator=java.text.Collator.getInstance(new Locale("ar"));
+        if(sortMode==1){
+            Collections.sort(filtered,(a,b)->{
+                int byArtist=arabicCollator.compare(a.artist==null?"":a.artist,b.artist==null?"":b.artist);
+                return byArtist!=0?byArtist:arabicCollator.compare(a.name,b.name);
+            });
+        }else if(sortMode==2){
+            final List<Long> recentOrder=service==null?Collections.<Long>emptyList():service.getRecentSongIds();
+            Collections.sort(filtered,(a,b)->{
+                int ai=recentOrder.indexOf(a.id),bi=recentOrder.indexOf(b.id);
+                if(ai<0)ai=Integer.MAX_VALUE;if(bi<0)bi=Integer.MAX_VALUE;
+                return Integer.compare(ai,bi);
+            });
+        }else{
+            Collections.sort(filtered,(a,b)->arabicCollator.compare(a.name,b.name));
         }
         adapter.set(filtered);
         if(emptyLibrary!=null)emptyLibrary.setVisibility(filtered.isEmpty()?View.VISIBLE:View.GONE);
@@ -312,6 +366,101 @@ public final class MusicActivity extends BaseActivity {
                     activePlaylist=selected;persistPlaylist(selected);applyPlaylistFilter();
                     Toast.makeText(this,"تمت إضافة الأغنية إلى "+selected,Toast.LENGTH_SHORT).show();
                 }).setNegativeButton("إلغاء",null).show();
+    }
+
+    private String normalizeMetadata(String value){
+        return value==null?"":value.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]","");
+    }
+    private void openSongActions(MusicPlaybackService.Song song,View anchor){
+        if(song==null||service==null)return;
+        PopupMenu menu=new PopupMenu(this,anchor);
+        if(!"كل الأغاني".equals(activePlaylist)){
+            menu.getMenu().add("إزالة من القائمة الحالية").setOnMenuItemClickListener(item->{
+                boolean removed=service.removeSongFromPlaylist(song.id,activePlaylist);
+                applyPlaylistFilter();
+                Toast.makeText(this,removed?"تمت إزالة الأغنية من القائمة":"الأغنية غير موجودة في القائمة",Toast.LENGTH_SHORT).show();
+                return true;
+            });
+        }
+        menu.getMenu().add("إضافة إلى قائمة تشغيل").setOnMenuItemClickListener(item->{addSongToPlaylist(song);return true;});
+        menu.getMenu().add("حذف نهائياً من الجهاز").setOnMenuItemClickListener(item->{confirmDeleteSong(song);return true;});
+        menu.show();
+    }
+    private void confirmDeleteSong(MusicPlaybackService.Song song){
+        new AlertDialog.Builder(this).setTitle("حذف ملف الأغنية نهائياً؟")
+                .setMessage("سيتم حذف «"+song.name+"» من مكتبة الجهاز، وإزالتها من المفضلة وقوائم التشغيل وآخر تشغيل. لا يمكن التراجع عن الحذف.")
+                .setNegativeButton("إلغاء",null)
+                .setPositiveButton("حذف نهائياً",(dialog,which)->{
+                    boolean deleted=service!=null&&service.deleteSong(song.id);
+                    if(deleted){
+                        allSongs.remove(song);applyPlaylistFilter();refreshPlayer();
+                        Toast.makeText(this,"تم حذف الملف من الجهاز",Toast.LENGTH_LONG).show();
+                    }else Toast.makeText(this,"تعذر حذف الملف. تحقق من صلاحية التخزين أو أن الملف ما زال متاحاً.",Toast.LENGTH_LONG).show();
+                }).show();
+    }
+    private static final class DuplicateGroup {
+        final ArrayList<MusicPlaybackService.Song> songs;
+        DuplicateGroup(ArrayList<MusicPlaybackService.Song> songs){this.songs=songs;}
+    }
+    private void showSimilarDuplicates(){
+        if(allSongs.isEmpty()){
+            new AlertDialog.Builder(this).setMessage("مكتبة الموسيقى فارغة.").setPositiveButton("حسناً",null).show();return;
+        }
+        Map<String,ArrayList<MusicPlaybackService.Song>> buckets=new LinkedHashMap<>();
+        for(MusicPlaybackService.Song song:allSongs){
+            String key=normalizeMetadata(song.name)+"|"+normalizeMetadata(song.artist);
+            if(key.equals("|"))continue;
+            ArrayList<MusicPlaybackService.Song> bucket=buckets.get(key);
+            if(bucket==null){bucket=new ArrayList<>();buckets.put(key,bucket);}
+            bucket.add(song);
+        }
+        ArrayList<DuplicateGroup> groups=new ArrayList<>();
+        ArrayList<String> labels=new ArrayList<>();
+        for(ArrayList<MusicPlaybackService.Song> bucket:buckets.values()){
+            if(bucket.size()<2)continue;
+            ArrayList<MusicPlaybackService.Song> similar=new ArrayList<>();
+            for(MusicPlaybackService.Song candidate:bucket){
+                boolean near=false;
+                for(MusicPlaybackService.Song existing:similar)
+                    if(Math.abs(existing.duration-candidate.duration)<=4000L){near=true;break;}
+                if(near||similar.isEmpty())similar.add(candidate);
+            }
+            if(similar.size()>1){
+                groups.add(new DuplicateGroup(similar));
+                MusicPlaybackService.Song first=similar.get(0);
+                labels.add(first.name+" — "+(first.artist.isEmpty()?"فنان غير معروف":first.artist)
+                        +" ("+similar.size()+" نسخ محتملة)");
+            }
+        }
+        if(groups.isEmpty()){
+            new AlertDialog.Builder(this).setTitle("مراجعة التكرار")
+                    .setMessage("لم يتم العثور على أغنيات متشابهة بالاسم والفنان والمدة. فحص التشابه لا يحذف أي ملف تلقائياً.")
+                    .setPositiveButton("حسناً",null).show();return;
+        }
+        new AlertDialog.Builder(this).setTitle("أغانٍ متشابهة — راجع قبل الحذف")
+                .setItems(labels.toArray(new String[0]),(dialog,which)->showDuplicateGroup(groups.get(which)))
+                .setNegativeButton("إغلاق",null).show();
+    }
+    private void showDuplicateGroup(DuplicateGroup group){
+        String[] songs=new String[group.songs.size()];
+        for(int i=0;i<songs.length;i++){
+            MusicPlaybackService.Song song=group.songs.get(i);
+            songs[i]=song.name+" • "+(song.artist==null?"":song.artist)
+                    +" • "+Math.round(song.duration/1000f)+" ثانية";
+        }
+        new AlertDialog.Builder(this).setTitle("اختر نسخة لمراجعتها")
+                .setItems(songs,(dialog,which)->{
+                    MusicPlaybackService.Song selected=group.songs.get(which);
+                    new AlertDialog.Builder(this).setTitle(selected.name)
+                            .setMessage("اختر إدارة هذا الملف. لن يتم حذف النسخ الأخرى.")
+                            .setItems(new String[]{"إزالة من القائمة الحالية","حذف نهائياً من الجهاز"},(d,w)->{
+                                if(w==0){
+                                    if(service!=null&&service.removeSongFromPlaylist(selected.id,activePlaylist)){
+                                        applyPlaylistFilter();Toast.makeText(this,"تمت الإزالة من القائمة",Toast.LENGTH_SHORT).show();
+                                    }else Toast.makeText(this,"لا يمكن إزالة الأغنية من قائمة كل الأغاني",Toast.LENGTH_SHORT).show();
+                                }else confirmDeleteSong(selected);
+                            }).setNegativeButton("إلغاء",null).show();
+                }).setNegativeButton("إغلاق",null).show();
     }
 
     private static final int REQUEST_IMPORT_AUDIO=9021;
@@ -355,6 +504,7 @@ public final class MusicActivity extends BaseActivity {
     private void importAudioFiles(ArrayList<Uri> selected,String destinationAlbum){
         new AsyncTask<List<Uri>,Void,ArrayList<File>>(){
             private String error;
+            private int duplicatesSkipped;
             @Override protected ArrayList<File> doInBackground(List<Uri>... values){
                 ArrayList<File> copied=new ArrayList<>();
                 File musicRoot=android.os.Environment.getExternalStoragePublicDirectory(
@@ -364,8 +514,13 @@ public final class MusicActivity extends BaseActivity {
                     error="تعذر إنشاء مجلد الموسيقى المشترك";
                     return copied;
                 }
+                HashSet<String> knownHashes=new HashSet<>();
+                File[] previous=folder.listFiles();
+                if(previous!=null)for(File file:previous){
+                    if(file.isFile())try{knownHashes.add(sha256(file));}catch(Exception ignored){}
+                }
                 for(Uri uri:values[0]){
-                    File target=null;
+                    File temporary=null,target=null;
                     try{
                         String name=displayName(uri);
                         String mime=getContentResolver().getType(uri);
@@ -380,16 +535,9 @@ public final class MusicActivity extends BaseActivity {
                             else name+=".audio";
                         }
                         name=name.replaceAll("[\\\\/:*?<>|]","_").replace((char)34,'_').trim();
-                        target=new File(folder,name);
-                        String base=name;int suffix=1;
-                        while(target.exists()){
-                            int dot=base.lastIndexOf('.');
-                            String stem=dot>0?base.substring(0,dot):base;
-                            String ext=dot>0?base.substring(dot):"";
-                            target=new File(folder,stem+"-"+(suffix++)+ext);
-                        }
+                        temporary=File.createTempFile(".ali-car-import-",".tmp",folder);
                         try(InputStream input=getContentResolver().openInputStream(uri);
-                            OutputStream output=new BufferedOutputStream(new FileOutputStream(target))){
+                            OutputStream output=new BufferedOutputStream(new FileOutputStream(temporary))){
                             if(input==null)throw new IOException("تعذر قراءة الملف");
                             byte[] buffer=new byte[32*1024];int count;long total=0L;
                             while((count=input.read(buffer))!=-1){
@@ -401,10 +549,23 @@ public final class MusicActivity extends BaseActivity {
                             if(total==0L)throw new IOException("الملف الصوتي فارغ");
                             output.flush();
                         }
-                        copied.add(target);
+                        String fingerprint=sha256(temporary);
+                        if(!knownHashes.add(fingerprint)){
+                            duplicatesSkipped++;temporary.delete();continue;
+                        }
+                        String base=name;int suffix=1;target=new File(folder,base);
+                        while(target.exists()){
+                            int dot=base.lastIndexOf('.');
+                            String stem=dot>0?base.substring(0,dot):base;
+                            String ext=dot>0?base.substring(dot):"";
+                            target=new File(folder,stem+"-"+(suffix++)+ext);
+                        }
+                        if(!temporary.renameTo(target))throw new IOException("تعذر تثبيت الملف المستورد");
+                        temporary=null;copied.add(target);
                     }catch(Exception failure){
+                        if(temporary!=null&&temporary.exists())temporary.delete();
                         if(target!=null&&target.exists())target.delete();
-                        if(error==null)error=failure.getMessage()==null?"تعذر نسخ أحد الملفات":failure.getMessage();
+                        if(error==null)error=failure.getMessage()==null?"تعذر استيراد أحد الملفات":failure.getMessage();
                     }
                 }
                 return copied;
@@ -421,7 +582,10 @@ public final class MusicActivity extends BaseActivity {
             }
             @Override protected void onPostExecute(ArrayList<File> files){
                 if(files.isEmpty()){
-                    Toast.makeText(MusicActivity.this,error==null?"لم يتم استيراد ملفات":error,Toast.LENGTH_LONG).show();
+                    String message=duplicatesSkipped>0
+                            ? "لم تتم إضافة نسخ مكررة. تم تجاهل "+duplicatesSkipped+" ملفاً مطابقاً."
+                            : (error==null?"لم يتم استيراد ملفات":error);
+                    Toast.makeText(MusicActivity.this,message,Toast.LENGTH_LONG).show();
                     return;
                 }
                 String[] paths=new String[files.size()];
@@ -442,6 +606,7 @@ public final class MusicActivity extends BaseActivity {
                             String message=assigned>0
                                     ? "تم استيراد "+files.size()+" ملفاً وإضافتها إلى ألبوم "+destinationAlbum
                                     : "تم نسخ الملفات، لكن لم يؤكد مفهرس الموسيقى إضافتها إلى الألبوم بعد";
+                            if(duplicatesSkipped>0)message+="\nتم تجاهل "+duplicatesSkipped+" نسخة مطابقة موجودة مسبقاً.";
                             if(error!=null)message+="\nتعذر استيراد بعض الملفات: "+error;
                             Toast.makeText(MusicActivity.this,message,Toast.LENGTH_LONG).show();
                         });
@@ -449,6 +614,17 @@ public final class MusicActivity extends BaseActivity {
                 });
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,selected);
+    }
+
+    private static String sha256(File file) throws Exception {
+        MessageDigest digest=MessageDigest.getInstance("SHA-256");
+        try(InputStream input=new BufferedInputStream(new FileInputStream(file))){
+            byte[] buffer=new byte[64*1024];int count;
+            while((count=input.read(buffer))!=-1)digest.update(buffer,0,count);
+        }
+        StringBuilder value=new StringBuilder(64);
+        for(byte item:digest.digest())value.append(String.format(Locale.US,"%02x",item&0xff));
+        return value.toString();
     }
 
     private int addImportedSongsToAlbum(List<Long> songIds,String album){
@@ -534,7 +710,9 @@ public final class MusicActivity extends BaseActivity {
             row.addView(label,new LinearLayout.LayoutParams(0,dp(60),1f));
             TextView favorite=text("☆",25,0xFFFFD27B,true);favorite.setGravity(Gravity.CENTER);
             row.addView(favorite,new LinearLayout.LayoutParams(dp(42),dp(48)));
-            return new SongRow(row,label,favorite);
+            TextView more=text("⋮",25,0xFFB9D9E8,true);more.setTag("music_song_actions");more.setGravity(Gravity.CENTER);
+             row.addView(more,new LinearLayout.LayoutParams(dp(38),dp(48)));
+             return new SongRow(row,label,favorite,more);
         }
         @Override public void onBindViewHolder(SongRow holder,int position){
             MusicPlaybackService.Song song=items.get(position);
@@ -549,11 +727,15 @@ public final class MusicActivity extends BaseActivity {
             });
             holder.itemView.setAlpha(active?1f:.82f);
             holder.itemView.setOnClickListener(v->{if(service!=null)service.playSongId(song.id);});
-            holder.itemView.setOnLongClickListener(v->{addSongToPlaylist(song);return true;});
+            holder.more.setOnClickListener(v->openSongActions(song,holder.more));
+             holder.itemView.setOnLongClickListener(v->{addSongToPlaylist(song);return true;});
         }
         @Override public int getItemCount(){return items.size();}
     }
-    private static final class SongRow extends RecyclerView.ViewHolder{final TextView label,favorite;SongRow(View v,TextView t,TextView f){super(v);label=t;favorite=f;}}
+    private static final class SongRow extends RecyclerView.ViewHolder{
+         final TextView label,favorite,more;
+         SongRow(View v,TextView t,TextView f,TextView m){super(v);label=t;favorite=f;more=m;}
+     }
     private final class VinylDiscView extends View {
         private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
         private Bitmap artwork;

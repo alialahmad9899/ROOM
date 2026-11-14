@@ -8,6 +8,7 @@ import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.location.*;
 import android.media.AudioManager;
+import android.net.wifi.WifiManager;
 import android.os.*;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
@@ -25,7 +26,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private FrameLayout dashboardRoot;
     private View navigationHud;
     private SpeedometerView speedometer, clusterGauge;
-    private TextView gpsStatus, songTitle, digitalClock, dateLabel, ambientTime;
+    private TextView gpsStatus, songTitle, digitalClock, dateLabel, ambientTime, connectionStatus;
+    private View nightOverlay;
     private LocationManager locationManager;
     private Location previousFix;
     private boolean gpsStarted, dashboardCriteriaRegistered, splashPending=true, ttsReady, pendingSpeak, activityResumed, ttsInitializationAttempted;
@@ -120,14 +122,23 @@ public final class MainActivity extends BaseActivity implements LocationListener
         if(digitalClock!=null)digitalClock.setText(currentTime);
         if(ambientTime!=null)ambientTime.setText(currentTime);
         if(dateLabel!=null)dateLabel.setText(new SimpleDateFormat("EEEE، d MMMM yyyy",new Locale("ar")).format(new Date(now)));
-        if(pager!=null&&pager.getCurrentItem()==0&&isNightMode())applyNightDim();
+        applyNightDim();
+        updateConnectionIndicators();
     }
-    private boolean isNightMode(){Calendar c=Calendar.getInstance();int h=c.get(Calendar.HOUR_OF_DAY);return h>=20||h<6;}
+    private boolean isNightMode(){
+        if(!prefs().getBoolean("smart_night_mode",true))return false;
+        Calendar c=Calendar.getInstance();int h=c.get(Calendar.HOUR_OF_DAY);return h>=20||h<6;
+    }
     private void applyNightDim(){
-        if(pager==null||pager.getChildCount()==0)return;
-        View v=pager.getChildAt(0);if(v==null)return;
-        // Keep content readable: no global brightness writes without explicit user consent.
-        v.setAlpha(.94f);
+        if(nightOverlay!=null)nightOverlay.setVisibility(isNightMode()?View.VISIBLE:View.GONE);
+    }
+    private void updateConnectionIndicators(){
+        if(connectionStatus==null)return;
+        boolean wifi=false,bluetooth=false,gps=false;
+        try{WifiManager manager=(WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);wifi=manager!=null&&manager.isWifiEnabled();}catch(Exception ignored){}
+        try{BluetoothAdapter adapter=BluetoothAdapter.getDefaultAdapter();bluetooth=adapter!=null&&adapter.isEnabled();}catch(Exception ignored){}
+        try{gps=locationManager!=null&&locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);}catch(Exception ignored){}
+        connectionStatus.setText("Wi-Fi "+(wifi?"✓":"×")+"  •  BT "+(bluetooth?"✓":"×")+"  •  GPS "+(gps?"✓":"×"));
     }
     static boolean shouldBlockSleep(boolean isCharging,boolean isMusicPlaying){return isCharging||isMusicPlaying;}
     static boolean shouldAllowManualSleep(){return true;}
@@ -295,12 +306,16 @@ public final class MainActivity extends BaseActivity implements LocationListener
         if(wallpaper!=null)bg.setImageBitmap(wallpaper);
         root.addView(bg,new FrameLayout.LayoutParams(-1,-1));
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x55020812,0x00020812,0x42020812}));root.addView(shade,new FrameLayout.LayoutParams(-1,-1));
+        nightOverlay=new View(this);nightOverlay.setTag("dashboard_night_overlay");
+        nightOverlay.setBackgroundColor(0x5D020915);nightOverlay.setVisibility(View.GONE);
+        root.addView(nightOverlay,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout all=vertical();all.setPadding(dp(18),dp(8),dp(18),dp(8));root.addView(all,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout top=horizontal();
         TextView brand=label("ALI CAR",28,Color.WHITE,true);brand.setLetterSpacing(.14f);brand.setShadowLayer(dp(10),0,0,0xFF47DFFF);
         top.addView(brand,new LinearLayout.LayoutParams(0,dp(44),1));
-        TextView status=label("Wi-Fi   •   Bluetooth   •   GPS",12,0xFFE1EFF7,true);status.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
-        top.addView(status,new LinearLayout.LayoutParams(-2,dp(44)));
+        connectionStatus=label("Wi-Fi ×  •  BT ×  •  GPS ×",10,0xFFE1EFF7,true);
+        connectionStatus.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        top.addView(connectionStatus,new LinearLayout.LayoutParams(-2,dp(44)));
         TextView settings=label("⚙",26,0xFFEAFBFF,true);settings.setGravity(Gravity.CENTER);settings.setBackground(glass(0x443A7D99,0x886CDFFF,26));
         LinearLayout.LayoutParams gear=new LinearLayout.LayoutParams(dp(48),dp(44));gear.leftMargin=dp(12);top.addView(settings,gear);
         settings.setOnClickListener(v->startActivity(new Intent(this,SettingsActivity.class)));
@@ -318,7 +333,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         all.addView(top,new LinearLayout.LayoutParams(-1,dp(50)));
 
         // Put media controls in the top-center strip instead of stacking them below the speed dial.
-        LinearLayout mediaBar=horizontal();mediaBar.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout mediaBar=horizontal();mediaBar.setTag("dashboard_media_bar");mediaBar.setGravity(Gravity.CENTER_VERTICAL);
         mediaBar.setPadding(dp(10),dp(3),dp(10),dp(3));
         mediaBar.setBackground(glass(0xAA14283A,0x5572BFD3,16));
         songTitle=label(prefs().getString("last_song","لا توجد أغنية قيد التشغيل"),16,Color.WHITE,true);
@@ -338,6 +353,16 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout.LayoutParams barLp=new LinearLayout.LayoutParams(-1,dp(56));
         barLp.topMargin=dp(5);all.addView(mediaBar,barLp);
 
+        // The compact guidance strip is a real row below music and collapses when inactive.
+        NavigationBannerView navigationHud = new NavigationBannerView(this);
+        navigationHud.setCompactMode(true);
+        navigationHud.setTag("dashboard_navigation_hud");
+        LinearLayout.LayoutParams navigationHudParams=new LinearLayout.LayoutParams(
+                Math.min(dp(332),getResources().getDisplayMetrics().widthPixels-dp(36)),dp(78));
+        navigationHudParams.gravity=Gravity.CENTER_HORIZONTAL;
+        navigationHudParams.topMargin=dp(4);navigationHudParams.bottomMargin=dp(2);
+        all.addView(navigationHud,navigationHudParams);
+
         LinearLayout main=horizontal();main.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);LinearLayout.LayoutParams mainLp=new LinearLayout.LayoutParams(-1,0,1);
         mainLp.topMargin=dp(5);all.addView(main,mainLp);
         // Clock on the left and speedometer on the right as requested.
@@ -346,7 +371,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         left.addView(timeTitle,new LinearLayout.LayoutParams(-1,dp(26)));
         AnalogClockView analog=new AnalogClockView(this);analog.setTag("dashboard_analog_clock");
         analog.setTranslationX(-dp(12));
-        left.addView(analog,new LinearLayout.LayoutParams(dp(270),dp(270)));
+        left.addView(analog,new LinearLayout.LayoutParams(dp(220),dp(220)));
         dateLabel=label("",16,0xFFE5F4FF,true);dateLabel.setGravity(Gravity.CENTER);
         left.addView(dateLabel,new LinearLayout.LayoutParams(-1,dp(28)));
         LinearLayout.LayoutParams leftLp=new LinearLayout.LayoutParams(0,-1,1f);
@@ -357,7 +382,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         right.addView(speedTitle,new LinearLayout.LayoutParams(-1,dp(26)));
         speedometer=new SpeedometerView(this);speedometer.setTag("dashboard_speed_gauge");
         speedometer.setTranslationX(dp(12));
-        right.addView(speedometer,new LinearLayout.LayoutParams(dp(270),dp(270)));
+        right.addView(speedometer,new LinearLayout.LayoutParams(dp(220),dp(220)));
         gpsStatus=label("بانتظار إشارة GPS",13,0xFFC7EFFF,false);gpsStatus.setTag("dashboard_gps_status");
         gpsStatus.setGravity(Gravity.CENTER);
         right.addView(gpsStatus,new LinearLayout.LayoutParams(-1,dp(28)));
@@ -379,13 +404,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         TextView footer=label("ALI CAR  •  SMART COCKPIT",10,0xFFD7EAF2,true);footer.setGravity(Gravity.CENTER);
         all.addView(footer,new LinearLayout.LayoutParams(-1,dp(20)));
 
-        // Floating guidance HUD sits over the central car-photo area without consuming dashboard rows.
-        NavigationBannerView navigationHud = new NavigationBannerView(this);
-        FrameLayout.LayoutParams navigationHudParams = new FrameLayout.LayoutParams(
-                dp(332), dp(126), Gravity.CENTER);
-        navigationHudParams.setMargins(dp(4), 0, dp(4), 0);
-        navigationHud.setTranslationY(dp(7));
-        root.addView(navigationHud, navigationHudParams);
+
 
         updateClock();return root;
     }
@@ -433,7 +452,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         stats.addView(statCard("أقصى سرعة","max"),new LinearLayout.LayoutParams(0,dp(112),1));
         all.addView(stats,new LinearLayout.LayoutParams(-1,dp(116)));
         TextView reset=label("تصفير الرحلة والسرعة القصوى",17,0xFFFFD16B,true);reset.setTag("trip_reset_button");reset.setGravity(Gravity.CENTER);reset.setBackground(glass(0x443A2730,0x88FFD16B,18));
-        LinearLayout.LayoutParams rr=new LinearLayout.LayoutParams(dp(270),dp(50));rr.gravity=Gravity.CENTER;rr.topMargin=dp(10);all.addView(reset,rr);
+        LinearLayout.LayoutParams rr=new LinearLayout.LayoutParams(dp(220),dp(50));rr.gravity=Gravity.CENTER;rr.topMargin=dp(10);all.addView(reset,rr);
         reset.setOnClickListener(v->new AlertDialog.Builder(MainActivity.this)
                 .setTitle("تصفير عداد الرحلة")
                 .setMessage("سيتم تصفير مسافة الرحلة الحالية وأقصى سرعة مسجلة. لن يتغير عداد الكيلومترات الإجمالي.")
@@ -444,6 +463,12 @@ public final class MainActivity extends BaseActivity implements LocationListener
                     Intent resetTrip=new Intent(MainActivity.this,LocationTrackingService.class);
                     resetTrip.setAction(LocationTrackingService.ACTION_RESET_TRIP);startService(resetTrip);updateStats();
                 }).show());
+        TextView history=label("▤  سجل الرحلات",15,0xFF8DE9FF,true);
+        history.setTag("trip_history_button");history.setGravity(Gravity.CENTER);
+        history.setBackground(glass(0x443A2730,0x886CDFFF,16));
+        LinearLayout.LayoutParams historyLp=new LinearLayout.LayoutParams(dp(220),dp(44));
+        historyLp.gravity=Gravity.CENTER;historyLp.topMargin=dp(8);all.addView(history,historyLp);
+        history.setOnClickListener(v->showTripHistory());
         return root;
     }
     private float lastDisplayedSpeed;
@@ -459,6 +484,20 @@ public final class MainActivity extends BaseActivity implements LocationListener
         updateStat(page,"trip",String.format(Locale.US,"%.1f km",tripKm));
         updateStat(page,"odometer",String.format(Locale.US,"%.1f km",odometerKm));
         updateStat(page,"max",String.format(Locale.US,"%.0f km/h",maxSpeed));
+    }
+    private void showTripHistory(){
+        String historyText=TripHistoryStore.format(this);
+        new AlertDialog.Builder(this).setTitle("سجل الرحلات المحفوظ")
+                .setMessage(historyText).setPositiveButton("إغلاق",null)
+                .setNeutralButton("مسح السجل",(dialog,which)->
+                        new AlertDialog.Builder(this).setTitle("مسح سجل الرحلات؟")
+                                .setMessage("سيتم حذف سجل الرحلات المحفوظ فقط، ولن يتغير عداد الكيلومترات.")
+                                .setNegativeButton("إلغاء",null)
+                                .setPositiveButton("مسح",(d,w)->{
+                                    TripHistoryStore.clear(this);
+                                    Toast.makeText(this,"تم مسح سجل الرحلات",Toast.LENGTH_SHORT).show();
+                                }).show())
+                .show();
     }
     private void updateStat(View root,String key,String text){
         if(root instanceof ViewGroup){ViewGroup g=(ViewGroup)root;for(int i=0;i<g.getChildCount();i++){View v=g.getChildAt(i);if(key.equals(v.getTag())&&v instanceof TextView){((TextView)v).setText(text);return;}updateStat(v,key,text);}}

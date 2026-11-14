@@ -9,6 +9,7 @@ import android.provider.Settings;
 import android.view.*;
 import android.widget.*;
 import java.util.*;
+import java.io.*;
 
 public final class SettingsActivity extends BaseActivity {
     private LinearLayout box;private DevicePolicyManager dpm;private ComponentName admin;
@@ -37,6 +38,22 @@ public final class SettingsActivity extends BaseActivity {
         });
         box.addView(voiceVolume,new LinearLayout.LayoutParams(-1,dp(42)));
 
+        add("مظهر القيادة");
+        SharedPreferences appPrefs=getSharedPreferences("ali_car_v3",MODE_PRIVATE);
+        CheckBox smartNight=new CheckBox(this);
+        smartNight.setText("الوضع الليلي الذكي (تلقائي من 20:00 حتى 06:00)");
+        smartNight.setTextColor(-1);
+        smartNight.setButtonTintList(android.content.res.ColorStateList.valueOf(0xFF55D8F0));
+        smartNight.setChecked(appPrefs.getBoolean("smart_night_mode",true));
+        smartNight.setOnCheckedChangeListener((button,checked)->
+                appPrefs.edit().putBoolean("smart_night_mode",checked).apply());
+        box.addView(smartNight);
+
+        add("النسخ الاحتياطي المحلي");
+        add("يحفظ الإعدادات والمفضلة وقوائم الموسيقى والوجهات والمسار المحفوظ. لا ينسخ ملفات الخرائط الكبيرة أو ملفات الأغاني نفسها.");
+        button("إنشاء نسخة احتياطية",()->startBackupExport());
+        button("استعادة نسخة احتياطية",()->startBackupImport());
+
         ActivityManager.MemoryInfo info=new ActivityManager.MemoryInfo();((ActivityManager)getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(info);
         long total=info.totalMem/(1024*1024),avail=info.availMem/(1024*1024),pss=android.os.Debug.getPss()/1024;
         add("الذاكرة الكلية: "+total+" MB");add("الذاكرة المتاحة: "+avail+" MB");add("ذاكرة التطبيق الحالية PSS: "+pss+" MB");
@@ -59,6 +76,69 @@ public final class SettingsActivity extends BaseActivity {
         new AlertDialog.Builder(this).setTitle("إخفاء تطبيقات اختيارية").setMultiChoiceItems(names,checked,(d,w,v)->{
             try{dpm.setApplicationHidden(admin,pkgs[w],v);}catch(Exception e){Toast.makeText(this,"تعذر تغيير التطبيق: "+pkgs[w],Toast.LENGTH_SHORT).show();}
         }).setPositiveButton("تم",null).show();
+    }
+
+    private static final int REQUEST_BACKUP_EXPORT=9341,REQUEST_BACKUP_IMPORT=9342;
+    private void startBackupExport(){
+        Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE,"ALI-CAR-backup.json");
+        try{startActivityForResult(intent,REQUEST_BACKUP_EXPORT);}
+        catch(Exception error){Toast.makeText(this,"تعذر فتح مكان حفظ النسخة الاحتياطية",Toast.LENGTH_LONG).show();}
+    }
+    private void startBackupImport(){
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try{startActivityForResult(intent,REQUEST_BACKUP_IMPORT);}
+        catch(Exception error){Toast.makeText(this,"تعذر فتح ملف النسخة الاحتياطية",Toast.LENGTH_LONG).show();}
+    }
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+        android.net.Uri uri=data.getData();
+        if(requestCode==REQUEST_BACKUP_EXPORT){
+            try{
+                String json=CarBackupManager.exportJson(this);
+                try(OutputStream output=getContentResolver().openOutputStream(uri,"wt")){
+                    if(output==null)throw new IOException("تعذر فتح الملف للكتابة");
+                    output.write(json.getBytes("UTF-8"));output.flush();
+                }
+                Toast.makeText(this,"تم إنشاء النسخة الاحتياطية بنجاح",Toast.LENGTH_LONG).show();
+            }catch(Exception error){
+                Toast.makeText(this,"فشل إنشاء النسخة الاحتياطية: "+error.getMessage(),Toast.LENGTH_LONG).show();
+            }
+        }else if(requestCode==REQUEST_BACKUP_IMPORT){
+            final String json;
+            try(InputStream input=getContentResolver().openInputStream(uri);
+                ByteArrayOutputStream output=new ByteArrayOutputStream()){
+                if(input==null)throw new IOException("تعذر قراءة الملف");
+                byte[] buffer=new byte[8192];int count;
+                while((count=input.read(buffer))!=-1){
+                    if(output.size()+count>2*1024*1024)throw new IOException("حجم ملف النسخة أكبر من 2 MB");
+                    output.write(buffer,0,count);
+                }
+                json=new String(output.toByteArray(),"UTF-8");
+            }catch(Exception error){
+                Toast.makeText(this,"تعذرت قراءة النسخة الاحتياطية: "+error.getMessage(),Toast.LENGTH_LONG).show();
+                return;
+            }
+            new AlertDialog.Builder(this)
+                    .setTitle("استعادة نسخة ALI CAR")
+                    .setMessage("سيتم استبدال الإعدادات المحلية الحالية بإعدادات الملف. لن يتم حذف الأغاني أو الخرائط.")
+                    .setNegativeButton("إلغاء",null)
+                    .setPositiveButton("استعادة",(dialog,which)->{
+                        try{
+                            int restored=CarBackupManager.restoreJson(this,json);
+                            Toast.makeText(this,"تمت استعادة "+restored+" مجموعات إعدادات. أعد فتح الواجهة لتطبيقها بالكامل.",Toast.LENGTH_LONG).show();
+                            render();
+                        }catch(Exception error){
+                            Toast.makeText(this,"رفض ملف النسخة دون تطبيقه: "+error.getMessage(),Toast.LENGTH_LONG).show();
+                        }
+                    }).show();
+        }
     }
     private TextView label(String s,int size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(-1);t.setPadding(0,dp(8),0,dp(8));return t;}
     private void add(String s){box.addView(label(s,14));}

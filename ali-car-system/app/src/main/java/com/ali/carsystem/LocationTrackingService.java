@@ -72,6 +72,9 @@ public final class LocationTrackingService extends Service implements LocationLi
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_RESET_TRIP.equals(intent.getAction())) {
+            long finishedAt = System.currentTimeMillis();
+            long startedAt = prefs.getLong("trip_started_at", finishedAt);
+            TripHistoryStore.record(this, tripMeters, maxSpeedKmh, startedAt, finishedAt);
             TripResetPolicy.State reset = TripResetPolicy.afterReset(odometerMeters);
             tripMeters = reset.tripMeters;
             odometerMeters = reset.odometerMeters;
@@ -83,6 +86,7 @@ public final class LocationTrackingService extends Service implements LocationLi
                     .putLong("odometer_meters", odometerMeters)
                     .putFloat("odometer_km", odometerMeters / 1000f)
                     .putFloat("max_speed", maxSpeedKmh)
+                    .putLong("trip_started_at", 0L)
                     .apply();
             publishUpdate();
             // Keep the registered listener. The next real GPS fix becomes a new anchor;
@@ -180,6 +184,8 @@ public final class LocationTrackingService extends Service implements LocationLi
                     && measuredSpeed <= MAX_CAR_SPEED_MPS;
             if (fixesGood && elapsedValid && movementValid && speedValid) {
                 long delta = Math.max(0L, Math.round(distance));
+                if (tripMeters == 0L && prefs.getLong("trip_started_at", 0L) <= 0L)
+                    prefs.edit().putLong("trip_started_at", location.getTime()).apply();
                 tripMeters += delta;
                 odometerMeters += delta;
                 prefs.edit()

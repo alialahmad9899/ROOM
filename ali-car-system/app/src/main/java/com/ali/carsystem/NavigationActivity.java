@@ -40,6 +40,9 @@ import com.google.android.gms.location.LocationServices;
 public final class NavigationActivity extends BaseActivity implements LocationListener {
     private MapView map;private LocationManager lm;private Location current;
     private MapsForgeTileSource offlineTileSource;
+    private static volatile MapsForgeTileSource sharedOfflineTileSource;
+    private View nightOverlay;
+    private Button nightModeButton;
     private static final int REQUEST_IMPORT_OFFLINE_MAPS=8401;
     private FusedLocationProviderClient fusedClient;private LocationCallback fusedCallback;
     private boolean fusedRegistered,fusedRequestPending,offlinePreparationRunning;private int gmsAvailabilityCode=-1;
@@ -76,6 +79,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     };
     private final Runnable locationStatusTicker=new Runnable(){
         @Override public void run(){
+            applyMapNightMode();
             if(destination!=null&&waitingForFix&&!routeAttemptedForDestination
                     &&routeTask==null&&SystemClock.elapsedRealtime()>=routeRetryAfterMs
                     &&isRouteStartUsable(current)){
@@ -149,8 +153,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     @Override protected void onCreate(Bundle b){super.onCreate(b);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Configuration.getInstance().load(this,getSharedPreferences("osmdroid",MODE_PRIVATE));
         Configuration.getInstance().setUserAgentValue("ALI-CAR/3.8.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
-        Configuration.getInstance().setTileFileSystemCacheMaxBytes(8L*1024*1024);
-        Configuration.getInstance().setTileFileSystemCacheTrimBytes(4L*1024*1024);
+        // Bounded on-disk cache: reuse previously rendered map areas without consuming large RAM.
+        Configuration.getInstance().setTileFileSystemCacheMaxBytes(96L*1024*1024);
+        Configuration.getInstance().setTileFileSystemCacheTrimBytes(64L*1024*1024);
         lm=(LocationManager)getSystemService(LOCATION_SERVICE);
         try{fusedClient=LocationServices.getFusedLocationProviderClient(this);}catch(Exception e){gmsLocationStatus="تعذر إنشاء عميل Google Fused: "+e.getClass().getSimpleName();}
         fusedCallback=new LocationCallback(){
@@ -163,9 +168,14 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         };
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xFF07111C);
-        map=new MapView(this);map.setUseDataConnection(false);map.setMultiTouchControls(true);map.setTilesScaledToDpi(true);
+        map=new MapView(this);map.setTag("navigation_offline_map");map.setUseDataConnection(false);map.setMultiTouchControls(true);
+        // MapsForge renders vector tiles at display resolution; avoid upscaling a low-density tile.
+        map.setTilesScaledToDpi(false);
         configureMapTiles();
         map.getController().setZoom(12.5);root.addView(map,new FrameLayout.LayoutParams(-1,-1));
+        nightOverlay=new View(this);nightOverlay.setTag("navigation_night_overlay");
+        nightOverlay.setBackgroundColor(0x58030A18);nightOverlay.setVisibility(View.GONE);
+        root.addView(nightOverlay,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(14),dp(12),dp(14),dp(12));
         panel.setBackground(rounded(0xF20A1B2A,0xFF24465B,18));
         TextView heading=new TextView(this);heading.setText("ALI CAR  •  NAVIGATION");heading.setTextColor(0xFF69D8F2);heading.setTextSize(11);heading.setGravity(Gravity.RIGHT);panel.addView(heading);
@@ -187,6 +197,18 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 Button offlineMapsButton=new Button(this);styleButton(offlineMapsButton,"استيراد خريطة سوريا والمسارات دون إنترنت",0xFF1B665F);offlineMapsButton.setTextSize(12);
         panel.addView(offlineMapsButton,new LinearLayout.LayoutParams(-1,dp(42)));
         TextView offlineStatus=new TextView(this);offlineStatus.setTextColor(0xFF9BD9D5);offlineStatus.setTextSize(10);offlineStatus.setText(OfflineMapsManager.status(this));offlineStatus.setGravity(Gravity.RIGHT);panel.addView(offlineStatus);
+        LinearLayout savedActions=new LinearLayout(this);savedActions.setOrientation(LinearLayout.HORIZONTAL);
+        Button saveDestinationButton=new Button(this);saveDestinationButton.setTag("navigation_save_destination");styleButton(saveDestinationButton,"★ حفظ الوجهة",0xFF725A26);saveDestinationButton.setTextSize(10);
+        Button savedDestinationsButton=new Button(this);savedDestinationsButton.setTag("navigation_saved_places");styleButton(savedDestinationsButton,"وجهاتي",0xFF183F55);savedDestinationsButton.setTextSize(10);
+        Button parkingButton=new Button(this);parkingButton.setTag("navigation_parking");styleButton(parkingButton,"موقفي",0xFF1B665F);parkingButton.setTextSize(10);
+        nightModeButton=new Button(this);nightModeButton.setTag("navigation_night_mode");styleButton(nightModeButton,"ليل: تلقائي",0xFF263B58);nightModeButton.setTextSize(10);
+        savedActions.addView(saveDestinationButton,new LinearLayout.LayoutParams(0,dp(38),1));
+        LinearLayout.LayoutParams savedLp=new LinearLayout.LayoutParams(0,dp(38),1);savedLp.setMargins(dp(5),0,0,0);
+        savedActions.addView(savedDestinationsButton,savedLp);
+        LinearLayout.LayoutParams parkingLp=new LinearLayout.LayoutParams(0,dp(38),1);parkingLp.setMargins(dp(5),0,0,0);
+        savedActions.addView(parkingButton,parkingLp);
+        LinearLayout.LayoutParams nightLp=new LinearLayout.LayoutParams(0,dp(38),1);nightLp.setMargins(dp(5),0,0,0);
+        savedActions.addView(nightModeButton,nightLp);panel.addView(savedActions);
         FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(dp(560),-2,Gravity.TOP|Gravity.LEFT);pp.setMargins(dp(16),dp(16),dp(16),0);root.addView(panel,pp);
         followButton=new Button(this);styleButton(followButton,"تتبّع السيارة ✓",0xF20A1B2A);FrameLayout.LayoutParams flp=new FrameLayout.LayoutParams(dp(150),dp(44),Gravity.TOP|Gravity.RIGHT);flp.setMargins(0,dp(18),dp(18),0);root.addView(followButton,flp);
         LinearLayout bottom=new LinearLayout(this);bottom.setOrientation(LinearLayout.VERTICAL);bottom.setPadding(dp(14),dp(10),dp(14),dp(10));bottom.setBackground(rounded(0xF20A1B2A,0xFF24465B,18));
@@ -209,7 +231,13 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(dp(660),-2,Gravity.BOTTOM|Gravity.LEFT);bp.setMargins(dp(16),0,dp(16),dp(16));root.addView(bottom,bp);
         TextView attribution=new TextView(this);attribution.setText("© OpenStreetMap contributors");attribution.setTextColor(-1);attribution.setTextSize(10);attribution.setBackground(rounded(0xAA061522,0x553B6074,8));attribution.setPadding(dp(8),dp(5),dp(8),dp(5));
         FrameLayout.LayoutParams ap=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);ap.setMargins(0,0,dp(8),dp(7));root.addView(attribution,ap);
-        setContentView(root);go.setOnClickListener(v->searchDestination());search.setOnEditorActionListener((v,a,e)->{searchDestination();return true;});
+        setContentView(root);
+        saveDestinationButton.setOnClickListener(v->saveCurrentDestination());
+        savedDestinationsButton.setOnClickListener(v->showSavedDestinations());
+        parkingButton.setOnClickListener(v->showParkingActions());
+        nightModeButton.setOnClickListener(v->cycleMapNightMode());
+        applyMapNightMode();
+        go.setOnClickListener(v->searchDestination());search.setOnEditorActionListener((v,a,e)->{searchDestination();return true;});
         freeModeButton.setOnClickListener(v->setGuidedMode(false));guidedModeButton.setOnClickListener(v->setGuidedMode(true));
         followButton.setOnClickListener(v->{followCar=!followCar;updateFollowButton();if(followCar&&current!=null)centerOnCar(current);});
                 offlineMapsButton.setOnClickListener(v->startOfflineMapImport());
@@ -247,7 +275,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         catch(Exception error){AppDiagnostics.record(this,"Persist selected navigation route",error);}
     }
     private void restoreSelectedRoute(){
-        String saved=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE).getString("selected_route_payload",""); if(saved==null||saved.isEmpty())return;
+        String saved=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE).getString("selected_route_payload","");
+        if(saved==null||saved.isEmpty()){restoreMapCamera();return;}
         try{
             JSONObject payload=new JSONObject(saved);JSONArray array=payload.optJSONArray("points");if(array==null||array.length()<2)return;
             ArrayList<GeoPoint> points=new ArrayList<>();double meters=0d;GeoPoint previous=null;
@@ -257,7 +286,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             destinationName=payload.optString("destination_name","الوجهة");destination=new GeoPoint(payload.optDouble("destination_lat",points.get(points.size()-1).getLatitude()),payload.optDouble("destination_lon",points.get(points.size()-1).getLongitude()));
             routeOptions=new ArrayList<>();routeOptions.add(new RouteOption(points,meters/1000d,payload.optDouble("duration_seconds",0d)/60d,turns,turns.size()));selectedRouteIndex=0;activeManeuvers=turns;
             routeLine=new Polyline(map);routeLine.setPoints(points);routeLine.setColor(0xFF00C8F0);routeLine.setWidth(dp(6));map.getOverlays().add(routeLine);destMarker=new Marker(map);destMarker.setPosition(destination);destMarker.setTitle(destinationName);map.getOverlays().add(destMarker);
-            rebuildRouteChoices();buildRouteProgressEngine(routeOptions.get(0));updateManeuver(current,activeManeuvers);status.setText("تمت استعادة المسار السابق • التتبع مستمر بالخلفية");if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points),true);map.invalidate();search.setText(destinationName);
+            rebuildRouteChoices();buildRouteProgressEngine(routeOptions.get(0));updateManeuver(current,activeManeuvers);status.setText("تمت استعادة المسار السابق • التتبع مستمر بالخلفية");if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);
+            if(!restoreMapCamera())map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points),true);
+            map.invalidate();search.setText(destinationName);
         }catch(Exception error){AppDiagnostics.record(this,"Restore selected navigation route",error);}
     }
     private String buildBackgroundRoutePayload() throws Exception {
@@ -278,6 +309,139 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         payload.put("duration_seconds",option.minutes*60d);
         return payload.toString();
     }
+    private void saveMapCamera(){
+        if(map==null)return;
+        try{
+            org.osmdroid.api.IGeoPoint center=map.getMapCenter();
+            if(center==null)return;
+            getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE).edit()
+                    .putFloat("map_center_lat",(float)center.getLatitude())
+                    .putFloat("map_center_lon",(float)center.getLongitude())
+                    .putFloat("map_zoom",(float)map.getZoomLevelDouble()).apply();
+        }catch(Exception error){AppDiagnostics.record(this,"Save offline map camera",error);}
+    }
+    private boolean restoreMapCamera(){
+        if(map==null)return false;
+        android.content.SharedPreferences saved=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE);
+        if(!saved.contains("map_center_lat")||!saved.contains("map_center_lon"))return false;
+        try{
+            double lat=saved.getFloat("map_center_lat",0f),lon=saved.getFloat("map_center_lon",0f);
+            float zoom=saved.getFloat("map_zoom",12.5f);
+            if(Math.abs(lat)>90d||Math.abs(lon)>180d||zoom<2f||zoom>20f)return false;
+            map.getController().setCenter(new GeoPoint(lat,lon));
+            map.getController().setZoom(zoom);
+            return true;
+        }catch(Exception error){AppDiagnostics.record(this,"Restore offline map camera",error);return false;}
+    }
+    private boolean isNightHour(){
+        Calendar calendar=Calendar.getInstance();int hour=calendar.get(Calendar.HOUR_OF_DAY);
+        return hour>=19||hour<6;
+    }
+    private void applyMapNightMode(){
+        if(nightOverlay==null)return;
+        android.content.SharedPreferences prefs=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE);
+        String mode=prefs.getString("map_night_mode","auto");
+        boolean night="night".equals(mode)||("auto".equals(mode)&&isNightHour());
+        nightOverlay.setVisibility(night?View.VISIBLE:View.GONE);
+        if(nightModeButton!=null)nightModeButton.setText("ليل: "+("night".equals(mode)?"دائم":("day".equals(mode)?"نهار":"تلقائي")));
+    }
+    private void cycleMapNightMode(){
+        android.content.SharedPreferences prefs=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE);
+        String mode=prefs.getString("map_night_mode","auto");
+        String next="auto".equals(mode)?"night":("night".equals(mode)?"day":"auto");
+        prefs.edit().putString("map_night_mode",next).apply();applyMapNightMode();
+    }
+    private void saveCurrentDestination(){
+        if(destination==null){Toast.makeText(this,"حدد وجهة أولاً ثم احفظها",Toast.LENGTH_SHORT).show();return;}
+        try{
+            android.content.SharedPreferences prefs=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE);
+            JSONArray old=new JSONArray(prefs.getString("saved_destinations","[]"));
+            JSONArray updated=new JSONArray();
+            JSONObject entry=new JSONObject().put("name",destinationName)
+                    .put("lat",destination.getLatitude()).put("lon",destination.getLongitude())
+                    .put("saved_at",System.currentTimeMillis());
+            updated.put(entry);
+            for(int i=0;i<old.length()&&updated.length()<20;i++){
+                JSONObject item=old.optJSONObject(i);if(item==null)continue;
+                double lat=item.optDouble("lat",Double.NaN),lon=item.optDouble("lon",Double.NaN);
+                if(!Double.isNaN(lat)&&!Double.isNaN(lon)
+                        &&GeoMath.distanceMeters(lat,lon,destination.getLatitude(),destination.getLongitude())<80d)continue;
+                updated.put(item);
+            }
+            prefs.edit().putString("saved_destinations",updated.toString()).apply();
+            Toast.makeText(this,"تم حفظ الوجهة في مفضلة الملاحة",Toast.LENGTH_SHORT).show();
+        }catch(Exception error){Toast.makeText(this,"تعذر حفظ الوجهة: "+error.getMessage(),Toast.LENGTH_LONG).show();}
+    }
+    private void showSavedDestinations(){
+        try{
+            android.content.SharedPreferences prefs=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE);
+            JSONArray saved=new JSONArray(prefs.getString("saved_destinations","[]"));
+            JSONArray recent=new JSONArray(prefs.getString("recent_destinations","[]"));
+            ArrayList<JSONObject> entries=new ArrayList<>();ArrayList<String> labels=new ArrayList<>();
+            for(int i=0;i<saved.length();i++){
+                JSONObject item=saved.optJSONObject(i);if(item==null)continue;
+                entries.add(item);labels.add("★  "+item.optString("name","وجهة محفوظة"));
+            }
+            for(int i=0;i<recent.length()&&entries.size()<30;i++){
+                JSONObject item=recent.optJSONObject(i);if(item==null)continue;
+                entries.add(item);labels.add("آخر مرة  •  "+item.optString("name","وجهة سابقة"));
+            }
+            if(entries.isEmpty()){Toast.makeText(this,"لا توجد وجهات محفوظة أو حديثة بعد",Toast.LENGTH_SHORT).show();return;}
+            new AlertDialog.Builder(this).setTitle("وجهاتي والوجهات الأخيرة")
+                    .setItems(labels.toArray(new String[0]),(dialog,which)->{
+                        JSONObject item=entries.get(which);
+                        GeoPoint point=new GeoPoint(item.optDouble("lat"),item.optDouble("lon"));
+                        setDestination(new GeoCandidate(point,item.optString("name","وجهة محفوظة"),"وجهة محفوظة"));
+                    }).setNegativeButton("إغلاق",null).show();
+        }catch(Exception error){Toast.makeText(this,"تعذر قراءة الوجهات المحفوظة",Toast.LENGTH_LONG).show();}
+    }
+    private void rememberRecentDestination(GeoPoint point,String name){
+        if(point==null)return;
+        try{
+            android.content.SharedPreferences prefs=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE);
+            JSONArray old=new JSONArray(prefs.getString("recent_destinations","[]"));
+            JSONArray updated=new JSONArray();
+            updated.put(new JSONObject().put("name",name).put("lat",point.getLatitude())
+                    .put("lon",point.getLongitude()).put("visited_at",System.currentTimeMillis()));
+            for(int i=0;i<old.length()&&updated.length()<12;i++){
+                JSONObject item=old.optJSONObject(i);if(item==null)continue;
+                double lat=item.optDouble("lat",Double.NaN),lon=item.optDouble("lon",Double.NaN);
+                if(!Double.isNaN(lat)&&!Double.isNaN(lon)
+                        &&GeoMath.distanceMeters(lat,lon,point.getLatitude(),point.getLongitude())<100d)continue;
+                updated.put(item);
+            }
+            prefs.edit().putString("recent_destinations",updated.toString()).apply();
+        }catch(Exception ignored){}
+    }
+    private void showParkingActions(){
+        android.content.SharedPreferences prefs=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE);
+        if(prefs.contains("parking_lat")){
+            new AlertDialog.Builder(this).setTitle("موقع السيارة")
+                    .setItems(new String[]{"حفظ موقعي الحالي من جديد","العودة إلى السيارة المحفوظة"},(dialog,which)->{
+                        if(which==0)saveParkingPosition();else navigateToParking();
+                    }).setNegativeButton("إلغاء",null).show();
+        }else saveParkingPosition();
+    }
+    private void saveParkingPosition(){
+        if(current==null||!isNavigationFixUsable(current)){
+            Toast.makeText(this,"نحتاج إلى موقع GPS صالح لحفظ مكان الوقوف",Toast.LENGTH_LONG).show();return;
+        }
+        getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE).edit()
+                .putFloat("parking_lat",(float)current.getLatitude())
+                .putFloat("parking_lon",(float)current.getLongitude())
+                .putLong("parking_saved_at",System.currentTimeMillis()).apply();
+        new AlertDialog.Builder(this).setTitle("تم حفظ مكان الوقوف")
+                .setMessage("حُفظ موقع السيارة محلياً على هذا الجهاز.")
+                .setPositiveButton("تم",null)
+                .setNeutralButton("العودة إلى السيارة",(d,w)->navigateToParking()).show();
+    }
+    private void navigateToParking(){
+        android.content.SharedPreferences prefs=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE);
+        if(!prefs.contains("parking_lat")){Toast.makeText(this,"لم يتم حفظ مكان الوقوف بعد",Toast.LENGTH_SHORT).show();return;}
+        GeoPoint point=new GeoPoint(prefs.getFloat("parking_lat",0f),prefs.getFloat("parking_lon",0f));
+        setDestination(new GeoCandidate(point,"موقفي","موقف محفوظ"));
+    }
+
     private void startBackgroundNavigation(){
         if(destination==null||selectedRouteIndex<0){
             Toast.makeText(this,"احسب المسار واختره أولاً",Toast.LENGTH_LONG).show();return;
@@ -379,10 +543,15 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         File[] maps=OfflineMapsManager.getMapFiles(this);
         if(maps.length==0){if(status!=null)status.setText("الخريطة المحلية غير مثبتة — لا يتم تحميل خرائط من الإنترنت");return;}
         try{
-            if(offlineTileSource==null){
-                MapsForgeTileSource.createInstance(getApplication());
-                offlineTileSource=MapsForgeTileSource.createFromFiles(maps,null,"ALI-CAR-SYRIA-OFFLINE","ar");
+            if(sharedOfflineTileSource==null){
+                synchronized(NavigationActivity.class){
+                    if(sharedOfflineTileSource==null){
+                        MapsForgeTileSource.createInstance(getApplication());
+                        sharedOfflineTileSource=MapsForgeTileSource.createFromFiles(maps,null,"ALI-CAR-SYRIA-OFFLINE","ar");
+                    }
+                }
             }
+            offlineTileSource=sharedOfflineTileSource;
             map.setTileProvider(new MapsForgeTileProvider(new SimpleRegisterReceiver(this),offlineTileSource,null));
             if(status!=null)status.setText("خريطة سوريا المحلية جاهزة • "+OfflineMapsManager.status(this));
         }catch(Exception error){
@@ -429,7 +598,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             protected void onPostExecute(String error){
                 if(isFinishing())return;
                 if(error!=null){status.setText("فشل استيراد الخريطة: "+error);return;}
-                offlineTileSource=null;configureMapTiles();status.setText(OfflineMapsManager.status(NavigationActivity.this));
+                offlineTileSource=null;sharedOfflineTileSource=null;configureMapTiles();status.setText(OfflineMapsManager.status(NavigationActivity.this));
                 new AlertDialog.Builder(NavigationActivity.this).setTitle("خرائط سوريا جاهزة").setMessage(OfflineMapsManager.status(NavigationActivity.this))
                         .setPositiveButton("موافق",null).show();
             }
@@ -447,6 +616,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private void setDestination(GeoCandidate candidate){
         destination=candidate.point;destinationName=candidate.name;routeAttemptedForDestination=false;
         routeRetryAfterMs=0L;gpsWaitStartedAt=SystemClock.elapsedRealtime();
+        rememberRecentDestination(destination,destinationName);
         showDestination();drawRouteIfPossible();
     }
 
@@ -894,6 +1064,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
     @Override protected void onResume(){
         super.onResume();if(map!=null)map.onResume();
+        applyMapNightMode();
         requestLocationSources();if(current!=null)showCar(current);
         if(destination!=null&&!routeAttemptedForDestination){waitingForFix=true;drawRouteIfPossible();}
         locationHandler.removeCallbacks(locationStatusTicker);locationHandler.post(locationStatusTicker);
@@ -906,6 +1077,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         }
         gpsRegistered=false;networkRegistered=false;criteriaRegistered=false;gpsStatusRegistered=false;gpsEngineStarted=false;
         stopGoogleFusedLocation();
+        saveMapCamera();
         if(map!=null)map.onPause();super.onPause();
     }
     @Override protected void onDestroy(){

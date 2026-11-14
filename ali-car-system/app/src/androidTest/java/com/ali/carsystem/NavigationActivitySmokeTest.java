@@ -26,6 +26,12 @@ public final class NavigationActivitySmokeTest {
         assertNotNull(content.findViewWithTag("navigation_route_choices"));
         assertNotNull(content.findViewWithTag("navigation_start_background"));
         assertNotNull(content.findViewWithTag("navigation_stop_background"));
+        assertNotNull("Offline vector map view",content.findViewWithTag("navigation_offline_map"));
+        assertNotNull("Save selected destination",content.findViewWithTag("navigation_save_destination"));
+        assertNotNull("Saved and recent destinations",content.findViewWithTag("navigation_saved_places"));
+        assertNotNull("Save/reopen parking position",content.findViewWithTag("navigation_parking"));
+        assertNotNull("Automatic day/night map control",content.findViewWithTag("navigation_night_mode"));
+        assertNotNull("Map night overlay",content.findViewWithTag("navigation_night_overlay"));
     }
 
     @Test public void canSwitchBetweenFreeMapAndGuidedDrivingWithoutGps(){

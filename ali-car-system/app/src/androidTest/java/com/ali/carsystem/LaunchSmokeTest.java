@@ -18,6 +18,10 @@ public final class LaunchSmokeTest {
     public ActivityTestRule<MainActivity> activity =
             new ActivityTestRule<>(MainActivity.class);
 
+    private int dp(MainActivity main,int value){
+        return (int)(value*main.getResources().getDisplayMetrics().density+.5f);
+    }
+
     @Test public void dashboardActivityStartsAndCreatesItsContentTree() {
         MainActivity main = activity.getActivity();
         assertNotNull("MainActivity must be created", main);
@@ -35,6 +39,10 @@ public final class LaunchSmokeTest {
                 content.findViewWithTag("navigation_hud_distance"));
         assertNotNull("HUD must expose the next maneuver instruction",
                 content.findViewWithTag("navigation_hud_instruction"));
+        View mediaBar=content.findViewWithTag("dashboard_media_bar");
+        assertNotNull("Dashboard music strip must be a stable HUD anchor",mediaBar);
+        assertTrue("HUD is a collapsible dashboard row",hud.getParent() instanceof android.widget.LinearLayout);
+        assertTrue("HUD uses compact row dimensions",hud.getLayoutParams() instanceof android.widget.LinearLayout.LayoutParams);
         assertEquals("HUD remains hidden when no route is active", View.GONE, hud.getVisibility());
 
         Intent active = new Intent(NavigationGuidanceService.ACTION_STATE);
@@ -51,6 +59,15 @@ public final class LaunchSmokeTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
 
         assertEquals("Active route must reveal the floating HUD", View.VISIBLE, hud.getVisibility());
+        int[] hudPosition=new int[2],mediaPosition=new int[2],clockPosition=new int[2];
+        hud.getLocationOnScreen(hudPosition);mediaBar.getLocationOnScreen(mediaPosition);
+        View clock=content.findViewWithTag("dashboard_analog_clock");
+        clock.getLocationOnScreen(clockPosition);
+        assertTrue("Active navigation HUD must appear immediately below the music strip",
+                hudPosition[1]>=mediaPosition[1]+mediaBar.getHeight());
+        assertTrue("Navigation HUD must not cover the dashboard clock",
+                clockPosition[1]>=hudPosition[1]+hud.getHeight());
+        assertTrue("Compact HUD must fit in its reserved row",hud.getHeight()<=dp(main,90));
         TextView distance = (TextView) content.findViewWithTag("navigation_hud_distance");
         assertEquals("100 م", distance.getText().toString());
         TextView instruction = (TextView) content.findViewWithTag("navigation_hud_instruction");

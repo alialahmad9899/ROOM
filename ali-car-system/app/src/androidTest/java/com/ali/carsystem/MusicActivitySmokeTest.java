@@ -25,6 +25,9 @@ public final class MusicActivitySmokeTest {
                 content.findViewWithTag("navigation_guidance_banner"));
         assertNotNull("Album filters",content.findViewWithTag("music_playlist_filters"));
         assertNotNull("Local audio import",content.findViewWithTag("music_add_local_files"));
+        assertNotNull("Song and artist search",content.findViewWithTag("music_search"));
+        assertNotNull("Music sorting control",content.findViewWithTag("music_sort"));
+        assertNotNull("Duplicate review control",content.findViewWithTag("music_duplicates"));
         assertNotNull("Empty playlist state",content.findViewWithTag("music_playlist_empty"));
 
         TextView variety=(TextView)content.findViewWithTag("music_variety_album");

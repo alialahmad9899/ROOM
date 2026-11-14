@@ -77,6 +77,20 @@ public final class MusicPlaybackLifecycleTest {
             }
             assertTrue("Resume must restart playback", service.isPlaying());
             assertTrue("Playback position must advance after resume", service.getPosition() > 0);
+            service.toggleFavorite(id);
+            service.addSongToPlaylist(id,"ALI CAR Test Playlist");
+            assertTrue("The test song is in favorites before delete",service.isFavorite(id));
+            assertTrue("The test song is in its test playlist before delete",
+                    service.getPlaylistSongIds("ALI CAR Test Playlist").contains(id));
+            assertTrue("Confirmed delete removes the MediaStore song",service.deleteSong(id));
+            boolean stillPresent=false;
+            for(MusicPlaybackService.Song song:service.getSongs())
+                if(song.id==id)stillPresent=true;
+            assertFalse("Deleted song is removed from the service library",stillPresent);
+            assertFalse("Deleting a song also clears its favorite reference",service.isFavorite(id));
+            assertFalse("Deleting a song also clears playlist references",
+                    service.getPlaylistSongIds("ALI CAR Test Playlist").contains(id));
+            assertFalse("The local test audio file is deleted",wav.exists());
         } finally {
             if (row != null) {
                 try { context.getContentResolver().delete(row, null, null); } catch (Exception ignored) { }

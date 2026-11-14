@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -91,13 +92,14 @@ public final class MusicPlaybackService extends Service
 
     public static final class Song {
         public final long id, duration, albumId;
-        public final String name, artist;
+        public final String name, artist, dataPath;
         public final boolean openArchive;
 
         Song(long id, String name, String artist, long duration, long albumId, String dataPath) {
             this.id = id;
             this.duration = duration;
             this.albumId = albumId;
+            this.dataPath = dataPath == null ? "" : dataPath;
             String resolvedName = name == null || name.trim().isEmpty() ? "مقطع صوتي" : name;
             String resolvedArtist = artist == null ? "" : artist;
             this.openArchive = dataPath != null
@@ -475,12 +477,147 @@ public final class MusicPlaybackService extends Service
         return added;
     }
 
+    public boolean removeSongFromPlaylist(long songId, String playlistName) {
+        if (playlistName == null || playlistName.trim().isEmpty()
+                || "كل الأغاني".equals(playlistName)) return false;
+        String id = String.valueOf(songId);
+        SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        if ("المفضلة".equals(playlistName)) {
+            Set<String> favorites = getStringSet("favorites");
+            boolean removed = favorites.remove(id);
+            if (removed) editor.putStringSet("favorites", favorites).apply();
+            notifyChanged();
+            return removed;
+        }
+        if ("آخر تشغيل".equals(playlistName)) {
+            List<Long> recent = getRecentSongIds();
+            boolean removed = recent.remove(songId);
+            if (removed) {
+                StringBuilder value = new StringBuilder();
+                for (Long item : recent) {
+                    if (value.length() > 0) value.append(',');
+                    value.append(item);
+                }
+                editor.putString("recent_ids", value.toString()).apply();
+            }
+            notifyChanged();
+            return removed;
+        }
+        Set<String> ids = getStringSet(playlistKey(playlistName));
+        boolean removed = ids.remove(id);
+        Set<String> hidden = getStringSet("playlist_hidden_" + playlistName);
+        boolean newlyHidden = hidden.add(id);
+        if (removed || newlyHidden) editor.putStringSet(playlistKey(playlistName), ids)
+                .putStringSet("playlist_hidden_" + playlistName, hidden).apply();
+        notifyChanged();
+        return removed || newlyHidden;
+    }
+
+    /** Permanently remove one local MediaStore track after the UI has confirmed the action. */
+    public boolean deleteSong(long songId) {
+        int position = -1;
+        for (int i = 0; i < songs.size(); i++) {
+            if (songs.get(i).id == songId) { position = i; break; }
+        }
+        if (position < 0) return false;
+        Song target = songs.get(position);
+        boolean wasCurrent = position == index;
+        boolean wasPlaying = wasCurrent && isPlaying();
+        if (wasCurrent) {
+            savePlaybackPosition();
+            mainHandler.removeCallbacks(positionSaver);
+            releasePlayer();
+        }
+        int removedRows;
+        try {
+            Uri item = Uri.withAppendedPath(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    String.valueOf(songId));
+            removedRows = getContentResolver().delete(item, null, null);
+        } catch (Exception error) {
+            AppDiagnostics.record(this, "Delete local music track " + songId, error);
+            if (wasCurrent && wasPlaying) playAt(position);
+            return false;
+        }
+        if (removedRows <= 0) {
+            if (wasCurrent && wasPlaying) playAt(position);
+            return false;
+        }
+        // MediaProvider normally removes the file itself. This guarded fallback handles
+        // providers that remove only the index row on legacy Android 5 devices.
+        try {
+            File file = target.dataPath.isEmpty() ? null : new File(target.dataPath);
+            if (file != null && file.isFile()) file.delete();
+        } catch (Exception ignored) { }
+        removeSongReferences(songId);
+        songs.remove(position);
+        if (wasCurrent) {
+            index = -1;
+            getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
+                    .remove("last_song_id").remove("last_song_name")
+                    .putInt("position_ms", 0).putBoolean("resume_enabled", false).apply();
+            if (!songs.isEmpty()) {
+                int next = Math.min(position, songs.size() - 1);
+                if (wasPlaying) {
+                    playAt(next);
+                } else {
+                    index = next;
+                    Song current = songs.get(index);
+                    getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
+                            .putLong("last_song_id", current.id)
+                            .putString("last_song_name", current.name).apply();
+                    notifyChanged();
+                }
+            } else {
+                index = -1;
+                notifyChanged();
+            }
+        } else {
+            if (position < index) index--;
+            notifyChanged();
+        }
+        return true;
+    }
+
+    private void removeSongReferences(long songId) {
+        String id = String.valueOf(songId);
+        SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        for (Map.Entry<String, ?> entry : prefs.getAll().entrySet()) {
+            String key = entry.getKey();
+            if (!("favorites".equals(key) || key.startsWith("playlist_") || key.startsWith("playlist_hidden_"))) continue;
+            Object saved = entry.getValue();
+            if (!(saved instanceof Set)) continue;
+            Set<String> clean = new HashSet<>();
+            for (Object value : (Set<?>) saved) {
+                if (value instanceof String && !id.equals(value)) clean.add((String) value);
+            }
+            editor.putStringSet(key, clean);
+        }
+        List<Long> recent = getRecentSongIds();
+        recent.remove(songId);
+        StringBuilder recentValue = new StringBuilder();
+        for (Long value : recent) {
+            if (recentValue.length() > 0) recentValue.append(',');
+            recentValue.append(value);
+        }
+        editor.putString("recent_ids", recentValue.toString()).apply();
+    }
+
+    public boolean isHiddenFromPlaylist(long songId, String playlistName) {
+        if (playlistName == null) return false;
+        return getStringSet("playlist_hidden_" + playlistName).contains(String.valueOf(songId));
+    }
+
     public void addSongToPlaylist(long songId, String playlistName) {
         if (playlistName == null || playlistName.trim().isEmpty()) return;
         String key = playlistKey(playlistName);
         Set<String> ids = getStringSet(key);
         ids.add(String.valueOf(songId));
-        getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit().putStringSet(key, ids).apply();
+        Set<String> hidden = getStringSet("playlist_hidden_" + playlistName);
+        hidden.remove(String.valueOf(songId));
+        getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
+                .putStringSet(key, ids).putStringSet("playlist_hidden_" + playlistName, hidden).apply();
         notifyChanged();
     }
 
