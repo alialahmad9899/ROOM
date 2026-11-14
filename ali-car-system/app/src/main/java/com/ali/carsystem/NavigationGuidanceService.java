@@ -97,8 +97,7 @@ public final class NavigationGuidanceService extends Service implements Location
     public static boolean isActive(Context context) {
         SharedPreferences state = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String path = state.getString(KEY_ROUTE_FILE, "");
-        return state.getBoolean(KEY_ACTIVE, false) && path != null
-                && !path.isEmpty() && new File(path).isFile();
+        return path != null && !path.isEmpty() && new File(path).isFile();
     }
 
     @Override public void onCreate() {
@@ -158,7 +157,6 @@ public final class NavigationGuidanceService extends Service implements Location
                             .putFloat("destination_lat", (float) destinationLat)
                             .putFloat("destination_lon", (float) destinationLon).apply();
                     startGps();
-                    publishState("خدمة الملاحة جاهزة • جارٍ تحديد موقع السيارة", true);
                 });
             } catch (Exception error) {
                 final String detail = error.getMessage() == null
