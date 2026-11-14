@@ -53,6 +53,11 @@ public final class NavigationGuidanceService extends Service implements Location
     public static final String EXTRA_DEST_NAME = "destination_name";
     public static final String EXTRA_DEST_LAT = "destination_lat";
     public static final String EXTRA_DEST_LON = "destination_lon";
+    public static final String EXTRA_DISTANCE_TO_TURN_METERS = "distance_to_turn_meters";
+    public static final String EXTRA_REMAINING_ROUTE_METERS = "remaining_route_meters";
+    public static final String EXTRA_ETA_MINUTES = "eta_minutes";
+    public static final String EXTRA_MANEUVER_TEXT = "maneuver_text";
+    public static final String EXTRA_SPEED_KMH = "speed_kmh";
 
     private static final String PREFS = "ali_car_navigation";
     private static final String KEY_ROUTE = "active_route_json";
@@ -87,6 +92,11 @@ public final class NavigationGuidanceService extends Service implements Location
     private int offRouteFixes, nextManeuverIndex, lastAnnouncedStage = -1;
     private long lastPoorGpsNotice, lastStateNotice, lastRerouteAt;
     private float lastAccuracy = -1f;
+    private float lastSpeedKmh = -1f;
+    private double distanceToNextTurnMeters = -1d;
+    private double remainingRouteMeters = -1d;
+    private long etaMinutes = -1L;
+    private String nextManeuverText = "";
     private String latestState = "الملاحة الخلفية جاهزة";
 
     private static final class Maneuver {
@@ -205,6 +215,11 @@ public final class NavigationGuidanceService extends Service implements Location
         }
         if (routePoints.size() < 2 || totalMeters < 20d) throw new IllegalArgumentException("المسار غير صالح");
         routeSeconds = Math.max(0d, payload.optDouble("duration_seconds", 0d));
+        distanceToNextTurnMeters = -1d;
+        remainingRouteMeters = totalMeters;
+        etaMinutes = routeSeconds > 0d ? Math.round(routeSeconds / 60d) : -1L;
+        nextManeuverText = "";
+        lastSpeedKmh = -1f;
         destinationName = payload.optString("destination_name", destinationName);
         destinationLat = payload.optDouble("destination_lat", destinationLat);
         destinationLon = payload.optDouble("destination_lon", destinationLon);
@@ -354,6 +369,8 @@ public final class NavigationGuidanceService extends Service implements Location
     @Override public void onLocationChanged(Location location) {
         if (location == null || progressEngine == null || !routeLoaded || rerouting) return;
         lastAccuracy = location.hasAccuracy() ? location.getAccuracy() : -1f;
+        lastSpeedKmh = location.hasSpeed() && location.getSpeed() >= 0f
+                ? location.getSpeed() * 3.6f : -1f;
         long ageMs = location.getElapsedRealtimeNanos() > 0
                 ? Math.max(0L, (android.os.SystemClock.elapsedRealtimeNanos()
                 - location.getElapsedRealtimeNanos()) / 1000000L)
@@ -402,19 +419,22 @@ public final class NavigationGuidanceService extends Service implements Location
 
     private void updateNextManeuver() {
         if (latestProgress == null || !latestProgress.onRoute) return;
+        remainingRouteMeters = Math.max(0d, latestProgress.remainingRouteMeters);
+        etaMinutes = routeSeconds > 0d && totalMeters > 0d
+                ? Math.round((routeSeconds * (remainingRouteMeters / totalMeters)) / 60d) : -1L;
         if (latestProgress.nextTurnIndex < 0 || latestProgress.nextTurnIndex >= maneuvers.size()) {
             nextManeuverIndex = maneuvers.size();
-            publishState("تابع حتى الوصول إلى " + destinationName, true);
+            distanceToNextTurnMeters = -1d;
+            nextManeuverText = "تابع حتى الوصول إلى " + destinationName;
+            publishState(nextManeuverText, true);
             return;
         }
         nextManeuverIndex = latestProgress.nextTurnIndex;
         Maneuver next = maneuvers.get(nextManeuverIndex);
-        double distance = Math.max(0d, latestProgress.remainingToTurnMeters);
-        double remaining = Math.max(0d, latestProgress.remainingRouteMeters);
-        long etaMinutes = routeSeconds > 0d && totalMeters > 0d
-                ? Math.round((routeSeconds * (remaining / totalMeters)) / 60d) : -1L;
-        String label = "بعد " + Math.round(distance) + " متر، " + next.text;
-        publishState(label + " • متبقٍ " + distanceLabel(remaining)
+        distanceToNextTurnMeters = Math.max(0d, latestProgress.remainingToTurnMeters);
+        nextManeuverText = next.text;
+        String label = "بعد " + Math.round(distanceToNextTurnMeters) + " متر، " + next.text;
+        publishState(label + " • متبقٍ " + distanceLabel(remainingRouteMeters)
                 + (etaMinutes >= 0 ? " • وصول خلال " + etaMinutes + " دقيقة" : ""), true);
 
         int stage = distance <= 30d ? 3 : distance <= 100d ? 2 : distance <= 300d ? 1
@@ -666,6 +686,24 @@ public final class NavigationGuidanceService extends Service implements Location
         update.putExtra("active", active && routeLoaded);
         update.putExtra("ready", routeLoaded);
         update.putExtra("accuracy_meters", lastAccuracy);
+        float distanceValue = active && routeLoaded && distanceToNextTurnMeters >= 0d
+                ? (float) distanceToNextTurnMeters : -1f;
+        float remainingValue = active && routeLoaded && remainingRouteMeters >= 0d
+                ? (float) remainingRouteMeters : -1f;
+        float speedValue = active && routeLoaded ? lastSpeedKmh : -1f;
+        String maneuverValue = active && routeLoaded ? nextManeuverText : "";
+        prefs.edit()
+                .putFloat(EXTRA_DISTANCE_TO_TURN_METERS, distanceValue)
+                .putFloat(EXTRA_REMAINING_ROUTE_METERS, remainingValue)
+                .putLong(EXTRA_ETA_MINUTES, active && routeLoaded ? etaMinutes : -1L)
+                .putString(EXTRA_MANEUVER_TEXT, maneuverValue)
+                .putFloat(EXTRA_SPEED_KMH, speedValue)
+                .apply();
+        update.putExtra(EXTRA_DISTANCE_TO_TURN_METERS, distanceValue);
+        update.putExtra(EXTRA_REMAINING_ROUTE_METERS, remainingValue);
+        update.putExtra(EXTRA_ETA_MINUTES, active && routeLoaded ? etaMinutes : -1L);
+        update.putExtra(EXTRA_MANEUVER_TEXT, maneuverValue);
+        update.putExtra(EXTRA_SPEED_KMH, speedValue);
         sendBroadcast(update);
         if (active) ensureForeground(latestState);
     }
@@ -680,6 +718,11 @@ public final class NavigationGuidanceService extends Service implements Location
         maneuvers.clear();
         progressEngine = null;
         latestProgress = null;
+        distanceToNextTurnMeters = -1d;
+        remainingRouteMeters = -1d;
+        etaMinutes = -1L;
+        nextManeuverText = "";
+        lastSpeedKmh = -1f;
         String oldPath = prefs.getString(KEY_ROUTE_FILE, "");
         prefs.edit().remove(KEY_ROUTE).remove(KEY_ROUTE_FILE)
                 .remove("destination_name").remove("destination_lat").remove("destination_lon")

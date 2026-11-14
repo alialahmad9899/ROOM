@@ -292,11 +292,6 @@ public final class MainActivity extends BaseActivity implements LocationListener
          phone.setOnClickListener(v->startActivity(new Intent(this,PhoneActivity.class)));
         all.addView(top,new LinearLayout.LayoutParams(-1,dp(50)));
 
-        NavigationBannerView navigationBanner = new NavigationBannerView(this);
-        LinearLayout.LayoutParams navigationBannerLp = new LinearLayout.LayoutParams(-1,dp(58));
-        navigationBannerLp.topMargin = dp(4);
-        all.addView(navigationBanner, navigationBannerLp);
-
         // Put media controls in the top-center strip instead of stacking them below the speed dial.
         LinearLayout mediaBar=horizontal();mediaBar.setGravity(Gravity.CENTER_VERTICAL);
         mediaBar.setPadding(dp(10),dp(3),dp(10),dp(3));
@@ -358,6 +353,15 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout.LayoutParams dockLp=new LinearLayout.LayoutParams(-1,dp(80));dockLp.topMargin=dp(4);all.addView(dock,dockLp);
         TextView footer=label("ALI CAR  •  SMART COCKPIT",10,0xFFD7EAF2,true);footer.setGravity(Gravity.CENTER);
         all.addView(footer,new LinearLayout.LayoutParams(-1,dp(20)));
+
+        // Floating guidance HUD sits over the central car-photo area without consuming dashboard rows.
+        NavigationBannerView navigationHud = new NavigationBannerView(this);
+        FrameLayout.LayoutParams navigationHudParams = new FrameLayout.LayoutParams(
+                dp(332), dp(126), Gravity.CENTER);
+        navigationHudParams.setMargins(dp(4), 0, dp(4), 0);
+        navigationHud.setTranslationY(dp(7));
+        root.addView(navigationHud, navigationHudParams);
+
         updateClock();return root;
     }
     private TextView mediaButton(String symbol,String action){
@@ -397,9 +401,6 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout all=vertical();all.setPadding(dp(18),dp(12),dp(18),dp(12));root.addView(all,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=horizontal();TextView back=label("›",32,0xFF9DEFFF,true);back.setGravity(Gravity.CENTER);back.setOnClickListener(v->pager.setCurrentItem(0,true));header.addView(back,new LinearLayout.LayoutParams(dp(52),dp(40)));
         TextView title=label("عدادات القيادة والكيلومتراج",23,Color.WHITE,true);title.setGravity(Gravity.CENTER);header.addView(title,new LinearLayout.LayoutParams(0,dp(40),1));all.addView(header);
-        NavigationBannerView navigationBanner=new NavigationBannerView(this);
-        LinearLayout.LayoutParams navigationBannerLp=new LinearLayout.LayoutParams(-1,dp(54));
-        navigationBannerLp.topMargin=dp(5);all.addView(navigationBanner,navigationBannerLp);
         clusterGauge=new SpeedometerView(this);clusterGauge.setSpeed(lastDisplayedSpeed);LinearLayout.LayoutParams gl=new LinearLayout.LayoutParams(dp(288),dp(288));gl.gravity=Gravity.CENTER;all.addView(clusterGauge,gl);
         LinearLayout stats=horizontal();stats.setGravity(Gravity.CENTER);
         stats.addView(statCard("رحلة حالية","trip"),new LinearLayout.LayoutParams(0,dp(112),1));

@@ -24,5 +24,14 @@ public final class LaunchSmokeTest {
         assertTrue("Dashboard must install a root view", content instanceof ViewGroup);
         assertTrue("Dashboard content must contain its ViewPager",
                 ((ViewGroup) content).getChildCount() > 0);
+        View hud = content.findViewWithTag("dashboard_navigation_hud");
+        assertNotNull("Floating guidance HUD must be layered over the dashboard wallpaper", hud);
+        assertNotNull("HUD must render a vector turn arrow",
+                content.findViewWithTag("navigation_hud_arrow"));
+        assertNotNull("HUD must expose a numeric turn distance",
+                content.findViewWithTag("navigation_hud_distance"));
+        assertNotNull("HUD must expose the next maneuver instruction",
+                content.findViewWithTag("navigation_hud_instruction"));
+        assertEquals("HUD remains hidden when no route is active", View.GONE, hud.getVisibility());
     }
 }
