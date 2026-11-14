@@ -20,11 +20,15 @@ final class OfflineMapsManager {
     private OfflineMapsManager() { }
 
     static File getRoot(Context context) {
-        File external = context.getExternalFilesDir("offline");
-        if (external != null && (external.isDirectory() || external.mkdirs())) return external;
-        File root = new File(context.getFilesDir(), "offline");
+        // Offline map bundles are large and must install reliably even when an
+        // emulator/device SD card is missing, read-only, or not mounted yet.
+        // Keep the verified data under this app's private internal files area.
+        File privateFiles = context.getFilesDir();
+        if (privateFiles == null)
+            throw new IllegalStateException("مسار ملفات التطبيق الداخلي غير متاح");
+        File root = new File(privateFiles, "offline");
         if (!root.isDirectory() && !root.mkdirs())
-            throw new IllegalStateException("تعذر إنشاء مجلد الخرائط في التخزين الداخلي أو الخارجي");
+            throw new IllegalStateException("تعذر إنشاء مجلد الخرائط داخل مساحة التطبيق: " + root.getAbsolutePath());
         return root;
     }
 
