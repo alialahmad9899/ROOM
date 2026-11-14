@@ -159,6 +159,7 @@ public final class NavigationGuidanceService extends Service implements Location
                     startGps();
                 });
             } catch (Exception error) {
+                AppDiagnostics.record(this, "Navigation route file load/parse", error);
                 final String detail = error.getMessage() == null
                         ? error.getClass().getSimpleName() : error.getMessage();
                 mainHandler.post(() -> {
@@ -530,6 +531,7 @@ public final class NavigationGuidanceService extends Service implements Location
                     if (backup.exists()) backup.delete();
                     return payload;
                 } catch (Exception error) {
+                    AppDiagnostics.record(NavigationGuidanceService.this, "Offline reroute update", error);
                     // Restore the last known-good route in memory if the replacement failed.
                     try {
                         String oldPath = prefs.getString(KEY_ROUTE_FILE, "");
