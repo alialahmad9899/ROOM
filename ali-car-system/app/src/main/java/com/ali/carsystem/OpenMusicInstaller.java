@@ -1,7 +1,11 @@
 package com.ali.carsystem;
 
 import android.content.Context;
+import android.content.ContentValues;
+import android.database.Cursor;
 import android.media.MediaScannerConnection;
+import android.media.MediaMetadataRetriever;
+import android.provider.MediaStore;
 import android.os.Environment;
 import android.util.Log;
 
@@ -25,6 +29,59 @@ public final class OpenMusicInstaller {
 
     private OpenMusicInstaller() { }
 
+    private static boolean ensureMediaStoreEntry(Context context, File audioFile) {
+        if (audioFile == null || !audioFile.isFile() || audioFile.length() < 20000L) return false;
+        String path = audioFile.getAbsolutePath();
+        try (Cursor cursor = context.getContentResolver().query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                new String[]{MediaStore.Audio.Media._ID},
+                MediaStore.Audio.Media.DATA + "=?",
+                new String[]{path}, null)) {
+            if (cursor != null && cursor.moveToFirst()) return true;
+        } catch (Exception error) {
+            AppDiagnostics.record(context, "Check Arabic music MediaStore entry", error);
+        }
+
+        String filename = audioFile.getName();
+        String[] parts = filename.split("__", 3);
+        String artist = parts.length == 3 ? parts[1].trim() : "Open Arabic Archive";
+        String title = parts.length == 3 ? parts[2] : filename;
+        int dot = title.lastIndexOf('.');
+        if (dot > 0) title = title.substring(0, dot);
+        title = title.replace('_', ' ').trim();
+
+        long duration = 0L;
+        MediaMetadataRetriever metadata = new MediaMetadataRetriever();
+        try {
+            metadata.setDataSource(path);
+            String value = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            if (value != null) duration = Long.parseLong(value);
+        } catch (Exception error) {
+            AppDiagnostics.record(context, "Read Arabic music metadata", error);
+        } finally {
+            try { metadata.release(); } catch (Exception ignored) { }
+        }
+
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Audio.Media.DATA, path);
+        values.put(MediaStore.Audio.Media.TITLE, title);
+        values.put(MediaStore.Audio.Media.ARTIST, artist);
+        values.put(MediaStore.Audio.Media.ALBUM, "Open Arabic Historical Archive");
+        values.put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg");
+        values.put(MediaStore.Audio.Media.IS_MUSIC, 1);
+        values.put(MediaStore.Audio.Media.DURATION, duration);
+        try {
+            Uri inserted = context.getContentResolver().insert(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values);
+            if (inserted != null) return true;
+            Log.w(TAG, "MediaStore refused insert for " + path);
+        } catch (Exception error) {
+            AppDiagnostics.record(context, "Index Arabic music in MediaStore", error);
+            Log.e(TAG, "Could not insert MediaStore row for " + path, error);
+        }
+        return false;
+    }
+
     public static File getArchiveDirectory(Context context) {
         File shared = new File(
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
@@ -45,7 +102,7 @@ public final class OpenMusicInstaller {
 
     public static int install(Context context) {
         if (context == null) return 0;
-        ArrayList<String> newFiles = new ArrayList<>();
+        ArrayList<String> installedOrExistingFiles = new ArrayList<>();
         try {
             File directory = getArchiveDirectory(context);
             if (!directory.isDirectory() && !directory.mkdirs()) {
@@ -60,7 +117,10 @@ public final class OpenMusicInstaller {
             for (String assetName : assets) {
                 if (assetName == null || !assetName.toLowerCase(java.util.Locale.ROOT).endsWith(".mp3")) continue;
                 File destination = new File(directory, assetName);
-                if (destination.isFile() && destination.length() > 20000L) continue;
+                if (destination.isFile() && destination.length() > 20000L) {
+                    installedOrExistingFiles.add(destination.getAbsolutePath());
+                    continue;
+                }
 
                 File temporary = new File(directory, assetName + ".tmp");
                 try (InputStream input = new BufferedInputStream(
@@ -84,20 +144,27 @@ public final class OpenMusicInstaller {
                     temporary.delete();
                     throw new IllegalStateException("Cannot install audio file: " + destination);
                 }
-                newFiles.add(destination.getAbsolutePath());
+                installedOrExistingFiles.add(destination.getAbsolutePath());
             }
 
-            if (!newFiles.isEmpty()) {
-                CountDownLatch indexed = new CountDownLatch(newFiles.size());
-                String[] paths = newFiles.toArray(new String[0]);
+            if (!installedOrExistingFiles.isEmpty()) {
+                CountDownLatch scanned = new CountDownLatch(installedOrExistingFiles.size());
+                String[] paths = installedOrExistingFiles.toArray(new String[0]);
                 MediaScannerConnection.scanFile(context.getApplicationContext(), paths,
-                        new String[]{"audio/mpeg"}, (path, uri) -> indexed.countDown());
-                indexed.await(20L, TimeUnit.SECONDS);
+                        new String[]{"audio/mpeg"}, (path, uri) -> scanned.countDown());
+                scanned.await(20L, TimeUnit.SECONDS);
+                int indexed = 0;
+                for (String audioPath : paths) {
+                    if (ensureMediaStoreEntry(context, new File(audioPath))) indexed++;
+                }
+                Log.i(TAG, "openArchiveFiles=" + paths.length
+                        + " indexed=" + indexed + " path=" + directory.getAbsolutePath());
             }
 
             Log.i(TAG, "openArchiveFiles=" + assets.length
-                    + " newlyInstalled=" + newFiles.size() + " path=" + directory.getAbsolutePath());
-            return newFiles.size();
+                    + " installedOrExisting=" + installedOrExistingFiles.size()
+                    + " path=" + directory.getAbsolutePath());
+            return installedOrExistingFiles.size();
         } catch (SecurityException error) {
             AppDiagnostics.record(context, "Install public-domain Arabic music (storage permission)", error);
             Log.e(TAG, "Shared storage permission denied; bundled music remains inside the APK", error);
