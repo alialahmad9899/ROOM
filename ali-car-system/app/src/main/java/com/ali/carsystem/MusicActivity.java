@@ -30,7 +30,7 @@ public final class MusicActivity extends BaseActivity {
     private TextView emptyLibrary;
     private String activePlaylist="كل الأغاني";
     private static final String[] PLAYLISTS={
-            "كل الأغاني","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
+            "كل الأغاني","الأرشيف العربي المجاني","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
             "صباح فخري","ميادة بسيليس","ليندا بيطار","الشامي","فايا يونان","شادي جميل",
             "إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين","مروان خوري",
             "كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني","فارس كرم",
@@ -272,6 +272,7 @@ public final class MusicActivity extends BaseActivity {
                     case "أصالة": include=artistMatches(song,"أصالة","asala","assala")||manual.contains(song.id); break;
                     case "أغاني سورية": include=artistMatches(song,SYRIAN_ARTISTS)||manual.contains(song.id); break;
                     case "أغاني لبنانية": include=artistMatches(song,LEBANESE_ARTISTS)||manual.contains(song.id); break;
+                    case "الأرشيف العربي المجاني": include=song.openArchive; break;
                     case "المفضلة": include=service.isFavorite(song.id); break;
                     case "آخر تشغيل": include=recent.contains(song.id); break;
                     default: include=artistMatches(song,activePlaylist)||manual.contains(song.id); break;
@@ -297,7 +298,8 @@ public final class MusicActivity extends BaseActivity {
         if(service==null||song==null)return;
         ArrayList<String> manageable=new ArrayList<>();
         for(String item:PLAYLISTS){
-            if(!"كل الأغاني".equals(item)&&!"المفضلة".equals(item)&&!"آخر تشغيل".equals(item))
+            if(!"كل الأغاني".equals(item)&&!"الأرشيف العربي المجاني".equals(item)
+                    &&!"المفضلة".equals(item)&&!"آخر تشغيل".equals(item))
                 manageable.add(item);
         }
         new AlertDialog.Builder(this).setTitle("إضافة إلى قائمة تشغيل")
