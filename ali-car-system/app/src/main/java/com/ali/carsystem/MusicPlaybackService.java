@@ -48,7 +48,8 @@ public final class MusicPlaybackService extends Service
     private MediaPlayer player;
     private int index = -1;
     private int pendingIndex = -1;
-    private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending;
+    private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending, resumePlaybackAfterLoad;
+    private int restoredPositionMs;
     private String pendingAction;
     private Listener listener;
 
@@ -92,6 +93,8 @@ public final class MusicPlaybackService extends Service
         SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
         shuffle = prefs.getBoolean("shuffle", false);
         repeat = prefs.getBoolean("repeat", false);
+        resumePlaybackAfterLoad = prefs.getBoolean("playing", false);
+        restoredPositionMs = Math.max(0, prefs.getInt("position_ms", 0));
         loadLibraryAsync();
     }
 
@@ -162,12 +165,15 @@ public final class MusicPlaybackService extends Service
                 if (pendingAction != null) {
                     String action = pendingAction;
                     pendingAction = null;
+                    resumePlaybackAfterLoad = false;
                     performAction(action);
-                }
-                if (pendingIndex >= 0) {
+                } else if (pendingIndex >= 0) {
                     int next = pendingIndex;
                     pendingIndex = -1;
+                    resumePlaybackAfterLoad = false;
                     playAt(next);
+                } else if (resumePlaybackAfterLoad && index >= 0) {
+                    playAt(index);
                 }
             });
         });
@@ -256,7 +262,7 @@ public final class MusicPlaybackService extends Service
         index = requestedIndex;
         Song song = songs.get(index);
         SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
-        prefs.edit().putLong("last_song_id", song.id).putString("last_song_name", song.name).apply();
+        prefs.edit().putLong("last_song_id", song.id).putString("last_song_name", song.name).putInt("position_ms", 0).apply();
         rememberRecent(song.id);
 
         try {
@@ -276,7 +282,16 @@ public final class MusicPlaybackService extends Service
             player.setDataSource(this, uri);
             player.setOnPreparedListener(mp -> {
                 prepared = true;
-                try { mp.start(); } catch (Exception ignored) { }
+                try {
+                    if (resumePlaybackAfterLoad && restoredPositionMs > 0) {
+                        mp.seekTo(Math.min(restoredPositionMs, mp.getDuration()));
+                    }
+                    resumePlaybackAfterLoad = false;
+                    restoredPositionMs = 0;
+                    mp.start();
+                } catch (Exception error) {
+                    AppDiagnostics.record(this, "Resume music after reload", error);
+                }
                 notifyChanged();
             });
             player.setOnCompletionListener(mp -> {
@@ -309,8 +324,10 @@ public final class MusicPlaybackService extends Service
         }
         try {
             if (prepared) {
-                if (player.isPlaying()) player.pause();
-                else {
+                if (player.isPlaying()) {
+                    player.pause();
+                    savePlaybackPosition();
+                } else {
                     if (audioManager != null) audioManager.requestAudioFocus(this,
                             AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
                     player.start();
@@ -343,8 +360,18 @@ public final class MusicPlaybackService extends Service
 
     public void seekTo(int milliseconds) {
         if (player != null && prepared) {
-            try { player.seekTo(Math.max(0, Math.min(milliseconds, getDuration()))); }
-            catch (Exception ignored) { }
+            try {
+                player.seekTo(Math.max(0, Math.min(milliseconds, getDuration())));
+                getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
+                        .putInt("position_ms", getPosition()).apply();
+            } catch (Exception ignored) { }
+        }
+    }
+
+    private void savePlaybackPosition() {
+        if (player != null && prepared) {
+            getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
+                    .putInt("position_ms", getPosition()).apply();
         }
     }
 
