@@ -20,7 +20,7 @@ public final class OpenMusicInstallerSmokeTest {
     @Test public void firstRunInstallsPublicDomainArabicTracksIntoMediaLibraryFolder() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         OpenMusicInstaller.install(context);
-        File archive = OpenMusicInstaller.getArchiveDirectory();
+        File archive = OpenMusicInstaller.getArchiveDirectory(context);
         assertTrue("Arabic open-music archive directory must exist", archive.isDirectory());
         File[] tracks = archive.listFiles((dir, name) -> name.toLowerCase().endsWith(".mp3"));
         assertNotNull(tracks);
