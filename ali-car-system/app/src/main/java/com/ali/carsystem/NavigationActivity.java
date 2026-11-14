@@ -145,7 +145,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(routeLine!=null)map.getOverlays().remove(routeLine);routeLine=new Polyline(map);routeLine.setPoints(o.points);routeLine.setColor(0xFF00C8F0);routeLine.setWidth(dp(6));if(guidedMode)map.getOverlays().add(routeLine);
         status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %.0f دقيقة  •  %d انعطاف",o.km,o.minutes,o.turns));
         activeManeuvers=o.maneuvers;buildRouteProgressEngine(o);updateManeuver(current,activeManeuvers);rebuildRouteChoices();
-        if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);map.invalidate();}
+        if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);persistSelectedRoute();map.invalidate();}
     @Override protected void onCreate(Bundle b){super.onCreate(b);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Configuration.getInstance().load(this,getSharedPreferences("osmdroid",MODE_PRIVATE));
         Configuration.getInstance().setUserAgentValue("ALI-CAR/3.8.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
@@ -239,6 +239,26 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             }
         }};
         registerReceiver(navigationStateReceiver,new IntentFilter(NavigationGuidanceService.ACTION_STATE));
+        restoreSelectedRoute();
+    }
+    private void persistSelectedRoute(){
+        if(destination==null||selectedRouteIndex<0||routeOptions==null||selectedRouteIndex>=routeOptions.size())return;
+        try{getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE).edit().putString("selected_route_payload",buildBackgroundRoutePayload()).apply();}
+        catch(Exception error){AppDiagnostics.record(this,"Persist selected navigation route",error);}
+    }
+    private void restoreSelectedRoute(){
+        String saved=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE).getString("selected_route_payload",""); if(saved==null||saved.isEmpty())return;
+        try{
+            JSONObject payload=new JSONObject(saved);JSONArray array=payload.optJSONArray("points");if(array==null||array.length()<2)return;
+            ArrayList<GeoPoint> points=new ArrayList<>();double meters=0d;GeoPoint previous=null;
+            for(int i=0;i<array.length();i++){JSONArray pair=array.optJSONArray(i);if(pair==null||pair.length()<2)continue;GeoPoint point=new GeoPoint(pair.optDouble(0),pair.optDouble(1));if(previous!=null)meters+=GeoMath.distanceMeters(previous.getLatitude(),previous.getLongitude(),point.getLatitude(),point.getLongitude());points.add(point);previous=point;}
+            if(points.size()<2||meters<20d)return;ArrayList<Maneuver> turns=new ArrayList<>();JSONArray turnArray=payload.optJSONArray("maneuvers");
+            if(turnArray!=null)for(int i=0;i<turnArray.length();i++){JSONObject item=turnArray.optJSONObject(i);if(item==null)continue;double lat=item.optDouble("lat",Double.NaN),lon=item.optDouble("lon",Double.NaN);if(!Double.isNaN(lat)&&!Double.isNaN(lon))turns.add(new Maneuver(new GeoPoint(lat,lon),item.optString("text","تابع الطريق")));}
+            destinationName=payload.optString("destination_name","الوجهة");destination=new GeoPoint(payload.optDouble("destination_lat",points.get(points.size()-1).getLatitude()),payload.optDouble("destination_lon",points.get(points.size()-1).getLongitude()));
+            routeOptions=new ArrayList<>();routeOptions.add(new RouteOption(points,meters/1000d,payload.optDouble("duration_seconds",0d)/60d,turns,turns.size()));selectedRouteIndex=0;activeManeuvers=turns;
+            routeLine=new Polyline(map);routeLine.setPoints(points);routeLine.setColor(0xFF00C8F0);routeLine.setWidth(dp(6));map.getOverlays().add(routeLine);destMarker=new Marker(map);destMarker.setPosition(destination);destMarker.setTitle(destinationName);map.getOverlays().add(destMarker);
+            rebuildRouteChoices();buildRouteProgressEngine(routeOptions.get(0));updateManeuver(current,activeManeuvers);status.setText("تمت استعادة المسار السابق • التتبع مستمر بالخلفية");if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points),true);map.invalidate();search.setText(destinationName);
+        }catch(Exception error){AppDiagnostics.record(this,"Restore selected navigation route",error);}
     }
     private String buildBackgroundRoutePayload() throws Exception {
         if(selectedRouteIndex<0||routeOptions==null||selectedRouteIndex>=routeOptions.size())return null;
@@ -333,6 +353,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(geocodeTask!=null)geocodeTask.cancel(true);final int requestId=++geocodeRequestId;
         if(routeTask!=null){routeRequestId++;routeTask.cancel(true);routeTask=null;}
         routeAttemptedForDestination=false;routeOptions=Collections.emptyList();selectedRouteIndex=-1;activeManeuvers=Collections.emptyList();
+        getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE).edit().remove("selected_route_payload").apply();
         if(routeLine!=null){map.getOverlays().remove(routeLine);routeLine=null;}routeChoices.removeAllViews();
         status.setText("جارٍ البحث محلياً في قاعدة بيانات سوريا...");maneuver.setText("البحث المحلي دون إنترنت");
         geocodeTask=new AsyncTask<String,Void,GeoResult>(){
