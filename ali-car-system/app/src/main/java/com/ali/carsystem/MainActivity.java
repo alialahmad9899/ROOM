@@ -392,6 +392,9 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout all=vertical();all.setPadding(dp(18),dp(12),dp(18),dp(12));root.addView(all,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=horizontal();TextView back=label("›",32,0xFF9DEFFF,true);back.setGravity(Gravity.CENTER);back.setOnClickListener(v->pager.setCurrentItem(0,true));header.addView(back,new LinearLayout.LayoutParams(dp(52),dp(40)));
         TextView title=label("عدادات القيادة والكيلومتراج",23,Color.WHITE,true);title.setGravity(Gravity.CENTER);header.addView(title,new LinearLayout.LayoutParams(0,dp(40),1));all.addView(header);
+        NavigationBannerView navigationBanner=new NavigationBannerView(this);
+        LinearLayout.LayoutParams navigationBannerLp=new LinearLayout.LayoutParams(-1,dp(54));
+        navigationBannerLp.topMargin=dp(5);all.addView(navigationBanner,navigationBannerLp);
         clusterGauge=new SpeedometerView(this);clusterGauge.setSpeed(lastDisplayedSpeed);LinearLayout.LayoutParams gl=new LinearLayout.LayoutParams(dp(288),dp(288));gl.gravity=Gravity.CENTER;all.addView(clusterGauge,gl);
         LinearLayout stats=horizontal();stats.setGravity(Gravity.CENTER);
         stats.addView(statCard("رحلة حالية","trip"),new LinearLayout.LayoutParams(0,dp(112),1));
