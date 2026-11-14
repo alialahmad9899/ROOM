@@ -26,10 +26,25 @@ public final class MusicActivity extends BaseActivity {
     private TextView emptyLibrary;
     private String activePlaylist="كل الأغاني";
     private static final String[] PLAYLISTS={
-            "كل الأغاني","فيروزيات","نصيف زيتون","إليسا","أصالة",
+            "كل الأغاني","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
+            "صباح فخري","ميادة بسيليس","ليندا بيطار","الشامي","فايا يونان","شادي جميل",
+            "إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين","مروان خوري",
+            "كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني","فارس كرم",
+            "وائل جسار","مريام فارس","هبة طوجي","زياد برجي",
             "أغاني سورية","أغاني لبنانية","أغاني رومانسية",
             "أغاني هادئة للقيادة","أغاني حماسية","ترند عربي 2026",
             "المفضلة","آخر تشغيل"
+    };
+    private static final String[] SYRIAN_ARTISTS={
+            "نصيف زيتون","أصالة","جورج وسوف","صباح فخري","ميادة بسيليس",
+            "ليندا بيطار","الشامي","فايا يونان","شادي جميل","نور مهنا","مجد القاسم",
+            "nassif zeytoun","asala","george wassouf","al shami","faya younan"
+    };
+    private static final String[] LEBANESE_ARTISTS={
+            "فيروز","إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين",
+            "مروان خوري","كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني",
+            "فارس كرم","وائل جسار","مريام فارس","هبة طوجي","زياد برجي",
+            "fairuz","elissa","nancy ajram","wael kfoury","ragheb alama"
     };
     private boolean charging,playing;
     private BroadcastReceiver stateReceiver,powerReceiver;
@@ -248,11 +263,11 @@ public final class MusicActivity extends BaseActivity {
                     case "نصيف زيتون": include=artistMatches(song,"نصيف زيتون","nassif zeytoun","nassif")||manual.contains(song.id); break;
                     case "إليسا": include=artistMatches(song,"إليسا","elissa","elissar")||manual.contains(song.id); break;
                     case "أصالة": include=artistMatches(song,"أصالة","asala","assala")||manual.contains(song.id); break;
-                    case "أغاني سورية": include=artistMatches(song,"نصيف","أصالة","جورج وسوف","صباح فخري","ميادة","ليندا بيطار","nassif","asala")||manual.contains(song.id); break;
-                    case "أغاني لبنانية": include=artistMatches(song,"فيروز","إليسا","نانسي","وائل كفوري","راغب علامة","ملحم زين","مروان خوري","كارول سماحة","فضل شاكر","جوليا بطرس","زياد برجي","fairuz","elissa","nancy","wael kfoury")||manual.contains(song.id); break;
+                    case "أغاني سورية": include=artistMatches(song,SYRIAN_ARTISTS)||manual.contains(song.id); break;
+                    case "أغاني لبنانية": include=artistMatches(song,LEBANESE_ARTISTS)||manual.contains(song.id); break;
                     case "المفضلة": include=service.isFavorite(song.id); break;
                     case "آخر تشغيل": include=recent.contains(song.id); break;
-                    default: include=manual.contains(song.id); break;
+                    default: include=artistMatches(song,activePlaylist)||manual.contains(song.id); break;
                 }
                 if(include)filtered.add(song);
             }
@@ -273,18 +288,18 @@ public final class MusicActivity extends BaseActivity {
 
     private void addSongToPlaylist(MusicPlaybackService.Song song){
         if(service==null||song==null)return;
+        ArrayList<String> manageable=new ArrayList<>();
+        for(String item:PLAYLISTS){
+            if(!"كل الأغاني".equals(item)&&!"المفضلة".equals(item)&&!"آخر تشغيل".equals(item))
+                manageable.add(item);
+        }
         new AlertDialog.Builder(this).setTitle("إضافة إلى قائمة تشغيل")
-                .setItems(new String[]{"فيروزيات","نصيف زيتون","إليسا","أصالة",
-                        "أغاني سورية","أغاني لبنانية","أغاني رومانسية",
-                        "أغاني هادئة للقيادة","أغاني حماسية","ترند عربي 2026"},
-                        (dialog,which)->{
-                            String selected=new String[]{"فيروزيات","نصيف زيتون","إليسا","أصالة",
-                                    "أغاني سورية","أغاني لبنانية","أغاني رومانسية",
-                                    "أغاني هادئة للقيادة","أغاني حماسية","ترند عربي 2026"}[which];
-                            service.addSongToPlaylist(song.id,selected);
-                            activePlaylist=selected;applyPlaylistFilter();
-                            Toast.makeText(this,"تمت إضافة الأغنية إلى "+selected,Toast.LENGTH_SHORT).show();
-                        }).setNegativeButton("إلغاء",null).show();
+                .setItems(manageable.toArray(new String[0]),(dialog,which)->{
+                    String selected=manageable.get(which);
+                    service.addSongToPlaylist(song.id,selected);
+                    activePlaylist=selected;applyPlaylistFilter();
+                    Toast.makeText(this,"تمت إضافة الأغنية إلى "+selected,Toast.LENGTH_SHORT).show();
+                }).setNegativeButton("إلغاء",null).show();
     }
 
     private static final int REQUEST_IMPORT_AUDIO=9021;
