@@ -455,20 +455,27 @@ public final class NavigationGuidanceService extends Service implements Location
             publishState("محرك النطق غير جاهز؛ لا يوجد تحويل صوتي إلى الإنجليزية كبديل", true);
             return;
         }
-        int language = tts.isLanguageAvailable(new Locale("ar", "SA"));
-        arabicAvailable = language >= TextToSpeech.LANG_AVAILABLE
-                && tts.setLanguage(new Locale("ar", "SA")) >= TextToSpeech.LANG_AVAILABLE;
-        ttsReady = true;
-        tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-            @Override public void onStart(String utteranceId) { }
-            @Override public void onDone(String utteranceId) {
-                if (audioManager != null) audioManager.abandonAudioFocus(NavigationGuidanceService.this);
-            }
-            @Override public void onError(String utteranceId) {
-                if (audioManager != null) audioManager.abandonAudioFocus(NavigationGuidanceService.this);
-            }
-        });
-        if (!arabicAvailable) publishState("لا توجد بيانات نطق عربية مثبتة؛ تظهر التعليمات بالعربية على الشاشة فقط", true);
+        try {
+            int language = tts.isLanguageAvailable(new Locale("ar", "SA"));
+            arabicAvailable = language >= TextToSpeech.LANG_AVAILABLE
+                    && tts.setLanguage(new Locale("ar", "SA")) >= TextToSpeech.LANG_AVAILABLE;
+            ttsReady = true;
+            tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String utteranceId) { }
+                @Override public void onDone(String utteranceId) {
+                    if (audioManager != null) audioManager.abandonAudioFocus(NavigationGuidanceService.this);
+                }
+                @Override public void onError(String utteranceId) {
+                    if (audioManager != null) audioManager.abandonAudioFocus(NavigationGuidanceService.this);
+                }
+            });
+            if (!arabicAvailable) publishState("لا توجد بيانات نطق عربية مثبتة؛ تظهر التعليمات بالعربية على الشاشة فقط", true);
+        } catch (Exception error) {
+            ttsReady = false;
+            arabicAvailable = false;
+            AppDiagnostics.record(this, "Configure Arabic navigation TTS", error);
+            publishState("تعذر تهيئة الصوت العربي؛ التعليمات النصية مستمرة", true);
+        }
     }
 
     private void recalculateRoute(Location start) {
