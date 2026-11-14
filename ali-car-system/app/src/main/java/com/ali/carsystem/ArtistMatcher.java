@@ -58,7 +58,7 @@ public final class ArtistMatcher {
             return new String[]{"فايا يونان","faya younan","faya"};
         if (key.contains("شادي جميل") || key.contains("shadi jamil"))
             return new String[]{"شادي جميل","shadi jamil"};
-        if (key.contains("الياسا") || key.contains("elissa"))
+        if (key.contains("اليسا") || key.contains("elissa"))
             return new String[]{"إليسا","اليسا","elissa","elissar","elisa"};
         if (key.contains("نانسي") || key.contains("nancy"))
             return new String[]{"نانسي عجرم","nancy ajram","nancy"};
@@ -82,12 +82,16 @@ public final class ArtistMatcher {
             return new String[]{"فارس كرم","fares karam","farris karam"};
         if (key.contains("وائل جسار") || key.contains("wael jassar"))
             return new String[]{"وائل جسار","wael jassar","wael jaser"};
-        if (key.contains("ميريام فارس") || key.contains("myriam"))
+        if (key.contains("ميريام فارس") || key.contains("مريام فارس") || key.contains("myriam"))
             return new String[]{"ميريام فارس","مريام فارس","myriam fares","myriam faris"};
         if (key.contains("هبة طوجي") || key.contains("hiba tawaji"))
             return new String[]{"هبة طوجي","hiba tawaji","hiba tawagy"};
         if (key.contains("زياد برجي") || key.contains("ziad bourji"))
             return new String[]{"زياد برجي","ziad bourji","ziad borji"};
+        if (key.contains("نور مهنا") || key.contains("nour mehanna"))
+            return new String[]{"نور مهنا","nour mehanna","nour mihanna"};
+        if (key.contains("مجد القاسم") || key.contains("majd al qassem"))
+            return new String[]{"مجد القاسم","majd al qassem","majd alkassem"};
         return new String[]{artist};
     }
 }
