@@ -25,16 +25,29 @@ public final class OpenMusicInstaller {
 
     private OpenMusicInstaller() { }
 
-    public static File getArchiveDirectory() {
-        File root = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
-        return new File(root, DIRECTORY_NAME);
+    public static File getArchiveDirectory(Context context) {
+        File shared = new File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+                DIRECTORY_NAME);
+        if (shared.isDirectory() || shared.mkdirs()) return shared;
+
+        File appExternal = context.getExternalFilesDir(Environment.DIRECTORY_MUSIC);
+        if (appExternal != null) {
+            File appArchive = new File(appExternal, "Open Arabic Archive");
+            if (appArchive.isDirectory() || appArchive.mkdirs()) return appArchive;
+        }
+
+        File privateArchive = new File(new File(context.getFilesDir(), "Music"), "Open Arabic Archive");
+        if (!privateArchive.isDirectory() && !privateArchive.mkdirs())
+            throw new IllegalStateException("Cannot create private Arabic music directory");
+        return privateArchive;
     }
 
     public static int install(Context context) {
         if (context == null) return 0;
         ArrayList<String> newFiles = new ArrayList<>();
         try {
-            File directory = getArchiveDirectory();
+            File directory = getArchiveDirectory(context);
             if (!directory.isDirectory() && !directory.mkdirs()) {
                 throw new IllegalStateException("Cannot create shared music directory: " + directory);
             }
