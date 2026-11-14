@@ -2,19 +2,22 @@ package com.ali.carsystem;
 
 import android.content.Context;
 import android.provider.MediaStore;
-import android.database.Cursor;
 import android.os.Environment;
 import android.util.Log;
 
 import java.io.File;
+import java.util.Locale;
 
 /**
- * Removes the obsolete bundled historical archive from upgrades.
- * The player now uses only audio already present in the user's local library.
+ * Removes the obsolete downloaded historical archive from legacy install locations.
+ * It deliberately never touches the user's other Music folders or local audio files.
  */
 public final class OpenMusicInstaller {
     private static final String TAG = "ALI-CAR-MusicCleanup";
     private static final String DIRECTORY_NAME = "ALI CAR/Open Arabic Archive";
+    private static final String[] AUDIO_EXTENSIONS = {
+            ".mp3", ".ogg", ".wav", ".m4a", ".aac", ".flac", ".opus", ".wma", ".aiff", ".ape"
+    };
 
     private OpenMusicInstaller() { }
 
@@ -32,36 +35,46 @@ public final class OpenMusicInstaller {
         File[] locations = {shared, appSpecific, privateSpecific};
         int removed = 0;
         for (File directory : locations) {
-            if (directory == null) continue;
-            File[] files = directory.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file == null || !file.isFile()) continue;
-                    String name = file.getName().toLowerCase(java.util.Locale.ROOT);
-                    if (!name.endsWith(".mp3") && !name.endsWith(".ogg")) continue;
-                    String path = file.getAbsolutePath();
-                    try {
-                        context.getContentResolver().delete(
-                                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                                MediaStore.Audio.Media.DATA + "=?",
-                                new String[]{path});
-                    } catch (Exception error) {
-                        AppDiagnostics.record(context, "Remove obsolete bundled music index", error);
-                    }
-                    if (file.delete()) removed++;
-                }
-            }
-            if (directory.isDirectory()) {
-                File[] remaining = directory.listFiles();
-                if (remaining != null && remaining.length == 0) directory.delete();
-            }
+            if (directory != null && directory.exists())
+                removed += removeLegacyAudioTree(context, directory);
         }
-        File sharedParent = shared.getParentFile();
-        if (sharedParent != null && sharedParent.isDirectory()) {
-            File[] remaining = sharedParent.listFiles();
-            if (remaining != null && remaining.length == 0) sharedParent.delete();
-        }
-        Log.i(TAG, "removedObsoleteArchiveTracks=" + removed);
+        Log.i(TAG, "removedObsoleteHistoricalAudio=" + removed);
         return removed;
+    }
+
+    private static int removeLegacyAudioTree(Context context, File directory) {
+        File[] entries = directory.listFiles();
+        if (entries == null) return 0;
+        int removed = 0;
+        for (File entry : entries) {
+            if (entry.isDirectory()) {
+                removed += removeLegacyAudioTree(context, entry);
+                File[] remaining = entry.listFiles();
+                if (remaining != null && remaining.length == 0) entry.delete();
+                continue;
+            }
+            if (!entry.isFile() || !isAudioFile(entry.getName())) continue;
+            String path = entry.getAbsolutePath();
+            try {
+                context.getContentResolver().delete(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        MediaStore.Audio.Media.DATA + "=?",
+                        new String[]{path});
+            } catch (Exception error) {
+                AppDiagnostics.record(context, "Remove obsolete historical audio index", error);
+            }
+            if (entry.delete()) removed++;
+        }
+        File[] remaining = directory.listFiles();
+        if (remaining != null && remaining.length == 0) directory.delete();
+        return removed;
+    }
+
+    private static boolean isAudioFile(String name) {
+        String lower = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        for (String extension : AUDIO_EXTENSIONS) {
+            if (lower.endsWith(extension)) return true;
+        }
+        return false;
     }
 }

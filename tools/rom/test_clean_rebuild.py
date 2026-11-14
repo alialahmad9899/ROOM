@@ -15,7 +15,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 381" in GRADLE and "versionName '3.8.1'" in GRADLE,"ALI CAR version 3.8.1")
+require("versionCode 382" in GRADLE and "versionName '3.8.2'" in GRADLE,"ALI CAR version 3.8.2")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -66,9 +66,12 @@ require("RouteProgressEngine" in NAV_GUIDANCE and "remainingToTurnMeters" in NAV
 require("EXTRA_ROUTE_FILE" in NAV_GUIDANCE and "FileInputStream" in NAV_GUIDANCE
         and "startForeground" in NAV_GUIDANCE,
         "background route is restored from a file after foreground service start")
+HUD=(SRC/"java/com/ali/carsystem/NavigationBannerView.java").read_text(encoding="utf-8")
 require("NavigationBannerView" in MAIN and
-        (SRC/"java/com/ali/carsystem/NavigationBannerView.java").is_file(),
-        "persistent navigation banner exists in dashboard")
+        (SRC/"java/com/ali/carsystem/NavigationBannerView.java").is_file()
+        and "dashboard_navigation_hud" in HUD and "navigation_hud_distance" in HUD
+        and "Gravity.CENTER" in MAIN,
+        "floating dashboard HUD is centered over wallpaper with numeric turn distance")
 require((APP/"src/androidTest/java/com/ali/carsystem/PowerReceiverSmokeTest.java").is_file(),
         "charger focus regression test exists")
 require((APP/"src/androidTest/java/com/ali/carsystem/BackgroundNavigationServiceSmokeTest.java").is_file(),
@@ -113,15 +116,21 @@ require("RecyclerView" in music and "Visualizer" in music and "1000L/duration" i
 require("VinylDiscView" in music and "setSpinning" in music and "new float[36]" in music,"rotating record and redesigned 36-bar live equalizer")
 require(not (SRC/"assets/music").exists(),
         "no historical or unrelated audio archive is bundled in the APK")
-require("ArtistMatcher.isSupportedArtist" in music
-        and "if(!isSupportedArtist(song))continue" in music,
-        "music library is restricted to the requested singer list and normalized aliases")
+audio_extensions={".mp3",".ogg",".wav",".m4a",".aac",".flac",".opus",".wma",".aiff",".ape",".mid",".midi"}
+require(not any(p.is_file() and p.suffix.lower() in audio_extensions
+                for p in (SRC/"assets").rglob("*")),
+        "no bundled audio in any supported format can enter the APK")
+require("for(MusicPlaybackService.Song song:allSongs)" in music
+        and "if(!isSupportedArtist(song))continue" not in music
+        and 'case "كل الأغاني": include=true;' in music,
+        "all local tracks remain visible; artist names are optional playlist filters")
 require("MusicFilePolicy.MAX_TRACK_BYTES" in music
         and "MusicFilePolicy.isAllowed" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8"),
         "music imports and MediaStore scans enforce a 4 MiB per-track limit")
 require("OpenMusicInstaller.install" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
-        and "Remove obsolete bundled music index" in (SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").read_text(encoding="utf-8"),
-        "upgrade removes obsolete bundled archive and indexes only local user music")
+        and "removeLegacyAudioTree" in (SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").read_text(encoding="utf-8")
+        and "Open Arabic Archive" in (SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").read_text(encoding="utf-8"),
+        "upgrade recursively removes all old archive audio only from legacy archive paths")
 require("WRITE_EXTERNAL_STORAGE" in MAN,
         "API21 shared music archive has legacy write-storage permission")
 require("context.getFilesDir()" in (SRC/"java/com/ali/carsystem/OfflineMapsManager.java").read_text(encoding="utf-8"),
@@ -138,8 +147,9 @@ require("install_open_music.py" in (ROOT/".github/workflows/build-car-app-3.yml"
         and "MUSIC_ASSETS_OK" in (ROOT/"tools/rom/install_open_music.py").read_text(encoding="utf-8"),
         "CI verifies that no unrequested historical tracks are bundled")
 
-require("NavigationBannerView" in music and "music_playlist_filters" in music,
-        "music screen has navigation guidance and playlist filters")
+require("NavigationBannerView" in music and "music_playlist_filters" in music
+        and "navigation_hud_distance" in HUD,
+        "music screen has compact navigation HUD and playlist filters")
 require("music_add_local_files" in music and "ACTION_OPEN_DOCUMENT" in music
         and "MediaScannerConnection.scanFile" in music,
         "licensed local audio import is supported")
@@ -181,4 +191,4 @@ require("1280x720" in wallpaper and "111.jfif" in wallpaper and "ImageOps.fit" i
 require(not (SRC/"java/com/ali/carsystem/RouteNetworkClient.java").exists(),"obsolete online routing client removed")
 require(not (SRC/"java/com/ali/carsystem/GeocodingClient.java").exists(),"obsolete online geocoder removed")
 require(not (APP/"src/test/java/com/ali/carsystem/RouteNetworkClientTest.java").exists(),"obsolete online routing tests removed")
-print("PASS: ALI CAR 3.8.1 API21 offline maps, local music and UI contracts")
+print("PASS: ALI CAR 3.8.2 API21 offline maps, local music and navigation HUD contracts")
