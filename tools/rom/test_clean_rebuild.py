@@ -14,7 +14,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 370" in GRADLE and "versionName '3.7.0'" in GRADLE,"ALI CAR version 3.7.0")
+require("versionCode 380" in GRADLE and "versionName '3.8.0'" in GRADLE,"ALI CAR version 3.8.0")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
 require('android:name=".CarApplication"' in MAN and "onTrimMemory" in (SRC/"java/com/ali/carsystem/CarApplication.java").read_text(),"memory manager")
