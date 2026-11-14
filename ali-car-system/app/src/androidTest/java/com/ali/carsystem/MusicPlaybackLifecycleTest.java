@@ -46,14 +46,13 @@ public final class MusicPlaybackLifecycleTest {
             MusicPlaybackService service = ((MusicPlaybackService.LocalBinder) binder).getService();
 
             long deadline = System.currentTimeMillis() + 20000L;
+            while (System.currentTimeMillis() < deadline && !service.isLibraryLoaded()) {
+                Thread.sleep(100L);
+            }
+            assertTrue("Service library scan must finish", service.isLibraryLoaded());
             boolean found = false;
-            while (System.currentTimeMillis() < deadline) {
-                for (MusicPlaybackService.Song song : service.getSongs()) {
-                    if (song.id == id) { found = true; break; }
-                }
-                if (found) break;
-                service.refreshLibrary();
-                Thread.sleep(250L);
+            for (MusicPlaybackService.Song song : service.getSongs()) {
+                if (song.id == id) { found = true; break; }
             }
             assertTrue("Service must discover the local test recording", found);
 
@@ -72,6 +71,7 @@ public final class MusicPlaybackLifecycleTest {
                 Thread.sleep(100L);
             }
             assertTrue("Resume must restart playback", service.isPlaying());
+            assertTrue("Playback position must advance after resume", service.getPosition() > 0);
         } finally {
             if (row != null) {
                 try { context.getContentResolver().delete(row, null, null); } catch (Exception ignored) { }
