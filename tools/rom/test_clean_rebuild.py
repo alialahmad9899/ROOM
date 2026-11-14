@@ -158,11 +158,13 @@ require("gmsAvailabilityCode" in NAV and "gmsLocationStatus" in NAV,"Google Play
 require("windowSoftInputMode=" in MAN and "adjustResize" in MAN,"navigation keyboard resize")
 require("sendExtraCommand" in NAV and "force_xtra_injection" in NAV and "force_time_injection" in NAV,"optional A-GPS assistance refresh")
 require("ACCESS_LOCATION_EXTRA_COMMANDS" in MAN,"GPS assistance permission")
-for name in ("GeoMathTest.java","VideoApiTest.java"):
+for name in ("GeoMathTest.java","VideoApiTest.java","ArtistMatcherTest.java"):
  require((APP/"src/test/java/com/ali/carsystem"/name).is_file(),"unit test "+name)
 require((APP/"src/androidTest/java/com/ali/carsystem/LaunchSmokeTest.java").is_file(),"dashboard UI smoke test")
 require((APP/"src/androidTest/java/com/ali/carsystem/DashboardSleepSmokeTest.java").is_file(),"dashboard sleep and gauge UI smoke test")
 require((APP/"src/androidTest/java/com/ali/carsystem/MusicActivitySmokeTest.java").is_file(),"music screen UI smoke test")
+require((APP/"src/androidTest/java/com/ali/carsystem/MusicPlaybackLifecycleTest.java").is_file(),"local audio playback lifecycle instrumentation test")
+require((APP/"src/androidTest/java/com/ali/carsystem/OpenMusicInstallerSmokeTest.java").is_file(),"legacy bundled music removal instrumentation test")
 require((APP/"src/androidTest/java/com/ali/carsystem/NavigationActivitySmokeTest.java").is_file(),"navigation screen UI smoke test")
 java="\n".join(p.read_text(encoding="utf-8") for p in (SRC/"java").rglob("*.java"))
 require("new WebView" not in java,"WebView prohibited")
@@ -171,4 +173,4 @@ require("1280x720" in wallpaper and "111.jfif" in wallpaper and "ImageOps.fit" i
 require(not (SRC/"java/com/ali/carsystem/RouteNetworkClient.java").exists(),"obsolete online routing client removed")
 require(not (SRC/"java/com/ali/carsystem/GeocodingClient.java").exists(),"obsolete online geocoder removed")
 require(not (APP/"src/test/java/com/ali/carsystem/RouteNetworkClientTest.java").exists(),"obsolete online routing tests removed")
-print("PASS: ALI CAR 3.7 API21 offline-only maps, search, BRouter and UI contracts")
+print("PASS: ALI CAR 3.8.1 API21 offline maps, local music and UI contracts")
