@@ -27,7 +27,7 @@ public final class CarApplication extends Application implements ComponentCallba
         ((ActivityManager)c.getSystemService(Context.ACTIVITY_SERVICE)).getMemoryInfo(info);
         return info.availMem / (1024L * 1024L);
     }
-    @Override public void onCreate() { super.onCreate(); registerComponentCallbacks(this); }
+    @Override public void onCreate() { super.onCreate(); AppDiagnostics.install(this); registerComponentCallbacks(this); }
     @Override public void onTrimMemory(int level) {
         if (level >= TRIM_MEMORY_UI_HIDDEN) clearBitmapCache();
         else if (level >= TRIM_MEMORY_RUNNING_LOW) BITMAPS.clear();
