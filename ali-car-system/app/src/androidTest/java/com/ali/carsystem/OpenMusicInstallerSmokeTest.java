@@ -1,6 +1,7 @@
 package com.ali.carsystem;
 
 import android.content.Context;
+import android.media.MediaPlayer;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -23,9 +24,23 @@ public final class OpenMusicInstallerSmokeTest {
         assertNotNull(tracks);
         assertTrue("At least 30 public-domain Arabic OGG recordings must be installed",
                 tracks.length >= 30);
+        File firstTrack = null;
         for (File track : tracks) {
             assertTrue("Bundled audio must not be an empty placeholder: " + track.getName(),
                     track.isFile() && track.length() > 20000L);
+            if (firstTrack == null) firstTrack = track;
+        }
+        assertNotNull(firstTrack);
+        MediaPlayer player = new MediaPlayer();
+        try {
+            player.setDataSource(firstTrack.getAbsolutePath());
+            player.prepare();
+            assertTrue("Android 5 MediaPlayer must decode the bundled MP3",
+                    player.getDuration() >= 60000);
+        } catch (Exception error) {
+            fail("Bundled Arabic MP3 could not be decoded by API21 MediaPlayer: " + error);
+        } finally {
+            player.release();
         }
     }
 }
