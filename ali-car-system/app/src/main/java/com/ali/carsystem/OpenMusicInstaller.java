@@ -45,7 +45,7 @@ public final class OpenMusicInstaller {
             }
 
             for (String assetName : assets) {
-                if (assetName == null || !assetName.toLowerCase(java.util.Locale.ROOT).endsWith(".ogg")) continue;
+                if (assetName == null || !assetName.toLowerCase(java.util.Locale.ROOT).endsWith(".mp3")) continue;
                 File destination = new File(directory, assetName);
                 if (destination.isFile() && destination.length() > 20000L) continue;
 
@@ -78,7 +78,7 @@ public final class OpenMusicInstaller {
                 CountDownLatch indexed = new CountDownLatch(newFiles.size());
                 String[] paths = newFiles.toArray(new String[0]);
                 MediaScannerConnection.scanFile(context.getApplicationContext(), paths,
-                        new String[]{"audio/ogg"}, (path, uri) -> indexed.countDown());
+                        new String[]{"audio/mpeg"}, (path, uri) -> indexed.countDown());
                 indexed.await(20L, TimeUnit.SECONDS);
             }
 
