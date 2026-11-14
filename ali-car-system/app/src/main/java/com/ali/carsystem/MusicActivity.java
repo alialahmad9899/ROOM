@@ -170,6 +170,7 @@ public final class MusicActivity extends BaseActivity {
         addFiles.setOnClickListener(v->openAudioPicker());
         root.addView(head);
         NavigationBannerView navigationBanner = new NavigationBannerView(this);
+        navigationBanner.setTag("navigation_guidance_banner");
         LinearLayout.LayoutParams navigationBannerLp = new LinearLayout.LayoutParams(dp(332),dp(116));
         navigationBannerLp.gravity = Gravity.CENTER_HORIZONTAL;
         navigationBannerLp.topMargin = dp(5);

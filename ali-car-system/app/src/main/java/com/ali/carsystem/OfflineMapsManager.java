@@ -86,7 +86,7 @@ final class OfflineMapsManager {
                 + " • توجيه دون إنترنت: " + (routing ? "جاهز" : "بيانات التوجيه ناقصة");
     }
 
-    static void ensureBundledAssets(Context context) throws Exception {
+    static synchronized void ensureBundledAssets(Context context) throws Exception {
         if (getMapFile(context) != null && getPlacesDatabase(context) != null && hasOfflineRouting(context)) return;
         AssetManager assets = context.getAssets();
         String[] bundled = assets.list("offline");

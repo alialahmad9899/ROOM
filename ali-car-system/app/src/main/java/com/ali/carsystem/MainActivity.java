@@ -233,6 +233,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
         if(isFinishing()||pager==null||welcomeOverlay!=null)return;
         dismissAmbient();handler.removeCallbacks(idleTick);
         NeonSplashView splash=new NeonSplashView(this);welcomeOverlay=splash;
+        splash.setBackgroundColor(0xFF030B16); splash.setClickable(true); splash.setFocusable(true);
+        if(android.os.Build.VERSION.SDK_INT>=21)splash.setElevation(dp(24));
         addContentView(splash,new FrameLayout.LayoutParams(-1,-1));
         splash.setAlpha(0);splash.animate().alpha(1).setDuration(520).setInterpolator(new DecelerateInterpolator()).start();
         if(ttsReady)try{tts.speak("Welcome Ali",TextToSpeech.QUEUE_FLUSH,null,"ali-welcome");}catch(Exception ignored){pendingSpeak=true;}
