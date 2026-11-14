@@ -159,6 +159,10 @@ require("NavigationBannerView" in music and "music_playlist_filters" in music
 require("music_add_local_files" in music and "ACTION_OPEN_DOCUMENT" in music
         and "MediaScannerConnection.scanFile" in music,
         "licensed local audio import is supported")
+require("final MusicPlaybackService connectedService=" in music
+        and "service!=connectedService" in music and "isDestroyed()" in music
+        and "service.setListener(null)" in music,
+        "music service callbacks are guarded against stale delivery after activity unbind")
 require("addSongToPlaylist" in music and "service.isFavorite" in music,
         "custom playlists and favorites are managed from music UI")
 
