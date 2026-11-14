@@ -1,6 +1,9 @@
 package com.ali.carsystem;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.view.View;
 import android.widget.TextView;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -10,6 +13,10 @@ import androidx.test.rule.ActivityTestRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.Assert.*;
 
 @RunWith(AndroidJUnit4.class)
@@ -47,6 +54,32 @@ public final class LaunchSmokeTest {
         active.putExtra(NavigationGuidanceService.EXTRA_ETA_MINUTES, 8L);
         active.putExtra(NavigationGuidanceService.EXTRA_MANEUVER_TEXT, "انعطف يميناً");
         active.putExtra(NavigationGuidanceService.EXTRA_SPEED_KMH, 62f);
+
+        // The preceding background-service test can still be delivering its ACTION_STOP
+        // broadcast. Wait for that real stop event before sending the synthetic active
+        // state so the two broadcasts cannot race and make this HUD assertion flaky.
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        CountDownLatch previousRouteStopped = new CountDownLatch(1);
+        BroadcastReceiver stopBarrier = new BroadcastReceiver() {
+            @Override public void onReceive(Context c, Intent intent) {
+                if (NavigationGuidanceService.ACTION_STATE.equals(intent.getAction())
+                        && !intent.getBooleanExtra("active", false)) {
+                    previousRouteStopped.countDown();
+                }
+            }
+        };
+        context.registerReceiver(stopBarrier,
+                new IntentFilter(NavigationGuidanceService.ACTION_STATE));
+        try {
+            Intent stopPrevious = new Intent(context, NavigationGuidanceService.class);
+            stopPrevious.setAction(NavigationGuidanceService.ACTION_STOP);
+            context.startService(stopPrevious);
+            assertTrue("Previous navigation service must finish its stop broadcast",
+                    previousRouteStopped.await(10, TimeUnit.SECONDS));
+        } finally {
+            context.unregisterReceiver(stopBarrier);
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> main.sendBroadcast(active));
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
 
