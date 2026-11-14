@@ -33,6 +33,12 @@ public final class MusicActivitySmokeTest {
         assertTrue("Album labels readable",
                 variety.getTextSize()/screen.getResources().getDisplayMetrics().scaledDensity>=14f);
 
+        TextView archive=(TextView)content.findViewWithTag("music_archive_album");
+        assertNotNull("Ready-made archive album",archive);
+        assertEquals("الأرشيف",archive.getText().toString());
+        assertTrue("Archive album name readable",archive.getTextSize()
+                / screen.getResources().getDisplayMetrics().scaledDensity>=14f);
+
         TextView heading=(TextView)content.findViewWithTag("music_library_title");
         assertNotNull(heading);
         assertTrue("Library heading enlarged",

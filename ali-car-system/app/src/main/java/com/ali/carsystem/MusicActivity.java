@@ -31,7 +31,7 @@ public final class MusicActivity extends BaseActivity {
     private TextView emptyLibrary;
     private String activePlaylist="كل الأغاني";
     private static final String[] PLAYLISTS={
-            "كل الأغاني","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
+            "كل الأغاني","الأرشيف","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
             "صباح فخري","ميادة بسيليس","ليندا بيطار","الشامي","فايا يونان","شادي جميل",
             "إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين","مروان خوري",
             "كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني","فارس كرم",
@@ -224,7 +224,7 @@ public final class MusicActivity extends BaseActivity {
         LinearLayout playlistRow=new LinearLayout(this);playlistRow.setGravity(Gravity.CENTER_VERTICAL);
         for(String playlist:PLAYLISTS){
             TextView chip=text(playlist,14,Color.WHITE,true);
-            chip.setTag("متنوعة".equals(playlist)?"music_variety_album":"music_album_chip");
+            chip.setTag("متنوعة".equals(playlist)?"music_variety_album":("الأرشيف".equals(playlist)?"music_archive_album":"music_album_chip"));
             chip.setGravity(Gravity.CENTER);chip.setPadding(dp(12),dp(7),dp(12),dp(7));
             chip.setBackground(card(playlist.equals(activePlaylist)?0xFF0A7898:0x66325268,
                     0x665CD9F4,18));

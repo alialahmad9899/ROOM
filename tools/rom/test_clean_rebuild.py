@@ -198,5 +198,5 @@ require(not (SRC/"java/com/ali/carsystem/RouteNetworkClient.java").exists(),"obs
 require(not (SRC/"java/com/ali/carsystem/GeocodingClient.java").exists(),"obsolete online geocoder removed")
 require(not (APP/"src/test/java/com/ali/carsystem/RouteNetworkClientTest.java").exists(),"obsolete online routing tests removed")
 require("showImportAlbumPicker(selected)" in music and "addImportedSongsToAlbum" in music and "متنوعة" in music,"multi-select import chooses and persists an album")
-require("music_variety_album" in music and 'TextView label=text("",16,Color.WHITE,true)' in music,"variety album and larger track font")
+require("music_variety_album" in music and "music_archive_album" in music and "الأرشيف" in music and 'TextView label=text("",16,Color.WHITE,true)' in music,"variety album and larger track font")
 print("PASS: ALI CAR 3.8.3 API21 offline maps, album import, trip reset and navigation HUD contracts")
