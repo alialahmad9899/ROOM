@@ -1,7 +1,10 @@
 package com.ali.carsystem;
 
 import android.content.Context;
+import android.app.ActivityManager;
 import android.location.Location;
+import android.os.SystemClock;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -16,6 +19,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Offline car-routing bridge to the BRouter engine bundled by the build workflow.
@@ -23,23 +29,42 @@ import java.util.Map;
  * has been generated; no network connection is used by this class.
  */
 final class OfflineRoutingEngine {
+    private static final String TAG = "ALI-CAR-Routing";
+    private static final ReentrantLock ROUTING_LOCK = new ReentrantLock();
+    private static final AtomicLong REQUEST_IDS = new AtomicLong();
+
     private OfflineRoutingEngine() { }
 
     static JSONObject requestRoutes(Context context, Location start, GeoPoint end) throws Exception {
-        if (context == null || start == null || end == null) throw new IOException("نقاط المسار غير مكتملة");
+        if (context == null || start == null || end == null)
+            throw new IOException("نقاط المسار غير مكتملة");
         if (!OfflineMapsManager.hasOfflineRouting(context)) return null;
 
-        File base = OfflineMapsManager.getBrouterRoot(context);
-        File segments = new File(base, "segments4");
-        File profiles = new File(base, "profiles2");
-        File modes = new File(base, "modes");
-        if (!modes.exists()) modes.mkdirs();
-
-        // BRouter looks up the profile by name under profileBaseDir.
-        System.setProperty("profileBaseDir", profiles.getAbsolutePath());
-        System.setProperty("segmentBaseDir", segments.getAbsolutePath());
-
+        boolean acquired;
         try {
+            acquired = ROUTING_LOCK.tryLock(1L, TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IOException("تم إيقاف انتظار محرك التوجيه", interrupted);
+        }
+        if (!acquired) throw new IOException("محرك التوجيه مشغول بطلب سابق؛ أعد المحاولة بعد لحظة");
+
+        long startedAt = SystemClock.elapsedRealtime();
+        long requestId = REQUEST_IDS.incrementAndGet();
+        File rawTrack = null;
+        try {
+            File base = OfflineMapsManager.getBrouterRoot(context);
+            File segments = new File(base, "segments4");
+            File profiles = new File(base, "profiles2");
+            File modes = new File(base, "modes");
+            if (!modes.exists() && !modes.mkdirs())
+                throw new IOException("تعذر إنشاء مجلد ملفات BRouter المؤقتة");
+
+            // BRouter uses process-wide directory properties; the lock above serializes
+            // every call and the raw-track file is unique to this request.
+            System.setProperty("profileBaseDir", profiles.getAbsolutePath());
+            System.setProperty("segmentBaseDir", segments.getAbsolutePath());
+
             Class<?> collectorClass = Class.forName("btools.router.RoutingParamCollector");
             Class<?> contextClass = Class.forName("btools.router.RoutingContext");
             Class<?> engineClass = Class.forName("btools.router.RoutingEngine");
@@ -51,13 +76,21 @@ final class OfflineRoutingEngine {
             @SuppressWarnings("unchecked")
             List<Object> waypoints = (List<Object>) collectorClass
                     .getMethod("getWayPointList", String.class).invoke(collector, lonLats);
-            if (waypoints == null || waypoints.size() < 2) throw new IOException("تعذر تجهيز نقاط الانطلاق والوجهة");
+            if (waypoints == null || waypoints.size() < 2)
+                throw new IOException("تعذر تجهيز نقاط الانطلاق والوجهة");
 
             Object routingContext = contextClass.getDeclaredConstructor().newInstance();
-            Field localFunction = contextClass.getField("localFunction");
-            localFunction.set(routingContext, "car-fast");
-            try { contextClass.getField("memoryclass").setInt(routingContext, 32); } catch (Exception ignored) { }
-            try { contextClass.getField("rawTrackPath").set(routingContext, new File(modes, "car-fast_rawtrack.dat").getAbsolutePath()); } catch (Exception ignored) { }
+            contextClass.getField("localFunction").set(routingContext, "car-fast");
+            int memoryMb = 32;
+            try {
+                ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+                if (manager != null) memoryMb = Math.max(32, Math.min(64, manager.getMemoryClass() / 4));
+                contextClass.getField("memoryclass").setInt(routingContext, memoryMb);
+            } catch (Exception ignored) { }
+            rawTrack = new File(modes, "car-fast_rawtrack-" + requestId + ".dat");
+            try {
+                contextClass.getField("rawTrackPath").set(routingContext, rawTrack.getAbsolutePath());
+            } catch (Exception ignored) { }
 
             Map<String, String> params = new HashMap<>();
             params.put("outputFormat", "json");
@@ -78,15 +111,36 @@ final class OfflineRoutingEngine {
             Constructor<?> formatterConstructor = jsonFormatClass.getConstructor(contextClass);
             Object formatter = formatterConstructor.newInstance(routingContext);
             String geoJson = (String) jsonFormatClass.getMethod("format", track.getClass()).invoke(formatter, track);
-            return normalize(geoJson);
+            JSONObject normalized = normalize(geoJson);
+            JSONArray routes = normalized.optJSONArray("routes");
+            int pointCount = 0;
+            if (routes != null && routes.length() > 0) {
+                JSONObject geometry = routes.getJSONObject(0).optJSONObject("geometry");
+                JSONArray coordinates = geometry == null ? null : geometry.optJSONArray("coordinates");
+                pointCount = coordinates == null ? 0 : coordinates.length();
+            }
+            Log.i(TAG, "route#" + requestId + " elapsedMs="
+                    + (SystemClock.elapsedRealtime() - startedAt)
+                    + " points=" + pointCount + " memoryMb=" + memoryMb);
+            return normalized;
         } catch (ClassNotFoundException missing) {
+            Log.e(TAG, "BRouter classes missing", missing);
             throw new IOException("محرك التوجيه المحلي غير مضمّن في هذا الإصدار؛ أعد تثبيت حزمة ALI CAR مع BRouter", missing);
         } catch (IOException error) {
+            Log.e(TAG, "route#" + requestId + " failed after "
+                    + (SystemClock.elapsedRealtime() - startedAt) + "ms: " + error.getMessage(), error);
             throw error;
         } catch (Exception error) {
             Throwable cause = error.getCause() == null ? error : error.getCause();
             String message = cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
+            Log.e(TAG, "route#" + requestId + " failed after "
+                    + (SystemClock.elapsedRealtime() - startedAt) + "ms", cause);
             throw new IOException("فشل حساب المسار المحلي: " + message, cause);
+        } finally {
+            if (rawTrack != null && rawTrack.exists()) {
+                try { rawTrack.delete(); } catch (Exception ignored) { }
+            }
+            ROUTING_LOCK.unlock();
         }
     }
 
