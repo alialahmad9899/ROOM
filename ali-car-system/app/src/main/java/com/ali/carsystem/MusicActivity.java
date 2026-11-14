@@ -407,8 +407,9 @@ public final class MusicActivity extends BaseActivity {
                     if(remaining.decrementAndGet()==0){
                         runOnUiThread(()->{
                             if(service!=null)service.refreshLibrary();
-                            Toast.makeText(MusicActivity.this,"تم استيراد "+files.size()
-                                    +" ملفاً صوتياً إلى مكتبة ALI CAR",Toast.LENGTH_LONG).show();
+                            String message="تم استيراد "+files.size()+" ملفاً صوتياً إلى مكتبة ALI CAR";
+                            if(error!=null)message+="\nتعذر استيراد بعض الملفات: "+error;
+                            Toast.makeText(MusicActivity.this,message,Toast.LENGTH_LONG).show();
                         });
                     }
                 });
