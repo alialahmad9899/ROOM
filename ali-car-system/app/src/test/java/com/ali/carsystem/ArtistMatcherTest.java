@@ -20,6 +20,8 @@ public final class ArtistMatcherTest {
 
     @Test public void doesNotMatchUnrelatedArtists() {
         assertFalse(ArtistMatcher.matchesAny("Unknown Artist", "Unknown Song", "فيروز", "fairuz"));
+        assertFalse("The music library must exclude artists outside the requested list",
+                ArtistMatcher.isSupportedArtist("Unknown Singer", "Unknown Song"));
     }
 
     @Test public void everyConfiguredArtistHasAliases() {
@@ -32,6 +34,8 @@ public final class ArtistMatcherTest {
         for (String artist : artists) {
             assertTrue("Missing alias mapping for " + artist,
                     ArtistMatcher.aliasesFor(artist).length > 1);
+            assertTrue("Supported singer must be accepted: " + artist,
+                    ArtistMatcher.isSupportedArtist(artist, "sample song"));
         }
     }
 }
