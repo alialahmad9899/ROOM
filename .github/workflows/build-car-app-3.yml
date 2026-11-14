@@ -104,7 +104,7 @@ jobs:
           done
           du -sh ali-car-system/app/src/main/assets/offline
 
-      - name: Download and verify public-domain Arabic music for offline playback
+      - name: Remove obsolete historical tracks and enforce local music policy
         run: python tools/rom/install_open_music.py
 
       - name: Resize and verify dashboard photo
