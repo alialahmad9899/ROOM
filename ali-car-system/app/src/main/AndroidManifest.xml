@@ -48,7 +48,7 @@
             <intent-filter><action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/></intent-filter>
         </receiver>
         <receiver android:name=".PowerReceiver" android:exported="true">
-            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.ACTION_POWER_CONNECTED"/></intent-filter>
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter>
         </receiver>
     </application>
 </manifest>
