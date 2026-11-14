@@ -59,7 +59,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private String gpsProviderStatus="غير معروف",networkProviderStatus="غير معروف",assistanceResult="لم يتم طلب تحديث A-GPS";
     private int satellitesVisible,satellitesUsed,timeToFirstFixMs=-1;
     private float lastFixAccuracy=-1f;
-    private long lastFixElapsedNanos;
+    private long lastFixElapsedNanos,routeRetryAfterMs;
+    private Location lastRouteStartLocation;
+    private float lastRouteStartAccuracy=-1f;
     private final Handler locationHandler=new Handler(Looper.getMainLooper());
     private final Handler backgroundStartHandler=new Handler(Looper.getMainLooper());
     private boolean backgroundStartPending;
@@ -71,7 +73,13 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     };
     private final Runnable locationStatusTicker=new Runnable(){
         @Override public void run(){
-            if(status!=null&&destination!=null&&waitingForFix)status.setText(gpsStatusText());
+            if(destination!=null&&waitingForFix&&!routeAttemptedForDestination
+                    &&routeTask==null&&SystemClock.elapsedRealtime()>=routeRetryAfterMs
+                    &&isRouteStartUsable(current)){
+                drawRouteIfPossible();
+            }else if(status!=null&&destination!=null&&waitingForFix){
+                status.setText("انتظار موقع صالح • "+gpsStatusText());
+            }
             locationHandler.postDelayed(this,5000);
         }
     };
@@ -202,7 +210,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         freeModeButton.setOnClickListener(v->setGuidedMode(false));guidedModeButton.setOnClickListener(v->setGuidedMode(true));
         followButton.setOnClickListener(v->{followCar=!followCar;updateFollowButton();if(followCar&&current!=null)centerOnCar(current);});
                 offlineMapsButton.setOnClickListener(v->startOfflineMapImport());
-        retryRouteButton.setOnClickListener(v->drawRouteIfPossible());
+        retryRouteButton.setOnClickListener(v->{
+            routeRetryAfterMs=0L;routeAttemptedForDestination=false;waitingForFix=true;
+            drawRouteIfPossible();
+        });
         loadLastKnown();if(current!=null)showCar(current);status.setOnClickListener(v->showGpsDiagnostics());setGuidedMode(true);ensureBundledOfflineData();
         stopBackgroundNavigationButton.setEnabled(NavigationGuidanceService.isActive(this));
         navigationStateReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
@@ -428,7 +439,13 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         return GeoMath.isUsableFix(l.getTime(),System.currentTimeMillis(),maxAgeMs,0);
     }
     private boolean isNavigationFixUsable(Location l){
-        return isFreshLocation(l,180000)&&l.hasAccuracy()&&GeoMath.isAccuracyUsable(l.getAccuracy(),250f);
+        return isFreshLocation(l,180000)&&l.hasAccuracy()
+                &&GeoMath.isAccuracyUsable(l.getAccuracy(),250f);
+    }
+    private boolean isRouteStartUsable(Location l){
+        return isFreshLocation(l,300000L)&&l.hasAccuracy()
+                &&GeoMath.isAccuracyUsable(l.getAccuracy(),1000f)
+                &&Math.abs(l.getLatitude())<=90d&&Math.abs(l.getLongitude())<=180d;
     }
     private void loadLastKnown(){
         if(lm==null)return;
@@ -451,6 +468,24 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             }
             if(newer)best=l;
         }catch(SecurityException e){providerError="صلاحية الموقع مرفوضة من النظام";}catch(Exception ignored){}
+        SharedPreferences saved = getSharedPreferences("ali_car_v3", MODE_PRIVATE);
+        long savedAt = saved.getLong("last_location_time", 0L);
+        long savedAge = savedAt > 0L ? Math.max(0L, System.currentTimeMillis() - savedAt)
+                : Long.MAX_VALUE;
+        if(savedAge <= 300000L){
+            double lat=saved.getFloat("last_latitude",Double.NaN);
+            double lon=saved.getFloat("last_longitude",Double.NaN);
+            float accuracy=saved.getFloat("last_gps_accuracy",999f);
+            if(!Double.isNaN(lat)&&!Double.isNaN(lon)&&accuracy>0f&&accuracy<=1000f){
+                Location cached=new Location("ali-car-saved-location");
+                cached.setLatitude(lat);cached.setLongitude(lon);cached.setAccuracy(accuracy);
+                cached.setTime(savedAt);
+                long ageNanos=savedAge*1000000L;
+                cached.setElapsedRealtimeNanos(Math.max(1L,SystemClock.elapsedRealtimeNanos()-ageNanos));
+                if(best==null||!isRouteStartUsable(best)
+                        ||(isNavigationFixUsable(cached)&&!isNavigationFixUsable(best)))best=cached;
+            }
+        }
         if(best!=null){
             current=new Location(best);lastFixProvider=best.getProvider();
             lastFixAccuracy=best.hasAccuracy()?best.getAccuracy():-1f;
@@ -680,13 +715,27 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
     private void drawRouteIfPossible(){
         if(destination==null)return;
-        if(!isNavigationFixUsable(current)){waitingForFix=true;status.setText("تم تحديد الوجهة — "+gpsStatusText());return;}
+        if(!isRouteStartUsable(current)){
+            waitingForFix=true;
+            status.setText("تم تحديد الوجهة • ننتظر موقعاً صالحاً من GPS أو الشبكة — "
+                    +gpsStatusText());
+            return;
+        }
+        long now=SystemClock.elapsedRealtime();
+        if(now<routeRetryAfterMs){
+            waitingForFix=true;
+            status.setText("تعذر حساب المسار في المحاولة السابقة • ستتم إعادة المحاولة تلقائياً");
+            return;
+        }
         requestRoute(current,destination,destinationName);
     }
     private void requestRoute(Location start,GeoPoint end,String name){
         // Keep one request in flight; failed requests are not restarted by GPS callbacks.
         if(routeTask!=null)return;routeAttemptedForDestination=true;final int requestId=++routeRequestId;
-        final Location routeStart=new Location(start);final GeoPoint routeEnd=end;status.setText("جارٍ حساب المسار محلياً دون إنترنت...");
+        final Location routeStart=new Location(start);lastRouteStartLocation=new Location(start);
+        lastRouteStartAccuracy=start.hasAccuracy()?start.getAccuracy():-1f;
+        final GeoPoint routeEnd=end;
+        status.setText((lastRouteStartAccuracy>250f?"جارٍ حساب مسار مؤقت من آخر موقع معروف...":"جارٍ حساب المسار محلياً دون إنترنت..."));
         if(retryRouteButton!=null)retryRouteButton.setVisibility(View.GONE);
         routeTask=new AsyncTask<Void,Void,RouteResult>(){
             protected RouteResult doInBackground(Void...v){try{
@@ -712,8 +761,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             protected void onPostExecute(RouteResult r){
                 if(requestId!=routeRequestId||isFinishing())return;routeTask=null;
                 if(r.error!=null){
-                    waitingForFix=false;routeAttemptedForDestination=true;
-                    status.setText(r.error);maneuver.setText("لم يتم تحميل المسار");
+                    waitingForFix=true;routeAttemptedForDestination=false;
+                    routeRetryAfterMs=SystemClock.elapsedRealtime()+10000L;
+                    status.setText(r.error+" • ستُعاد المحاولة تلقائياً بعد وصول موقع صالح");
+                    maneuver.setText("لم يتم تحميل المسار");
                     if(retryRouteButton!=null)retryRouteButton.setVisibility(View.VISIBLE);
                     trafficInfo.setText("تحقق من تثبيت حزمة خريطة سوريا وملفات BRouter المحلية ثم أعد المحاولة • لا يلزم الإنترنت");
                     return;
@@ -723,6 +774,16 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 rebuildRouteChoices();selectRoute(selectedRouteIndex);BoundingBox bounds=BoundingBox.fromGeoPoints(routeOptions.get(selectedRouteIndex).points);
                 map.zoomToBoundingBox(bounds,true);waitingForFix=false;map.invalidate();
                 trafficInfo.setText("BRouter المحلي • "+routeOptions.size()+" مسار/مسارات • حساب كامل دون إنترنت؛ الازدحام المباشر غير متاح");
+                if(lastRouteStartAccuracy>150f&&current!=null&&isNavigationFixUsable(current)
+                        &&GeoMath.distanceMeters(lastRouteStartLocation.getLatitude(),lastRouteStartLocation.getLongitude(),
+                        current.getLatitude(),current.getLongitude())>60d){
+                    routeAttemptedForDestination=false;routeRetryAfterMs=SystemClock.elapsedRealtime()+1200L;
+                    locationHandler.postDelayed(()->{
+                        if(destination!=null&&routeTask==null&&routeOptions.size()>0){
+                            routeRetryAfterMs=0L;drawRouteIfPossible();
+                        }
+                    },1300L);
+                }
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
@@ -747,7 +808,16 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(guidedMode&&followCar&&map!=null){long now=SystemClock.elapsedRealtime();GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());
             if(now-lastFollowAt>1800&&(lastFollowPoint==null||GeoMath.distanceMeters(lastFollowPoint.getLatitude(),lastFollowPoint.getLongitude(),p.getLatitude(),p.getLongitude())>18)){map.getController().animateTo(p);lastFollowPoint=p;lastFollowAt=now;}}
         float accuracy=l.hasAccuracy()?l.getAccuracy():999;
-        if(destination!=null&&waitingForFix&&!routeAttemptedForDestination&&isNavigationFixUsable(l))drawRouteIfPossible();
+        if(destination!=null&&waitingForFix&&!routeAttemptedForDestination
+                &&SystemClock.elapsedRealtime()>=routeRetryAfterMs&&isRouteStartUsable(l)){
+            drawRouteIfPossible();
+        }else if(destination!=null&&routeOptions.size()>0&&!waitingForFix
+                &&lastRouteStartAccuracy>150f&&isNavigationFixUsable(l)
+                &&lastRouteStartLocation!=null
+                &&GeoMath.distanceMeters(lastRouteStartLocation.getLatitude(),lastRouteStartLocation.getLongitude(),
+                l.getLatitude(),l.getLongitude())>60d&&routeTask==null){
+            routeRetryAfterMs=0L;routeAttemptedForDestination=false;drawRouteIfPossible();
+        }
         lastFixProvider=l.getProvider()==null?"غير معروف":l.getProvider();
         lastFixAccuracy=accuracy;lastFixElapsedNanos=l.getElapsedRealtimeNanos();
         if(status!=null&&destination==null)status.setText("تم استقبال موقع "+lastFixProvider+" — الدقة ±"+Math.round(accuracy)+" متر");
