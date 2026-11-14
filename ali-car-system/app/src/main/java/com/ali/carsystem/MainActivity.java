@@ -22,8 +22,8 @@ import java.text.SimpleDateFormat;
 public final class MainActivity extends BaseActivity implements LocationListener, TextToSpeech.OnInitListener {
     private final Handler handler=new Handler(Looper.getMainLooper());
     private ViewPager pager;
-    private FrameLayout dashboardRoot,navigationHud;
-    private TextView hudArrow,hudDistance,hudInstruction,hudDetails;
+    private FrameLayout dashboardRoot;
+    private View navigationHud;
     private SpeedometerView speedometer, clusterGauge;
     private TextView gpsStatus, songTitle, digitalClock, dateLabel, ambientTime;
     private LocationManager locationManager;
@@ -259,18 +259,14 @@ public final class MainActivity extends BaseActivity implements LocationListener
     }
 
     private void createNavigationHud(){
-        if(dashboardRoot==null)return;navigationHud=new FrameLayout(this);navigationHud.setTag("dashboard_navigation_hud");navigationHud.setVisibility(View.GONE);navigationHud.setBackground(glass(0xEE071B2B,0xAA48DFFF,22));navigationHud.setPadding(dp(14),dp(9),dp(14),dp(9));
-        LinearLayout row=horizontal();hudArrow=label("↑",48,0xFF63E8FF,true);hudArrow.setTag("navigation_hud_arrow");hudArrow.setGravity(Gravity.CENTER);row.addView(hudArrow,new LinearLayout.LayoutParams(dp(72),dp(72)));
-        LinearLayout details=vertical();hudDistance=label("—",30,Color.WHITE,true);hudDistance.setTag("navigation_hud_distance");hudInstruction=label("بانتظار تعليمات المسار",17,0xFF8DE9FF,true);hudInstruction.setTag("navigation_hud_instruction");hudInstruction.setSingleLine(true);hudDetails=label("",12,0xFFD0E3ED,false);hudDetails.setTag("navigation_hud_details");details.addView(hudDistance);details.addView(hudInstruction);details.addView(hudDetails);row.addView(details,new LinearLayout.LayoutParams(0,-2,1f));navigationHud.addView(row,new FrameLayout.LayoutParams(-1,-2));
-        FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(dp(420),-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);lp.topMargin=dp(66);dashboardRoot.addView(navigationHud,lp);navigationHud.setOnClickListener(v->startActivity(new Intent(this,NavigationActivity.class)));
+        navigationHud=pager==null?null:pager.findViewWithTag("dashboard_navigation_hud");
+        if(navigationHud==null&&pager!=null)pager.post(()->navigationHud=pager.findViewWithTag("dashboard_navigation_hud"));
     }
-    private void updateNavigationHud(Intent i,boolean active){
-        if(navigationHud==null)return;navigationHud.setVisibility(active?View.VISIBLE:View.GONE);if(!active)return;
-        float distance=i.getFloatExtra(NavigationGuidanceService.EXTRA_DISTANCE_TO_TURN_METERS,-1f);float remaining=i.getFloatExtra(NavigationGuidanceService.EXTRA_REMAINING_ROUTE_METERS,-1f);float speed=i.getFloatExtra(NavigationGuidanceService.EXTRA_SPEED_KMH,-1f);long eta=i.getLongExtra(NavigationGuidanceService.EXTRA_ETA_MINUTES,-1L);String instruction=i.getStringExtra(NavigationGuidanceService.EXTRA_MANEUVER_TEXT);String guidance=i.getStringExtra("guidance");
-        hudDistance.setText(distance<0?"—":distance<1000?Math.round(distance)+" م":String.format(Locale.US,"%.1f كم",distance/1000f));hudInstruction.setText(instruction==null||instruction.isEmpty()?(guidance==null?"تابع المسار":guidance):instruction);
-        String v=(instruction==null?"":instruction).toLowerCase(Locale.US);hudArrow.setText(v.contains("يسار")||v.contains("left")?"↰":v.contains("يمين")||v.contains("right")?"↱":v.contains("دوار")?"⟳":"↑");
-        StringBuilder d=new StringBuilder();if(remaining>=0)d.append("متبقي ").append(String.format(Locale.US,"%.1f كم",remaining/1000f));if(speed>=0){if(d.length()>0)d.append("   •   ");d.append("سرعة ").append(Math.round(speed)).append(" كم/س");}if(eta>=0){if(d.length()>0)d.append("   •   ");d.append("وصول ").append(eta).append(" د");}hudDetails.setText(d.toString());
+    private void updateNavigationHud(Intent state,boolean active){
+        if(navigationHud==null&&pager!=null)navigationHud=pager.findViewWithTag("dashboard_navigation_hud");
+        if(navigationHud!=null)navigationHud.setVisibility(active?View.VISIBLE:View.GONE);
     }
+
     private final class DashboardPager extends PagerAdapter {
         @Override public int getCount(){return 2;}
         @Override public Object instantiateItem(ViewGroup container,int position){View v=position==0?buildDashboard():buildCluster();container.addView(v);return v;}
