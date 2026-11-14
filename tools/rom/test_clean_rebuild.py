@@ -15,7 +15,8 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 380" in GRADLE and "versionName '3.8.0'" in GRADLE,"ALI CAR version 3.8.0")
+require("versionCode 381" in GRADLE and "versionName '3.8.1'" in GRADLE,"ALI CAR version 3.8.1")
+require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
 require('android:name=".CarApplication"' in MAN and "onTrimMemory" in (SRC/"java/com/ali/carsystem/CarApplication.java").read_text(),"memory manager")
@@ -110,14 +111,13 @@ require("OpenStreetMap contributors" in NAV,"map attribution")
 music=(SRC/"java/com/ali/carsystem/MusicActivity.java").read_text(encoding="utf-8")
 require("RecyclerView" in music and "Visualizer" in music and "1000L/duration" in music,"redesigned music, actual waveform and normalized progress")
 require("VinylDiscView" in music and "setSpinning" in music and "new float[36]" in music,"rotating record and redesigned 36-bar live equalizer")
-OPEN_MUSIC=json.loads((ROOT/"tools/rom/open_music_catalog.json").read_text(encoding="utf-8"))
-require(len(OPEN_MUSIC.get("tracks",[])) >= 30
-        and all(t.get("license")=="Public Domain" for t in OPEN_MUSIC.get("tracks",[]))
-        and len({t.get("id") for t in OPEN_MUSIC.get("tracks",[])})==len(OPEN_MUSIC.get("tracks",[])),
-        "bundled Arabic music catalogue contains unique public-domain tracks only")
+require(not (SRC/"assets/music").exists(),
+        "no historical or unrelated audio archive is bundled in the APK")
+require("ArtistMatcher.matchesAny" in music,
+        "artist playlists normalize Arabic and Latin metadata aliases")
 require("OpenMusicInstaller.install" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
-        and "song.openArchive" in music and "الأرشيف العربي المجاني" in music,
-        "first-run installation and dedicated Arabic music archive playlist are wired")
+        and "Remove obsolete bundled music index" in (SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").read_text(encoding="utf-8"),
+        "upgrade removes obsolete bundled archive and indexes only local user music")
 require("WRITE_EXTERNAL_STORAGE" in MAN,
         "API21 shared music archive has legacy write-storage permission")
 require("context.getFilesDir()" in (SRC/"java/com/ali/carsystem/OfflineMapsManager.java").read_text(encoding="utf-8"),
@@ -129,9 +129,10 @@ require("-sdcard /tmp/ali-car-sdcard.img" in (ROOT/".github/workflows/build-car-
         "API21 emulator is provisioned with writable SD storage for music and map installation")
 
 require((SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").is_file(),
-        "first-run public-domain music installer exists")
-require("install_open_music.py" in (ROOT/".github/workflows/build-car-app-3.yml").read_text(encoding="utf-8"),
-        "CI fetches actual licensed OGG audio before assembling APK")
+        "legacy music archive cleanup exists")
+require("install_open_music.py" in (ROOT/".github/workflows/build-car-app-3.yml").read_text(encoding="utf-8")
+        and "MUSIC_ASSETS_OK" in (ROOT/"tools/rom/install_open_music.py").read_text(encoding="utf-8"),
+        "CI verifies that no unrequested historical tracks are bundled")
 
 require("NavigationBannerView" in music and "music_playlist_filters" in music,
         "music screen has navigation guidance and playlist filters")
