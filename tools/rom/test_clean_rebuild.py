@@ -109,6 +109,19 @@ require("OpenStreetMap contributors" in NAV,"map attribution")
 music=(SRC/"java/com/ali/carsystem/MusicActivity.java").read_text(encoding="utf-8")
 require("RecyclerView" in music and "Visualizer" in music and "1000L/duration" in music,"redesigned music, actual waveform and normalized progress")
 require("VinylDiscView" in music and "setSpinning" in music and "new float[36]" in music,"rotating record and redesigned 36-bar live equalizer")
+OPEN_MUSIC=json.loads((ROOT/"tools/rom/open_music_catalog.json").read_text(encoding="utf-8"))
+require(len(OPEN_MUSIC.get("tracks",[])) >= 30
+        and all(t.get("license")=="Public Domain" for t in OPEN_MUSIC.get("tracks",[]))
+        and len({t.get("id") for t in OPEN_MUSIC.get("tracks",[])})==len(OPEN_MUSIC.get("tracks",[])),
+        "bundled Arabic music catalogue contains unique public-domain tracks only")
+require("OpenMusicInstaller.install" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
+        and "song.openArchive" in music and "الأرشيف العربي المجاني" in music,
+        "first-run installation and dedicated Arabic music archive playlist are wired")
+require((SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").is_file(),
+        "first-run public-domain music installer exists")
+require("install_open_music.py" in (ROOT/".github/workflows/build-car-app-3.yml").read_text(encoding="utf-8"),
+        "CI fetches actual licensed OGG audio before assembling APK")
+
 require("NavigationBannerView" in music and "music_playlist_filters" in music,
         "music screen has navigation guidance and playlist filters")
 require("music_add_local_files" in music and "ACTION_OPEN_DOCUMENT" in music
