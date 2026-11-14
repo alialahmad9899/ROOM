@@ -1,6 +1,7 @@
 package com.ali.carsystem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ActivityTestRule;
 import org.junit.Rule;
@@ -10,17 +11,31 @@ import static org.junit.Assert.*;
 
 @RunWith(AndroidJUnit4.class)
 public final class MusicActivitySmokeTest {
-    @Rule public ActivityTestRule<MusicActivity> activity=new ActivityTestRule<>(MusicActivity.class);
-    @Test public void musicScreenStartsAndInstallsItsLayout(){
+    @Rule public ActivityTestRule<MusicActivity> activity =
+            new ActivityTestRule<>(MusicActivity.class);
+
+    @Test public void musicScreenStartsAndInstallsItsLayout() {
         MusicActivity screen=activity.getActivity();
         assertNotNull(screen);
         assertFalse(screen.isFinishing());
         View content=screen.findViewById(android.R.id.content);
         assertTrue(content instanceof ViewGroup);
         assertTrue(((ViewGroup)content).getChildCount()>0);
-        assertNotNull("Music must display live navigation guidance", content.findViewWithTag("navigation_guidance_banner"));
-        assertNotNull("Playlist filters must be available", content.findViewWithTag("music_playlist_filters"));
-        assertNotNull("Licensed local audio import must be available", content.findViewWithTag("music_add_local_files"));
-        assertNotNull("Empty playlist state must be available", content.findViewWithTag("music_playlist_empty"));
+        assertNotNull("Navigation guidance banner",
+                content.findViewWithTag("navigation_guidance_banner"));
+        assertNotNull("Album filters",content.findViewWithTag("music_playlist_filters"));
+        assertNotNull("Local audio import",content.findViewWithTag("music_add_local_files"));
+        assertNotNull("Empty playlist state",content.findViewWithTag("music_playlist_empty"));
+
+        TextView variety=(TextView)content.findViewWithTag("music_variety_album");
+        assertNotNull("Ready-made variety album",variety);
+        assertEquals("متنوعة",variety.getText().toString());
+        assertTrue("Album labels readable",
+                variety.getTextSize()/screen.getResources().getDisplayMetrics().scaledDensity>=14f);
+
+        TextView heading=(TextView)content.findViewWithTag("music_library_title");
+        assertNotNull(heading);
+        assertTrue("Library heading enlarged",
+                heading.getTextSize()/screen.getResources().getDisplayMetrics().scaledDensity>=19f);
     }
 }

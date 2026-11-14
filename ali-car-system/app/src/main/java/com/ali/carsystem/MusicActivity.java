@@ -4,6 +4,7 @@ import android.content.*;
 import android.database.Cursor;
 import android.media.MediaScannerConnection;
 import android.provider.OpenableColumns;
+import android.provider.MediaStore;
 import android.app.AlertDialog;
 import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
@@ -35,7 +36,7 @@ public final class MusicActivity extends BaseActivity {
             "إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين","مروان خوري",
             "كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني","فارس كرم",
             "وائل جسار","ميريام فارس","هبة طوجي","زياد برجي",
-            "أغاني سورية","أغاني لبنانية","المفضلة","آخر تشغيل"
+            "أغاني سورية","أغاني لبنانية","المفضلة","متنوعة","آخر تشغيل"
     };
     private static final String[] SYRIAN_ARTISTS={
             "نصيف زيتون","أصالة نصري","جورج وسوف","صباح فخري","ميادة بسيليس",
@@ -213,7 +214,8 @@ public final class MusicActivity extends BaseActivity {
         LinearLayout library=panel();library.setOrientation(LinearLayout.VERTICAL);library.setPadding(dp(12),dp(10),dp(12),dp(8));
         body.addView(library,new LinearLayout.LayoutParams(0,-1,.92f));
         LinearLayout libraryHead=new LinearLayout(this);libraryHead.setGravity(Gravity.CENTER_VERTICAL);
-        libraryHead.addView(text("المكتبة وقوائم التشغيل",17,Color.WHITE,true),new LinearLayout.LayoutParams(0,dp(34),1));
+        TextView libraryTitle=text("المكتبة وقوائم التشغيل",19,Color.WHITE,true);libraryTitle.setTag("music_library_title");
+        libraryHead.addView(libraryTitle,new LinearLayout.LayoutParams(0,dp(36),1));
         libraryHead.addView(text("محلية • بدون إنترنت",10,0xFF8ABAD0,false));library.addView(libraryHead);
 
         HorizontalScrollView playlistScroll=new HorizontalScrollView(this);
@@ -221,23 +223,24 @@ public final class MusicActivity extends BaseActivity {
         playlistScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout playlistRow=new LinearLayout(this);playlistRow.setGravity(Gravity.CENTER_VERTICAL);
         for(String playlist:PLAYLISTS){
-            TextView chip=text(playlist,11,Color.WHITE,true);
+            TextView chip=text(playlist,14,Color.WHITE,true);
+            chip.setTag("متنوعة".equals(playlist)?"music_variety_album":"music_album_chip");
             chip.setGravity(Gravity.CENTER);chip.setPadding(dp(12),dp(7),dp(12),dp(7));
             chip.setBackground(card(playlist.equals(activePlaylist)?0xFF0A7898:0x66325268,
                     0x665CD9F4,18));
-            LinearLayout.LayoutParams chipLp=new LinearLayout.LayoutParams(-2,dp(36));
+            LinearLayout.LayoutParams chipLp=new LinearLayout.LayoutParams(-2,dp(42));
             chipLp.rightMargin=dp(6);playlistRow.addView(chip,chipLp);
             chip.setOnClickListener(v->{activePlaylist=playlist;persistPlaylist(playlist);applyPlaylistFilter();refreshPlaylistChipStyles(playlistRow);});
         }
         playlistScroll.addView(playlistRow);
-        LinearLayout.LayoutParams filtersLp=new LinearLayout.LayoutParams(-1,dp(42));
+        LinearLayout.LayoutParams filtersLp=new LinearLayout.LayoutParams(-1,dp(48));
         filtersLp.topMargin=dp(3);library.addView(playlistScroll,filtersLp);
 
         emptyLibrary=text("لا توجد أغنيات ضمن هذه القائمة. أضف ملفاتك إلى مكتبة الجهاز أو اضغط مطولاً على أغنية لإضافتها إلى قائمة مخصصة.",
-                12,0xFFB7D0DC,false);
+                14,0xFFB7D0DC,false);
         emptyLibrary.setTag("music_playlist_empty");
         emptyLibrary.setGravity(Gravity.CENTER);emptyLibrary.setVisibility(View.GONE);
-        library.addView(emptyLibrary,new LinearLayout.LayoutParams(-1,dp(54)));
+        library.addView(emptyLibrary,new LinearLayout.LayoutParams(-1,dp(64)));
 
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new SongAdapter();list.setAdapter(adapter);
         LinearLayout.LayoutParams listLp=new LinearLayout.LayoutParams(-1,0,1);listLp.topMargin=dp(4);library.addView(list,listLp);
@@ -326,6 +329,22 @@ public final class MusicActivity extends BaseActivity {
             }
         }else if(data.getData()!=null)selected.add(data.getData());
         if(selected.isEmpty())return;
+        showImportAlbumPicker(selected);
+    }
+
+    private void showImportAlbumPicker(ArrayList<Uri> selected){
+        ArrayList<String> albums=new ArrayList<>();
+        for(String album:PLAYLISTS){
+            if(!"كل الأغاني".equals(album)&&!"المفضلة".equals(album)&&!"آخر تشغيل".equals(album))albums.add(album);
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("اختر الألبوم للأغاني المحددة")
+                .setItems(albums.toArray(new String[0]),(dialog,which)->importAudioFiles(selected,albums.get(which)))
+                .setNegativeButton("إلغاء",null)
+                .show();
+    }
+
+    private void importAudioFiles(ArrayList<Uri> selected,String destinationAlbum){
         new AsyncTask<List<Uri>,Void,ArrayList<File>>(){
             private String error;
             @Override protected ArrayList<File> doInBackground(List<Uri>... values){
@@ -368,7 +387,7 @@ public final class MusicActivity extends BaseActivity {
                             while((count=input.read(buffer))!=-1){
                                 total+=count;
                                 if(total>MusicFilePolicy.MAX_TRACK_BYTES)
-                                    throw new IOException("حجم الملف يتجاوز الحد الأقصى 4 ميغابايت");
+                                    throw new IOException("حجم الملف يتجاوز الحد الأقصى 256 ميغابايت");
                                 output.write(buffer,0,count);
                             }
                             if(total==0L)throw new IOException("الملف الصوتي فارغ");
@@ -400,11 +419,21 @@ public final class MusicActivity extends BaseActivity {
                 String[] paths=new String[files.size()];
                 for(int i=0;i<files.size();i++)paths[i]=files.get(i).getAbsolutePath();
                 AtomicInteger remaining=new AtomicInteger(paths.length);
+                List<Long> indexedSongIds=Collections.synchronizedList(new ArrayList<>());
                 MediaScannerConnection.scanFile(MusicActivity.this,paths,null,(file,uri)->{
+                    if(uri!=null){
+                        try(Cursor cursor=getContentResolver().query(uri,new String[]{MediaStore.Audio.Media._ID},null,null,null)){
+                            if(cursor!=null&&cursor.moveToFirst())indexedSongIds.add(cursor.getLong(0));
+                        }catch(Exception ignored){}
+                    }
                     if(remaining.decrementAndGet()==0){
                         runOnUiThread(()->{
+                            int assigned=addImportedSongsToAlbum(indexedSongIds,destinationAlbum);
                             if(service!=null)service.refreshLibrary();
-                            String message="تم استيراد "+files.size()+" ملفاً صوتياً إلى مكتبة ALI CAR";
+                            applyPlaylistFilter();
+                            String message=assigned>0
+                                    ? "تم استيراد "+files.size()+" ملفاً وإضافتها إلى ألبوم "+destinationAlbum
+                                    : "تم نسخ الملفات، لكن لم يؤكد مفهرس الموسيقى إضافتها إلى الألبوم بعد";
                             if(error!=null)message+="\nتعذر استيراد بعض الملفات: "+error;
                             Toast.makeText(MusicActivity.this,message,Toast.LENGTH_LONG).show();
                         });
@@ -412,6 +441,19 @@ public final class MusicActivity extends BaseActivity {
                 });
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,selected);
+    }
+
+    private int addImportedSongsToAlbum(List<Long> songIds,String album){
+        if(songIds==null||songIds.isEmpty()||album==null||album.trim().isEmpty())return 0;
+        android.content.SharedPreferences preferences=getSharedPreferences("ali_car_audio",MODE_PRIVATE);
+        String key="playlist_"+album;
+        Set<String> saved=preferences.getStringSet(key,Collections.<String>emptySet());
+        HashSet<String> merged=new HashSet<>(saved==null?Collections.<String>emptySet():saved);
+        int before=merged.size();
+        for(Long songId:songIds)if(songId!=null&&songId>0L)merged.add(String.valueOf(songId));
+        preferences.edit().putStringSet(key,merged).putString("last_playlist",album).apply();
+        activePlaylist=album;
+        return merged.size()-before;
     }
 
     private TextView control(String symbol,Runnable action){
@@ -480,8 +522,8 @@ public final class MusicActivity extends BaseActivity {
         @Override public SongRow onCreateViewHolder(ViewGroup parent,int type){
             LinearLayout row=new LinearLayout(MusicActivity.this);row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(10),dp(5),dp(8),dp(5));row.setBackground(card(0x66325268,0x223FD2EE,12));
-            TextView label=text("",13,Color.WHITE,true);
-            row.addView(label,new LinearLayout.LayoutParams(0,dp(52),1f));
+            TextView label=text("",16,Color.WHITE,true);label.setTag("music_song_title");
+            row.addView(label,new LinearLayout.LayoutParams(0,dp(60),1f));
             TextView favorite=text("☆",25,0xFFFFD27B,true);favorite.setGravity(Gravity.CENTER);
             row.addView(favorite,new LinearLayout.LayoutParams(dp(42),dp(48)));
             return new SongRow(row,label,favorite);

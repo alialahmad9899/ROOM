@@ -15,7 +15,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 382" in GRADLE and "versionName '3.8.2'" in GRADLE,"ALI CAR version 3.8.2")
+require("versionCode 383" in GRADLE and "versionName '3.8.3'" in GRADLE,"ALI CAR version 3.8.3")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -41,7 +41,12 @@ require("setDuration(520)" in MAIN and "setDuration(420)" in MAIN,"welcome fade-
 TRACK=(SRC/"java/com/ali/carsystem/LocationTrackingService.java").read_text(encoding="utf-8")
 require("trip_meters" in TRACK and "odometer_meters" in TRACK and "LocationManager.GPS_PROVIDER" in TRACK,"persistent local GPS distance and odometer service")
 require("startForeground" in TRACK and "ACTION_UPDATE" in TRACK,"foreground GPS tracking service broadcasts state")
-require("LocationTrackingService.ACTION_RESET_TRIP" in MAIN and "setPositiveButton" in MAIN,"trip reset confirmation and service reset")
+require("LocationTrackingService.ACTION_RESET_TRIP" in MAIN and "setPositiveButton" in MAIN
+         and 'putFloat("max_speed",0f)' in MAIN
+         and "TripResetPolicy.afterReset" in TRACK
+         and 'putFloat("max_speed", maxSpeedKmh)' in TRACK
+         and "previousAccepted = null" in TRACK,
+         "trip reset clears distance and max speed while preserving odometer and resetting GPS anchor")
 require("sleepBlocked()" in MAIN and "Intent.ACTION_POWER_CONNECTED" in MAIN and "MusicPlaybackService.isAudioPlaying" in MAIN,"sleep blocked while charging or music playback")
 require("static boolean shouldBlockSleep" in MAIN and "showAmbientClockForTest" in MAIN,"testable sleep power interlock and isolated visual test")
 require("FLAG_KEEP_SCREEN_ON" in MAIN,"main dashboard sleep policy")
@@ -126,7 +131,8 @@ require("for(MusicPlaybackService.Song song:allSongs)" in music
         "all local tracks remain visible; artist names are optional playlist filters")
 require("MusicFilePolicy.MAX_TRACK_BYTES" in music
         and "MusicFilePolicy.isAllowed" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8"),
-        "music imports and MediaStore scans enforce a 4 MiB per-track limit")
+        "music imports and MediaStore scans allow full-length tracks up to 256 MiB")
+require("256L * 1024L * 1024L" in (SRC/"java/com/ali/carsystem/MusicFilePolicy.java").read_text(encoding="utf-8"),"music import size limit is 256 MiB")
 require("OpenMusicInstaller.install" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
         and "removeLegacyAudioTree" in (SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").read_text(encoding="utf-8")
         and "Open Arabic Archive" in (SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").read_text(encoding="utf-8"),
@@ -172,7 +178,7 @@ require("gmsAvailabilityCode" in NAV and "gmsLocationStatus" in NAV,"Google Play
 require("windowSoftInputMode=" in MAN and "adjustResize" in MAN,"navigation keyboard resize")
 require("sendExtraCommand" in NAV and "force_xtra_injection" in NAV and "force_time_injection" in NAV,"optional A-GPS assistance refresh")
 require("ACCESS_LOCATION_EXTRA_COMMANDS" in MAN,"GPS assistance permission")
-for name in ("GeoMathTest.java","VideoApiTest.java","ArtistMatcherTest.java","MusicFilePolicyTest.java"):
+for name in ("GeoMathTest.java","VideoApiTest.java","ArtistMatcherTest.java","MusicFilePolicyTest.java","TripResetPolicyTest.java"):
  require((APP/"src/test/java/com/ali/carsystem"/name).is_file(),"unit test "+name)
 require((APP/"src/androidTest/java/com/ali/carsystem/LaunchSmokeTest.java").is_file(),"dashboard UI smoke test")
 require((APP/"src/androidTest/java/com/ali/carsystem/DashboardSleepSmokeTest.java").is_file(),"dashboard sleep and gauge UI smoke test")
@@ -191,4 +197,6 @@ require("1280x720" in wallpaper and "111.jfif" in wallpaper and "ImageOps.fit" i
 require(not (SRC/"java/com/ali/carsystem/RouteNetworkClient.java").exists(),"obsolete online routing client removed")
 require(not (SRC/"java/com/ali/carsystem/GeocodingClient.java").exists(),"obsolete online geocoder removed")
 require(not (APP/"src/test/java/com/ali/carsystem/RouteNetworkClientTest.java").exists(),"obsolete online routing tests removed")
-print("PASS: ALI CAR 3.8.2 API21 offline maps, local music and navigation HUD contracts")
+require("showImportAlbumPicker(selected)" in music and "addImportedSongsToAlbum" in music and "متنوعة" in music,"multi-select import chooses and persists an album")
+require("music_variety_album" in music and 'TextView label=text("",16,Color.WHITE,true)' in music,"variety album and larger track font")
+print("PASS: ALI CAR 3.8.3 API21 offline maps, album import, trip reset and navigation HUD contracts")

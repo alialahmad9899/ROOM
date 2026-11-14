@@ -72,11 +72,24 @@ public final class LocationTrackingService extends Service implements LocationLi
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_RESET_TRIP.equals(intent.getAction())) {
-            tripMeters = 0L;
-            prefs.edit().putLong("trip_meters", 0L).putFloat("trip_km", 0f).apply();
+            TripResetPolicy.State reset = TripResetPolicy.afterReset(odometerMeters);
+            tripMeters = reset.tripMeters;
+            odometerMeters = reset.odometerMeters;
+            maxSpeedKmh = reset.maxSpeedKmh;
+            previousAccepted = null;
+            prefs.edit()
+                    .putLong("trip_meters", tripMeters)
+                    .putFloat("trip_km", 0f)
+                    .putLong("odometer_meters", odometerMeters)
+                    .putFloat("odometer_km", odometerMeters / 1000f)
+                    .putFloat("max_speed", maxSpeedKmh)
+                    .apply();
             publishUpdate();
+            // Keep the registered listener. The next real GPS fix becomes a new anchor;
+            // replaying last-known data here could immediately undo the distance reset.
+        } else {
+            startLocationUpdates();
         }
-        startLocationUpdates();
         return START_STICKY;
     }
 

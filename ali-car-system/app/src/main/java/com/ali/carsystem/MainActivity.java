@@ -422,14 +422,15 @@ public final class MainActivity extends BaseActivity implements LocationListener
         stats.addView(statCard("كيلومترات إجمالية","odometer"),new LinearLayout.LayoutParams(0,dp(112),1));
         stats.addView(statCard("أقصى سرعة","max"),new LinearLayout.LayoutParams(0,dp(112),1));
         all.addView(stats,new LinearLayout.LayoutParams(-1,dp(116)));
-        TextView reset=label("تصفير عداد الرحلة",17,0xFFFFD16B,true);reset.setGravity(Gravity.CENTER);reset.setBackground(glass(0x443A2730,0x88FFD16B,18));
+        TextView reset=label("تصفير الرحلة والسرعة القصوى",17,0xFFFFD16B,true);reset.setTag("trip_reset_button");reset.setGravity(Gravity.CENTER);reset.setBackground(glass(0x443A2730,0x88FFD16B,18));
         LinearLayout.LayoutParams rr=new LinearLayout.LayoutParams(dp(270),dp(50));rr.gravity=Gravity.CENTER;rr.topMargin=dp(10);all.addView(reset,rr);
         reset.setOnClickListener(v->new AlertDialog.Builder(MainActivity.this)
                 .setTitle("تصفير عداد الرحلة")
-                .setMessage("هل تريد تصفير مسافة الرحلة الحالية؟ لن يتغير العداد الإجمالي.")
+                .setMessage("سيتم تصفير مسافة الرحلة الحالية وأقصى سرعة مسجلة. لن يتغير عداد الكيلومترات الإجمالي.")
                 .setNegativeButton("إلغاء",null)
                 .setPositiveButton("تصفير",(d,w)->{
-                    tripKm=0d;prefs().edit().putLong("trip_meters",0L).putFloat("trip_km",0f).apply();
+                    tripKm=0d;maxSpeed=0f;
+                    prefs().edit().putLong("trip_meters",0L).putFloat("trip_km",0f).putFloat("max_speed",0f).apply();
                     Intent resetTrip=new Intent(MainActivity.this,LocationTrackingService.class);
                     resetTrip.setAction(LocationTrackingService.ACTION_RESET_TRIP);startService(resetTrip);updateStats();
                 }).show());
