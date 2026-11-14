@@ -1,6 +1,9 @@
 package com.ali.carsystem;
 
 import android.content.*;
+import android.database.Cursor;
+import android.media.MediaScannerConnection;
+import android.provider.OpenableColumns;
 import android.app.AlertDialog;
 import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
@@ -10,7 +13,8 @@ import android.os.*;
 import android.view.*;
 import android.widget.*;
 import androidx.recyclerview.widget.*;
-import java.io.InputStream;
+import java.io.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
 
 public final class MusicActivity extends BaseActivity {
@@ -140,7 +144,13 @@ public final class MusicActivity extends BaseActivity {
         TextView back=text("‹",34,0xFF93E9FF,true);back.setGravity(Gravity.CENTER);back.setOnClickListener(v->finish());
         head.addView(back,new LinearLayout.LayoutParams(dp(48),dp(42)));
         TextView heading=text("مركز الموسيقى",24,Color.WHITE,true);heading.setGravity(Gravity.CENTER);
-        head.addView(heading,new LinearLayout.LayoutParams(0,dp(42),1));head.addView(text("مكتبتك المحلية  •  ALI CAR",13,0xFF8ABAD0,false));root.addView(head);
+        head.addView(heading,new LinearLayout.LayoutParams(0,dp(42),1));
+        TextView addFiles=text("＋ إضافة ملفات مرخّصة",12,0xFF8DE9FF,true);
+        addFiles.setGravity(Gravity.CENTER);addFiles.setTag("music_add_local_files");
+        addFiles.setBackground(card(0xAA14374A,0x775CD9F4,14));
+        head.addView(addFiles,new LinearLayout.LayoutParams(dp(150),dp(38)));
+        addFiles.setOnClickListener(v->openAudioPicker());
+        root.addView(head);
         NavigationBannerView navigationBanner = new NavigationBannerView(this);
         LinearLayout.LayoutParams navigationBannerLp = new LinearLayout.LayoutParams(-1,dp(56));
         navigationBannerLp.topMargin = dp(5);
@@ -187,6 +197,7 @@ public final class MusicActivity extends BaseActivity {
         libraryHead.addView(text("محلية • بدون إنترنت",10,0xFF8ABAD0,false));library.addView(libraryHead);
 
         HorizontalScrollView playlistScroll=new HorizontalScrollView(this);
+        playlistScroll.setTag("music_playlist_filters");
         playlistScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout playlistRow=new LinearLayout(this);playlistRow.setGravity(Gravity.CENTER_VERTICAL);
         for(String playlist:PLAYLISTS){
@@ -204,6 +215,7 @@ public final class MusicActivity extends BaseActivity {
 
         emptyLibrary=text("لا توجد أغنيات ضمن هذه القائمة. أضف ملفاتك إلى مكتبة الجهاز أو اضغط مطولاً على أغنية لإضافتها إلى قائمة مخصصة.",
                 12,0xFFB7D0DC,false);
+        emptyLibrary.setTag("music_playlist_empty");
         emptyLibrary.setGravity(Gravity.CENTER);emptyLibrary.setVisibility(View.GONE);
         library.addView(emptyLibrary,new LinearLayout.LayoutParams(-1,dp(54)));
 
@@ -273,6 +285,98 @@ public final class MusicActivity extends BaseActivity {
                             activePlaylist=selected;applyPlaylistFilter();
                             Toast.makeText(this,"تمت إضافة الأغنية إلى "+selected,Toast.LENGTH_SHORT).show();
                         }).setNegativeButton("إلغاء",null).show();
+    }
+
+    private static final int REQUEST_IMPORT_AUDIO=9021;
+
+    private void openAudioPicker(){
+        Intent picker=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.setType("audio/*");
+        picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+        picker.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try{startActivityForResult(picker,REQUEST_IMPORT_AUDIO);}
+        catch(Exception error){Toast.makeText(this,"تعذر فتح منتقي الملفات الصوتية",Toast.LENGTH_LONG).show();}
+    }
+
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode!=REQUEST_IMPORT_AUDIO||resultCode!=RESULT_OK||data==null)return;
+        ArrayList<Uri> selected=new ArrayList<>();
+        if(data.getClipData()!=null){
+            for(int i=0;i<data.getClipData().getItemCount();i++){
+                Uri uri=data.getClipData().getItemAt(i).getUri();
+                if(uri!=null)selected.add(uri);
+            }
+        }else if(data.getData()!=null)selected.add(data.getData());
+        if(selected.isEmpty())return;
+        new AsyncTask<List<Uri>,Void,ArrayList<File>>(){
+            private String error;
+            @Override protected ArrayList<File> doInBackground(List<Uri>... values){
+                ArrayList<File> copied=new ArrayList<>();
+                File musicRoot=android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_MUSIC);
+                File folder=new File(musicRoot,"ALI CAR");
+                if(!folder.exists()&&!folder.mkdirs()){
+                    error="تعذر إنشاء مجلد الموسيقى المشترك";
+                    return copied;
+                }
+                for(Uri uri:values[0]){
+                    try{
+                        String name=displayName(uri);
+                        name=name==null||name.trim().isEmpty()?"ALI-CAR-audio-"+System.currentTimeMillis()+".audio":name;
+                        name=name.replaceAll("[\\\\/:*?\\"<>|]","_").trim();
+                        File target=new File(folder,name);
+                        String base=name;int suffix=1;
+                        while(target.exists()){
+                            int dot=base.lastIndexOf('.');
+                            String stem=dot>0?base.substring(0,dot):base;
+                            String ext=dot>0?base.substring(dot):"";
+                            target=new File(folder,stem+"-"+(suffix++)+ext);
+                        }
+                        try(InputStream input=getContentResolver().openInputStream(uri);
+                            OutputStream output=new BufferedOutputStream(new FileOutputStream(target))){
+                            if(input==null)throw new IOException("تعذر قراءة الملف");
+                            byte[] buffer=new byte[64*1024];int count;
+                            while((count=input.read(buffer))!=-1)output.write(buffer,0,count);
+                            output.flush();
+                        }
+                        copied.add(target);
+                    }catch(Exception failure){
+                        if(error==null)error=failure.getMessage()==null?"تعذر نسخ أحد الملفات":failure.getMessage();
+                    }
+                }
+                return copied;
+            }
+            private String displayName(Uri uri){
+                try(Cursor cursor=getContentResolver().query(uri,
+                        new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){
+                    if(cursor!=null&&cursor.moveToFirst()){
+                        int index=cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                        if(index>=0)return cursor.getString(index);
+                    }
+                }catch(Exception ignored){}
+                return null;
+            }
+            @Override protected void onPostExecute(ArrayList<File> files){
+                if(files.isEmpty()){
+                    Toast.makeText(MusicActivity.this,error==null?"لم يتم استيراد ملفات":error,Toast.LENGTH_LONG).show();
+                    return;
+                }
+                String[] paths=new String[files.size()];
+                for(int i=0;i<files.size();i++)paths[i]=files.get(i).getAbsolutePath();
+                AtomicInteger remaining=new AtomicInteger(paths.length);
+                MediaScannerConnection.scanFile(MusicActivity.this,paths,null,(file,uri)->{
+                    if(remaining.decrementAndGet()==0){
+                        runOnUiThread(()->{
+                            if(service!=null)service.refreshLibrary();
+                            Toast.makeText(MusicActivity.this,"تم استيراد "+files.size()
+                                    +" ملفاً صوتياً إلى مكتبة ALI CAR",Toast.LENGTH_LONG).show();
+                        });
+                    }
+                });
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,selected);
     }
 
     private TextView control(String symbol,Runnable action){
