@@ -12,10 +12,17 @@ public final class ArtistMatcher {
         String t = normalize(title);
         if (a.isEmpty() && t.isEmpty()) return false;
         for (String alias : aliases) {
-            String n = normalize(alias);
-            if (!n.isEmpty() && (a.contains(n) || t.contains(n))) return true;
+            if (containsAlias(a, t, alias)) return true;
+            for (String alternate : aliasesFor(alias)) {
+                if (containsAlias(a, t, alternate)) return true;
+            }
         }
         return false;
+    }
+
+    private static boolean containsAlias(String artist, String title, String alias) {
+        String n = normalize(alias);
+        return !n.isEmpty() && (artist.contains(n) || title.contains(n));
     }
 
     public static String normalize(String value) {
@@ -42,7 +49,7 @@ public final class ArtistMatcher {
         if (key.contains("صباح فخري") || key.contains("sabah fakhri"))
             return new String[]{"صباح فخري","sabah fakhri","sabah fakri"};
         if (key.contains("ميادة بسيليس") || key.contains("mayada"))
-            return new String[]{"ميادة بسيليس","mayada basiيس","mayada basilيس","mayada"};
+            return new String[]{"ميادة بسيليس","mayada basilis","mayada basiliss","mayada"};
         if (key.contains("ليندا بيطار") || key.contains("linda baytar"))
             return new String[]{"ليندا بيطار","linda baytar","linda baitar"};
         if (key.contains("الشامي") || key.contains("al shami"))
@@ -71,7 +78,7 @@ public final class ArtistMatcher {
             return new String[]{"جوليا بطرس","julia boutros","julia butros"};
         if (key.contains("عاصي الحلاني") || key.contains("assie"))
             return new String[]{"عاصي الحلاني","assie el helani","assi al helani"};
-        if (key.contains("فارس كرم") || key.contains("fارس") || key.contains("fares karam"))
+        if (key.contains("فارس كرم") || key.contains("fares karam"))
             return new String[]{"فارس كرم","fares karam","farris karam"};
         if (key.contains("وائل جسار") || key.contains("wael jassar"))
             return new String[]{"وائل جسار","wael jassar","wael jaser"};
