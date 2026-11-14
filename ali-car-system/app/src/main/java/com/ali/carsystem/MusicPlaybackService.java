@@ -17,6 +17,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.provider.MediaStore;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -167,6 +168,8 @@ public final class MusicPlaybackService extends Service
                         long duration = cursor.getLong(durationColumn);
                         if (duration < 10000L) continue;
                         String dataPath = dataColumn >= 0 ? cursor.getString(dataColumn) : "";
+                        if (dataPath == null || dataPath.isEmpty()
+                                || !MusicFilePolicy.isAllowed(new File(dataPath).length())) continue;
                         loaded.add(new Song(cursor.getLong(idColumn), cursor.getString(titleColumn),
                                 cursor.getString(artistColumn), duration, cursor.getLong(albumColumn), dataPath));
                     }
