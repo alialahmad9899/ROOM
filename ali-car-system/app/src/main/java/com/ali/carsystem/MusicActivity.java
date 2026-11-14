@@ -325,7 +325,7 @@ public final class MusicActivity extends BaseActivity {
                     try{
                         String name=displayName(uri);
                         name=name==null||name.trim().isEmpty()?"ALI-CAR-audio-"+System.currentTimeMillis()+".audio":name;
-                        name=name.replaceAll("[\\\\/:*?\\"<>|]","_").trim();
+                        name=name.replaceAll("[\\\\/:*?<>|]","_").replace("\\\"","_").trim();
                         File target=new File(folder,name);
                         String base=name;int suffix=1;
                         while(target.exists()){
