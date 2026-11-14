@@ -127,6 +127,7 @@ final class OfflineRoutingEngine {
             Log.e(TAG, "BRouter classes missing", missing);
             throw new IOException("محرك التوجيه المحلي غير مضمّن في هذا الإصدار؛ أعد تثبيت حزمة ALI CAR مع BRouter", missing);
         } catch (IOException error) {
+            AppDiagnostics.record(context, "BRouter request " + requestId, error);
             Log.e(TAG, "route#" + requestId + " failed after "
                     + (SystemClock.elapsedRealtime() - startedAt) + "ms: " + error.getMessage(), error);
             throw error;
