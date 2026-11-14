@@ -562,11 +562,11 @@ public final class MusicPlaybackService extends Service
     }
 
     @Override public void onDestroy() {
+        savePlaybackPosition();
+        mainHandler.removeCallbacksAndMessages(null);
         releasePlayer();
         if (audioManager != null) audioManager.abandonAudioFocus(this);
         getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit().putBoolean("playing", false).apply();
-        mainHandler.removeCallbacksAndMessages(null);
-        savePlaybackPosition();
         libraryExecutor.shutdownNow();
         listener = null;
         if (foreground) stopForeground(true);
