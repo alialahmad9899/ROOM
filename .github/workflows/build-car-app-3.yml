@@ -171,7 +171,7 @@ jobs:
           target: default
           arch: x86
           profile: Nexus 7
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-metrics -sdcard /tmp/ali-car-sdcard.img
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-metrics -partition-size 4096 -sdcard /tmp/ali-car-sdcard.img
           disable-animations: true
           working-directory: ali-car-system
           script: |
