@@ -21,8 +21,10 @@ final class OfflineMapsManager {
 
     static File getRoot(Context context) {
         File external = context.getExternalFilesDir("offline");
-        File root = external != null ? external : new File(context.getFilesDir(), "offline");
-        if (!root.exists()) root.mkdirs();
+        if (external != null && (external.isDirectory() || external.mkdirs())) return external;
+        File root = new File(context.getFilesDir(), "offline");
+        if (!root.isDirectory() && !root.mkdirs())
+            throw new IllegalStateException("تعذر إنشاء مجلد الخرائط في التخزين الداخلي أو الخارجي");
         return root;
     }
 
@@ -93,16 +95,23 @@ final class OfflineMapsManager {
             throw new IllegalStateException("تعذر إنشاء مجلد تثبيت الخرائط المضمّنة");
         copyAssetDirectory(assets, "offline", staging);
 
-        if (!new File(staging, "syria.map").isFile()
-                || !new File(staging, "syria-places.sqlite").isFile()
-                || !new File(staging, "brouter/segments4/E35_N30.rd5").isFile()
-                || !new File(staging, "brouter/segments4/E35_N35.rd5").isFile()
-                || !new File(staging, "brouter/segments4/E40_N30.rd5").isFile()
-                || !new File(staging, "brouter/segments4/E40_N35.rd5").isFile()
-                || !new File(staging, "brouter/profiles2/car-fast.brf").isFile()
-                || !new File(staging, "brouter/profiles2/lookups.dat").isFile()) {
+        String[] required = {
+                "syria.map", "syria-places.sqlite",
+                "brouter/segments4/E35_N30.rd5", "brouter/segments4/E35_N35.rd5",
+                "brouter/segments4/E40_N30.rd5", "brouter/segments4/E40_N35.rd5",
+                "brouter/profiles2/car-fast.brf", "brouter/profiles2/lookups.dat"
+        };
+        StringBuilder missing = new StringBuilder();
+        for (String relative : required) {
+            File candidate = new File(staging, relative);
+            if (!candidate.isFile() || candidate.length() == 0L) {
+                if (missing.length() > 0) missing.append(", ");
+                missing.append(relative);
+            }
+        }
+        if (missing.length() > 0) {
             deleteTree(staging);
-            throw new IllegalStateException("بيانات الخرائط المضمّنة في APK غير مكتملة");
+            throw new IllegalStateException("ملفات الخرائط المضمّنة غير موجودة بعد النسخ: " + missing);
         }
 
         File backup = new File(root.getParentFile(), "offline-bundled-backup");
