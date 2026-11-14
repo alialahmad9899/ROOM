@@ -285,6 +285,11 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout.LayoutParams sleepLp=new LinearLayout.LayoutParams(dp(42),dp(40));
         sleepLp.leftMargin=dp(8);top.addView(sleep,sleepLp);
         sleep.setOnClickListener(v->showAmbientClock(true));
+         TextView phone=label("☎",22,0xFFEAFBFF,true);phone.setTag("dashboard_phone_button");
+         phone.setGravity(Gravity.CENTER);phone.setBackground(glass(0x443A7D99,0x886CDFFF,24));
+         LinearLayout.LayoutParams phoneLp=new LinearLayout.LayoutParams(dp(42),dp(40));
+         phoneLp.leftMargin=dp(8);top.addView(phone,phoneLp);
+         phone.setOnClickListener(v->startActivity(new Intent(this,PhoneActivity.class)));
         all.addView(top,new LinearLayout.LayoutParams(-1,dp(50)));
 
         NavigationBannerView navigationBanner = new NavigationBannerView(this);
