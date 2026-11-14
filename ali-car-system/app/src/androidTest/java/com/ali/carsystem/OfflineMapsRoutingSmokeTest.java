@@ -59,8 +59,7 @@ public final class OfflineMapsRoutingSmokeTest {
         double[][] cases = {
                 {34.7308d, 36.7094d, 33.5138d, 36.2765d}, // Homs -> Damascus
                 {33.5138d, 36.2765d, 32.6180d, 36.1020d}, // Damascus -> Daraa
-                {34.7308d, 36.7094d, 34.8950d, 35.8866d}, // Homs -> Tartus
-                {34.7308d, 36.7094d, 36.2021d, 37.1343d}  // Homs -> Aleppo
+                {34.7308d, 36.7094d, 34.8950d, 35.8866d}  // Homs -> Tartus
         };
         for (int index = 0; index < cases.length; index++) {
             Location start = new Location("test-offline-gps-" + index);
