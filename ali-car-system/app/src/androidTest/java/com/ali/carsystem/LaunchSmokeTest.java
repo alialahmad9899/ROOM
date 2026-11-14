@@ -1,6 +1,9 @@
 package com.ali.carsystem;
 
+import android.content.Intent;
 import android.view.View;
+import android.widget.TextView;
+import androidx.test.platform.app.InstrumentationRegistry;
 import android.view.ViewGroup;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ActivityTestRule;
@@ -33,5 +36,36 @@ public final class LaunchSmokeTest {
         assertNotNull("HUD must expose the next maneuver instruction",
                 content.findViewWithTag("navigation_hud_instruction"));
         assertEquals("HUD remains hidden when no route is active", View.GONE, hud.getVisibility());
+
+        Intent active = new Intent(NavigationGuidanceService.ACTION_STATE);
+        active.setPackage(main.getPackageName());
+        active.putExtra("guidance", "بعد 100 متر انعطف يميناً");
+        active.putExtra("active", true);
+        active.putExtra("accuracy_meters", 4f);
+        active.putExtra(NavigationGuidanceService.EXTRA_DISTANCE_TO_TURN_METERS, 100f);
+        active.putExtra(NavigationGuidanceService.EXTRA_REMAINING_ROUTE_METERS, 5200f);
+        active.putExtra(NavigationGuidanceService.EXTRA_ETA_MINUTES, 8L);
+        active.putExtra(NavigationGuidanceService.EXTRA_MANEUVER_TEXT, "انعطف يميناً");
+        active.putExtra(NavigationGuidanceService.EXTRA_SPEED_KMH, 62f);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> main.sendBroadcast(active));
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+
+        assertEquals("Active route must reveal the floating HUD", View.VISIBLE, hud.getVisibility());
+        TextView distance = content.findViewWithTag("navigation_hud_distance");
+        assertEquals("100 م", distance.getText().toString());
+        TextView instruction = content.findViewWithTag("navigation_hud_instruction");
+        assertEquals("انعطف يميناً", instruction.getText().toString());
+        TextView details = content.findViewWithTag("navigation_hud_details");
+        assertTrue("Route details include remaining distance",
+                details.getText().toString().contains("متبقي 5.2 كم"));
+        assertTrue("Route details include live speed",
+                details.getText().toString().contains("سرعة 62 كم/س"));
+
+        Intent stopped = new Intent(NavigationGuidanceService.ACTION_STATE);
+        stopped.setPackage(main.getPackageName());
+        stopped.putExtra("active", false);
+        main.sendBroadcast(stopped);
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        assertEquals("Stopping guidance must hide the HUD", View.GONE, hud.getVisibility());
     }
 }

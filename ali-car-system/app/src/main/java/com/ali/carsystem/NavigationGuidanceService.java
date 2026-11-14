@@ -366,6 +366,14 @@ public final class NavigationGuidanceService extends Service implements Location
         }
     }
 
+    private void clearGuidanceMetrics() {
+        distanceToNextTurnMeters = -1d;
+        remainingRouteMeters = -1d;
+        etaMinutes = -1L;
+        nextManeuverText = "";
+        lastSpeedKmh = -1f;
+    }
+
     @Override public void onLocationChanged(Location location) {
         if (location == null || progressEngine == null || !routeLoaded || rerouting) return;
         lastAccuracy = location.hasAccuracy() ? location.getAccuracy() : -1f;
@@ -377,6 +385,7 @@ public final class NavigationGuidanceService extends Service implements Location
                 : Math.max(0L, System.currentTimeMillis() - location.getTime());
         if (ageMs > MAX_FIX_AGE_MS || lastAccuracy <= 0f
                 || lastAccuracy > MAX_GUIDANCE_ACCURACY_M) {
+            clearGuidanceMetrics();
             long now = android.os.SystemClock.elapsedRealtime();
             if (now - lastPoorGpsNotice > 15000L) {
                 lastPoorGpsNotice = now;
@@ -390,6 +399,7 @@ public final class NavigationGuidanceService extends Service implements Location
         latestProgress = progressEngine.update(location.getLatitude(), location.getLongitude(),
                 lastAccuracy, bearing, speed);
         if (latestProgress == null || !latestProgress.onRoute) {
+            clearGuidanceMetrics();
             double distance = latestProgress == null ? Double.MAX_VALUE
                     : latestProgress.distanceFromRouteMeters;
             if (distance > 90d) {
@@ -718,11 +728,7 @@ public final class NavigationGuidanceService extends Service implements Location
         maneuvers.clear();
         progressEngine = null;
         latestProgress = null;
-        distanceToNextTurnMeters = -1d;
-        remainingRouteMeters = -1d;
-        etaMinutes = -1L;
-        nextManeuverText = "";
-        lastSpeedKmh = -1f;
+        clearGuidanceMetrics();
         String oldPath = prefs.getString(KEY_ROUTE_FILE, "");
         prefs.edit().remove(KEY_ROUTE).remove(KEY_ROUTE_FILE)
                 .remove("destination_name").remove("destination_lat").remove("destination_lon")
@@ -738,6 +744,7 @@ public final class NavigationGuidanceService extends Service implements Location
 
     @Override public void onProviderEnabled(String provider) { startGps(); }
     @Override public void onProviderDisabled(String provider) {
+        clearGuidanceMetrics();
         publishState("GPS متوقف؛ لا يمكن متابعة المسار حتى إعادة تفعيله", true);
     }
     @Override public void onStatusChanged(String provider, int status, Bundle extras) { }
