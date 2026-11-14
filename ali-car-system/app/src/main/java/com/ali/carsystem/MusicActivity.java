@@ -29,18 +29,12 @@ public final class MusicActivity extends BaseActivity {
     private final ArrayList<MusicPlaybackService.Song> allSongs=new ArrayList<>();
     private TextView emptyLibrary;
     private String activePlaylist="كل الأغاني";
-    private static final String[] SUPPORTED_ARTISTS={
-            "فيروز","نصيف زيتون","أصالة نصري","جورج وسوف","صباح فخري","ميادة بسيليس",
-            "ليندا بيطار","الشامي","فايا يونان","شادي جميل","إليسا","نانسي عجرم",
-            "وائل كفوري","راغب علامة","ملحم زين","مروان خوري","كارول سماحة","فضل شاكر",
-            "جوليا بطرس","عاصي الحلاني","فارس كرم","وائل جسار","مريام فارس","هبة طوجي","زياد برجي"
-    };
     private static final String[] PLAYLISTS={
             "كل الأغاني","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
             "صباح فخري","ميادة بسيليس","ليندا بيطار","الشامي","فايا يونان","شادي جميل",
             "إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين","مروان خوري",
             "كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني","فارس كرم",
-            "وائل جسار","مريام فارس","هبة طوجي","زياد برجي",
+            "وائل جسار","ميريام فارس","هبة طوجي","زياد برجي",
             "أغاني سورية","أغاني لبنانية","المفضلة","آخر تشغيل"
     };
     private static final String[] SYRIAN_ARTISTS={
@@ -50,7 +44,7 @@ public final class MusicActivity extends BaseActivity {
     private static final String[] LEBANESE_ARTISTS={
             "فيروز","إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين",
             "مروان خوري","كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني",
-            "فارس كرم","وائل جسار","مريام فارس","هبة طوجي","زياد برجي"
+            "فارس كرم","وائل جسار","ميريام فارس","هبة طوجي","زياد برجي"
     };
     private boolean charging,playing;
     private BroadcastReceiver stateReceiver,powerReceiver;
@@ -272,7 +266,7 @@ public final class MusicActivity extends BaseActivity {
                     case "فيروزيات": include=artistMatches(song,"فيروز","fairuz","fairouz")||manual.contains(song.id); break;
                     case "نصيف زيتون": include=artistMatches(song,"نصيف زيتون","nassif zeytoun","nassif")||manual.contains(song.id); break;
                     case "إليسا": include=artistMatches(song,"إليسا","elissa","elissar")||manual.contains(song.id); break;
-                    case "أصالة": include=artistMatches(song,"أصالة","asala","assala")||manual.contains(song.id); break;
+                    case "أصالة نصري": include=artistMatches(song,"أصالة نصري","asala","assala")||manual.contains(song.id); break;
                     case "أغاني سورية": include=artistMatches(song,SYRIAN_ARTISTS)||manual.contains(song.id); break;
                     case "أغاني لبنانية": include=artistMatches(song,LEBANESE_ARTISTS)||manual.contains(song.id); break;
                     case "المفضلة": include=service.isFavorite(song.id); break;
@@ -287,11 +281,7 @@ public final class MusicActivity extends BaseActivity {
     }
 
     private boolean isSupportedArtist(MusicPlaybackService.Song song){
-        if(song==null)return false;
-        for(String artist:SUPPORTED_ARTISTS){
-            if(ArtistMatcher.matchesAny(song.artist,song.name,artist))return true;
-        }
-        return false;
+        return song!=null && ArtistMatcher.isSupportedArtist(song.artist,song.name);
     }
 
     private boolean artistMatches(MusicPlaybackService.Song song,String... values){
