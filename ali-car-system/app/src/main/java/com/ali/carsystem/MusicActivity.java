@@ -18,6 +18,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
 
 public final class MusicActivity extends BaseActivity {
+    private void persistPlaylist(String playlist){
+        getSharedPreferences("ali_car_audio",MODE_PRIVATE).edit()
+                .putString("last_playlist",playlist).apply();
+    }
     private MusicPlaybackService service;private boolean bound;
     private RecyclerView list;private SongAdapter adapter;private VinylDiscView cover;private WaveView wave;
     private TextView title,artist,time,playButton,shuffleButton,repeatButton;private SeekBar progress;private Visualizer visualizer;
@@ -147,6 +151,9 @@ public final class MusicActivity extends BaseActivity {
     }
     @Override protected void onCreate(Bundle b){
         super.onCreate(b);
+        activePlaylist=getSharedPreferences("ali_car_audio",MODE_PRIVATE)
+                .getString("last_playlist","كل الأغاني");
+        if(!Arrays.asList(PLAYLISTS).contains(activePlaylist))activePlaylist="كل الأغاني";
         playing=MusicPlaybackService.isAudioPlaying(this);
         stateReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){playing=i.getBooleanExtra("playing",false);applyScreenPolicy();}};
         registerReceiver(stateReceiver,new IntentFilter(MusicPlaybackService.ACTION_STATE));
@@ -222,7 +229,7 @@ public final class MusicActivity extends BaseActivity {
                     0x665CD9F4,18));
             LinearLayout.LayoutParams chipLp=new LinearLayout.LayoutParams(-2,dp(36));
             chipLp.rightMargin=dp(6);playlistRow.addView(chip,chipLp);
-            chip.setOnClickListener(v->{activePlaylist=playlist;applyPlaylistFilter();refreshPlaylistChipStyles(playlistRow);});
+            chip.setOnClickListener(v->{activePlaylist=playlist;persistPlaylist(playlist);applyPlaylistFilter();refreshPlaylistChipStyles(playlistRow);});
         }
         playlistScroll.addView(playlistRow);
         LinearLayout.LayoutParams filtersLp=new LinearLayout.LayoutParams(-1,dp(42));
@@ -297,7 +304,7 @@ public final class MusicActivity extends BaseActivity {
                 .setItems(manageable.toArray(new String[0]),(dialog,which)->{
                     String selected=manageable.get(which);
                     service.addSongToPlaylist(song.id,selected);
-                    activePlaylist=selected;applyPlaylistFilter();
+                    activePlaylist=selected;persistPlaylist(selected);applyPlaylistFilter();
                     Toast.makeText(this,"تمت إضافة الأغنية إلى "+selected,Toast.LENGTH_SHORT).show();
                 }).setNegativeButton("إلغاء",null).show();
     }
