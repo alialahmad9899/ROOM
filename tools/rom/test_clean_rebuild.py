@@ -117,7 +117,7 @@ require("ArtistMatcher.isSupportedArtist" in music
         and "if(!isSupportedArtist(song))continue" in music,
         "music library is restricted to the requested singer list and normalized aliases")
 require("MusicFilePolicy.MAX_TRACK_BYTES" in music
-        and "MusicFilePolicy.isAllowed" in service,
+        and "MusicFilePolicy.isAllowed" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8"),
         "music imports and MediaStore scans enforce a 4 MiB per-track limit")
 require("OpenMusicInstaller.install" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
         and "Remove obsolete bundled music index" in (SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").read_text(encoding="utf-8"),
