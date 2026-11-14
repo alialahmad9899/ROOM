@@ -85,7 +85,7 @@ public final class MusicPlaybackService extends Service
             String resolvedName = name == null || name.trim().isEmpty() ? "مقطع صوتي" : name;
             String resolvedArtist = artist == null ? "" : artist;
             this.openArchive = dataPath != null
-                    && dataPath.replace('\\\\', '/').contains("/ALI CAR/Open Arabic Archive/");
+                    && dataPath.replace((char)92, '/').contains("/ALI CAR/Open Arabic Archive/");
             if (openArchive && dataPath != null) {
                 String filename = new java.io.File(dataPath).getName();
                 String[] parts = filename.split("__", 3);
