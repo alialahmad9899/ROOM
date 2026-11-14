@@ -224,6 +224,16 @@ public final class MusicPlaybackService extends Service
         if (listener != null) mainHandler.post(listener::onMusicStateChanged);
     }
 
+    public void playSongId(long songId) {
+        if (!libraryLoaded) { loadLibraryAsync(); return; }
+        for (int i = 0; i < songs.size(); i++) {
+            if (songs.get(i).id == songId) {
+                playAt(i);
+                return;
+            }
+        }
+    }
+
     public void playAt(int requestedIndex) {
         if (!libraryLoaded) {
             pendingIndex = requestedIndex;
