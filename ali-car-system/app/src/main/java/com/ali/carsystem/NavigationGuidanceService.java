@@ -105,7 +105,14 @@ public final class NavigationGuidanceService extends Service implements Location
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
-        tts = new TextToSpeech(this, this);
+        try {
+            tts = new TextToSpeech(this, this);
+        } catch (Exception error) {
+            tts = null;
+            ttsReady = false;
+            arabicAvailable = false;
+            AppDiagnostics.record(this, "Initialize Arabic navigation TTS", error);
+        }
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
