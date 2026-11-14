@@ -7,6 +7,20 @@ import java.util.Locale;
 public final class ArtistMatcher {
     private ArtistMatcher() {}
 
+    private static final String[] SUPPORTED_ARTISTS = {
+            "فيروز","نصيف زيتون","أصالة نصري","جورج وسوف","صباح فخري","ميادة بسيليس",
+            "ليندا بيطار","الشامي","فايا يونان","شادي جميل","إليسا","نانسي عجرم",
+            "وائل كفوري","راغب علامة","ملحم زين","مروان خوري","كارول سماحة","فضل شاكر",
+            "جوليا بطرس","عاصي الحلاني","فارس كرم","وائل جسار","ميريام فارس","هبة طوجي","زياد برجي"
+    };
+
+    public static boolean isSupportedArtist(String artist, String title) {
+        for (String supported : SUPPORTED_ARTISTS) {
+            if (matchesAny(artist, title, supported)) return true;
+        }
+        return false;
+    }
+
     public static boolean matchesAny(String artist, String title, String... aliases) {
         String a = normalize(artist);
         String t = normalize(title);
