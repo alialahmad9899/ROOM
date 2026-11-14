@@ -60,16 +60,24 @@ public final class MusicActivity extends BaseActivity {
     private final Runnable ticker=new Runnable(){@Override public void run(){updateProgress();handler.postDelayed(this,250);}};
     private final ServiceConnection connection=new ServiceConnection(){
         @Override public void onServiceConnected(ComponentName n,IBinder b){
-            service=((MusicPlaybackService.LocalBinder)b).getService();bound=true;
-            service.setListener(()->runOnUiThread(()->{
-                allSongs.clear();allSongs.addAll(service.getSongs());
+            final MusicPlaybackService connectedService=((MusicPlaybackService.LocalBinder)b).getService();
+            service=connectedService;
+            bound=true;
+            connectedService.setListener(()->runOnUiThread(()->{
+                // A callback may already be queued when onStop() unbinds the service.
+                // Do not dereference the mutable service field after that lifecycle edge.
+                if(!bound||service!=connectedService||isFinishing()||isDestroyed())return;
+                allSongs.clear();allSongs.addAll(connectedService.getSongs());
                 applyPlaylistFilter();
                 refreshPlayer();
             }));
-            allSongs.clear();allSongs.addAll(service.getSongs());
+            allSongs.clear();allSongs.addAll(connectedService.getSongs());
             applyPlaylistFilter();refreshPlayer();
         }
-        @Override public void onServiceDisconnected(ComponentName n){bound=false;service=null;stopVisualizer();}
+        @Override public void onServiceDisconnected(ComponentName n){
+            if(service!=null)service.setListener(null);
+            bound=false;service=null;stopVisualizer();
+        }
     };
     private void refreshCharging(){
         try{Intent i=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));charging=i!=null&&i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED,0)!=0;}
