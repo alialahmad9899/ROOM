@@ -50,6 +50,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private GeoPoint destination;private String destinationName="";private Polyline routeLine;private Marker destMarker,carMarker;
     private AsyncTask<Void,Void,RouteResult> routeTask;private AsyncTask<String,Void,GeoResult> geocodeTask;
     private List<Maneuver> activeManeuvers=Collections.emptyList();private List<RouteOption> routeOptions=Collections.emptyList();
+    private RouteProgressEngine routeProgressEngine;
+    private RouteProgressEngine.Progress latestRouteProgress;
     private int selectedRouteIndex=-1,routeRequestId,geocodeRequestId;private boolean guidedMode=true,followCar=true,routeAttemptedForDestination;
     private GeoPoint lastFollowPoint,previousCarPoint;private long lastFollowAt;
     private float lastCarHeading;
@@ -141,11 +143,11 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private void selectRoute(int index){if(index<0||routeOptions==null||index>=routeOptions.size())return;selectedRouteIndex=index;RouteOption o=routeOptions.get(index);
         if(routeLine!=null)map.getOverlays().remove(routeLine);routeLine=new Polyline(map);routeLine.setPoints(o.points);routeLine.setColor(0xFF00C8F0);routeLine.setWidth(dp(6));if(guidedMode)map.getOverlays().add(routeLine);
         status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %.0f دقيقة  •  %d انعطاف",o.km,o.minutes,o.turns));
-        activeManeuvers=o.maneuvers;updateManeuver(current,activeManeuvers);rebuildRouteChoices();
+        activeManeuvers=o.maneuvers;buildRouteProgressEngine(o);updateManeuver(current,activeManeuvers);rebuildRouteChoices();
         if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);map.invalidate();}
     @Override protected void onCreate(Bundle b){super.onCreate(b);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Configuration.getInstance().load(this,getSharedPreferences("osmdroid",MODE_PRIVATE));
-        Configuration.getInstance().setUserAgentValue("ALI-CAR/3.7.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
+        Configuration.getInstance().setUserAgentValue("ALI-CAR/3.8.0 (Android 5; https://github.com/alialahmad9899/ROOM)");
         Configuration.getInstance().setTileFileSystemCacheMaxBytes(8L*1024*1024);
         Configuration.getInstance().setTileFileSystemCacheTrimBytes(4L*1024*1024);
         lm=(LocationManager)getSystemService(LOCATION_SERVICE);
@@ -797,11 +799,51 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 :"تابع "+dir;
         return action+(road.isEmpty()?"":" باتجاه "+road);
     }
-    private void updateManeuver(Location l,List<Maneuver> steps){
-        if(maneuver==null||!guidedMode)return;if(steps==null||steps.isEmpty()||l==null){maneuver.setText("اتبع الخط السماوي");return;}
-        double best=Double.MAX_VALUE;String next=steps.get(steps.size()-1).text;
-        for(Maneuver m:steps){double d=GeoMath.distanceMeters(l.getLatitude(),l.getLongitude(),m.point.getLatitude(),m.point.getLongitude());if(d>15&&d<best){best=d;next=m.text+" — بعد "+Math.round(d)+" متر";}}
-        maneuver.setText(next);
+    private void buildRouteProgressEngine(RouteOption option){
+        routeProgressEngine=null;latestRouteProgress=null;
+        if(option==null||option.points==null||option.points.size()<2)return;
+        ArrayList<RouteProgressEngine.Point> points=new ArrayList<>(option.points.size());
+        for(GeoPoint point:option.points)
+            points.add(new RouteProgressEngine.Point(point.getLatitude(),point.getLongitude()));
+        ArrayList<RouteProgressEngine.Turn> turns=new ArrayList<>(option.maneuvers.size());
+        for(Maneuver turn:option.maneuvers){
+            int nearest=0;double best=Double.MAX_VALUE;
+            for(int i=0;i<option.points.size();i++){
+                GeoPoint point=option.points.get(i);
+                double distance=GeoMath.distanceMeters(turn.point.getLatitude(),turn.point.getLongitude(),
+                        point.getLatitude(),point.getLongitude());
+                if(distance<best){best=distance;nearest=i;}
+            }
+            turns.add(new RouteProgressEngine.Turn(nearest,turn.text));
+        }
+        routeProgressEngine=new RouteProgressEngine(points,turns);
+    }
+    private void updateManeuver(Location location,List<Maneuver> steps){
+        if(maneuver==null||!guidedMode)return;
+        if(steps==null||steps.isEmpty()||location==null||routeProgressEngine==null){
+            maneuver.setText("اتبع الخط السماوي");return;
+        }
+        float accuracy=location.hasAccuracy()?location.getAccuracy():999f;
+        if(accuracy>60f){
+            maneuver.setText("ننتظر GPS أدق لحساب مسافة الانعطاف بأمان");
+            return;
+        }
+        float bearing=location.hasBearing()?location.getBearing():Float.NaN;
+        float speed=location.hasSpeed()?location.getSpeed():0f;
+        latestRouteProgress=routeProgressEngine.update(location.getLatitude(),location.getLongitude(),
+                accuracy,bearing,speed);
+        if(latestRouteProgress==null||!latestRouteProgress.onRoute){
+            maneuver.setText("إشارة الموقع لا تطابق الطريق حالياً • تحقق من المسار");
+            return;
+        }
+        int next=latestRouteProgress.nextTurnIndex;
+        if(next<0||next>=steps.size()){
+            maneuver.setText("تابع حتى الوصول إلى الوجهة");
+            return;
+        }
+        maneuver.setText("بعد "+Math.round(latestRouteProgress.remainingToTurnMeters)
+                +" متر، "+steps.get(next).text+" • متبقٍ "
+                +String.format(Locale.US,"%.1f كم",latestRouteProgress.remainingRouteMeters/1000d));
     }
     @Override public void onLocationChanged(Location l){
         if(l==null)return;current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
