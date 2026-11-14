@@ -175,22 +175,7 @@ jobs:
           disable-animations: true
           working-directory: ali-car-system
           script: |
-            set +e
-            mkdir -p emulator-diagnostics
-            adb shell dumpsys battery > emulator-diagnostics/battery-before-tests.txt 2>&1
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell pm grant com.ali.carsystem android.permission.READ_EXTERNAL_STORAGE
-            adb shell pm grant com.ali.carsystem android.permission.WRITE_EXTERNAL_STORAGE
-            gradle --no-daemon connectedDebugAndroidTest
-            test_rc=$?
-            echo "$test_rc" > emulator-diagnostics/exit-code.txt
-            adb devices -l > emulator-diagnostics/adb-devices.txt 2>&1
-            adb logcat -d -v time > emulator-diagnostics/logcat.txt 2>&1
-            adb shell dumpsys activity activities > emulator-diagnostics/activities.txt 2>&1
-            adb shell dumpsys mount > emulator-diagnostics/storage-mounts.txt 2>&1
-            if [ -d app/build/reports/androidTests/connected/debug ]; then cp -R app/build/reports/androidTests/connected/debug emulator-diagnostics/android-test-report; fi
-            if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -R app/build/outputs/androidTest-results/connected/debug emulator-diagnostics/android-test-results; fi
-            exit "$test_rc"
+            set +e; mkdir -p emulator-diagnostics; adb shell dumpsys battery > emulator-diagnostics/battery-before-tests.txt 2>&1; adb install -r app/build/outputs/apk/debug/app-debug.apk || exit 1; adb shell pm grant com.ali.carsystem android.permission.READ_EXTERNAL_STORAGE || exit 1; adb shell pm grant com.ali.carsystem android.permission.WRITE_EXTERNAL_STORAGE || exit 1; gradle --no-daemon connectedDebugAndroidTest; test_rc=$?; echo "$test_rc" > emulator-diagnostics/exit-code.txt; adb devices -l > emulator-diagnostics/adb-devices.txt 2>&1; adb logcat -d -v time > emulator-diagnostics/logcat.txt 2>&1; adb shell dumpsys activity activities > emulator-diagnostics/activities.txt 2>&1; adb shell dumpsys mount > emulator-diagnostics/storage-mounts.txt 2>&1; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -R app/build/reports/androidTests/connected/debug emulator-diagnostics/android-test-report; fi; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -R app/build/outputs/androidTest-results/connected/debug emulator-diagnostics/android-test-results; fi; exit "$test_rc"
 
       - name: Upload emulator diagnostics
         if: always()
