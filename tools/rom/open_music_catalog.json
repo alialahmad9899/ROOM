@@ -1,0 +1,309 @@
+{
+  "title": "Open Arabic Historical Recordings",
+  "language": "Arabic",
+  "license": "Public Domain (per track source catalogue)",
+  "count": 30,
+  "source_catalog": "https://www.muxiv.com/free?lang=ar&license=PD",
+  "tracks": [
+    {
+      "id": "cmvevxvwr000c3ygo5xc5lqya",
+      "track_number": 1,
+      "title": "Ala fi Sabil Allah",
+      "artist": "Sheikh Sayed El-Safti",
+      "filename": "ALI-ARCHIVE-01__Sheikh Sayed El-Safti__Ala fi Sabil Allah.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvevxvwr000c3ygo5xc5lqya",
+      "audio_url": "https://cdn.muxiv.com/cmvevxvwr000c3ygo5xc5lqya/48.ogg"
+    },
+    {
+      "id": "cmvevxvwf00093ygobgm2b0el",
+      "track_number": 2,
+      "title": "Aldahre Kata Awsali (c. 1914)",
+      "artist": "Wikimedia Commons Artist",
+      "filename": "ALI-ARCHIVE-02__Wikimedia Commons Artist__Aldahre Kata Awsali (c. 1914).ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvevxvwf00093ygobgm2b0el",
+      "audio_url": "https://cdn.muxiv.com/cmvevxvwf00093ygobgm2b0el/48.ogg"
+    },
+    {
+      "id": "cmvev87z4003b3yvbw7kb7gvh",
+      "track_number": 3,
+      "title": "Ya raheb eldair",
+      "artist": "Nahem Simon",
+      "filename": "ALI-ARCHIVE-03__Nahem Simon__Ya raheb eldair.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87z4003b3yvbw7kb7gvh",
+      "audio_url": "https://cdn.muxiv.com/cmvev87z4003b3yvbw7kb7gvh/48.ogg"
+    },
+    {
+      "id": "cmvev87yt00383yvb906631qd",
+      "track_number": 4,
+      "title": "Ya lailo elsabo",
+      "artist": "Nahem Simon",
+      "filename": "ALI-ARCHIVE-04__Nahem Simon__Ya lailo elsabo.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87yt00383yvb906631qd",
+      "audio_url": "https://cdn.muxiv.com/cmvev87yt00383yvb906631qd/48.ogg"
+    },
+    {
+      "id": "cmvev87yj00353yvbyur8tiuv",
+      "track_number": 5,
+      "title": "Talabna min eleh elarech",
+      "artist": "Nahem Simon",
+      "filename": "ALI-ARCHIVE-05__Nahem Simon__Talabna min eleh elarech.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87yj00353yvbyur8tiuv",
+      "audio_url": "https://cdn.muxiv.com/cmvev87yj00353yvbyur8tiuv/48.ogg"
+    },
+    {
+      "id": "cmvev87y800323yvb1apu4cv1",
+      "track_number": 6,
+      "title": "Rannat bekhilkhalaha",
+      "artist": "Nahem Simon",
+      "filename": "ALI-ARCHIVE-06__Nahem Simon__Rannat bekhilkhalaha.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87y800323yvb1apu4cv1",
+      "audio_url": "https://cdn.muxiv.com/cmvev87y800323yvb1apu4cv1/48.ogg"
+    },
+    {
+      "id": "cmvev87xv002z3yvbf2blcdax",
+      "track_number": 7,
+      "title": "Ma hadi zayeh",
+      "artist": "Moses Cohen",
+      "filename": "ALI-ARCHIVE-07__Moses Cohen__Ma hadi zayeh.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87xv002z3yvbf2blcdax",
+      "audio_url": "https://cdn.muxiv.com/cmvev87xv002z3yvbf2blcdax/48.ogg"
+    },
+    {
+      "id": "cmvev87xi002w3yvb0bkteax8",
+      "track_number": 8,
+      "title": "Wana mali",
+      "artist": "Moses Cohen",
+      "filename": "ALI-ARCHIVE-08__Moses Cohen__Wana mali.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87xi002w3yvb0bkteax8",
+      "audio_url": "https://cdn.muxiv.com/cmvev87xi002w3yvb0bkteax8/48.ogg"
+    },
+    {
+      "id": "cmvev87ww002s3yvbjhayx1m9",
+      "track_number": 9,
+      "title": "Daleel el hob",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-09__C. Souse__Daleel el hob.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87ww002s3yvbjhayx1m9",
+      "audio_url": "https://cdn.muxiv.com/cmvev87ww002s3yvbjhayx1m9/48.ogg"
+    },
+    {
+      "id": "cmvev87wj002p3yvbarzi2yqr",
+      "track_number": 10,
+      "title": "Ana el gassad",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-10__C. Souse__Ana el gassad.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87wj002p3yvbarzi2yqr",
+      "audio_url": "https://cdn.muxiv.com/cmvev87wj002p3yvbarzi2yqr/48.ogg"
+    },
+    {
+      "id": "cmvev87w6002m3yvbexvzry9u",
+      "track_number": 11,
+      "title": "Arak asseyeh el dameh",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-11__C. Souse__Arak asseyeh el dameh.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87w6002m3yvbexvzry9u",
+      "audio_url": "https://cdn.muxiv.com/cmvev87w6002m3yvbexvzry9u/48.ogg"
+    },
+    {
+      "id": "cmvev87vu002j3yvbgazuua50",
+      "track_number": 12,
+      "title": "Al rosana",
+      "artist": "S. Mary",
+      "filename": "ALI-ARCHIVE-12__S. Mary__Al rosana.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87vu002j3yvbgazuua50",
+      "audio_url": "https://cdn.muxiv.com/cmvev87vu002j3yvbgazuua50/48.ogg"
+    },
+    {
+      "id": "cmvev87vj002g3yvba8uori54",
+      "track_number": 13,
+      "title": "Yababa gowizany",
+      "artist": "S. Mary",
+      "filename": "ALI-ARCHIVE-13__S. Mary__Yababa gowizany.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87vj002g3yvba8uori54",
+      "audio_url": "https://cdn.muxiv.com/cmvev87vj002g3yvba8uori54/48.ogg"
+    },
+    {
+      "id": "cmvev87v2002c3yvbukiafs55",
+      "track_number": 14,
+      "title": "Ana el garam",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-14__C. Souse__Ana el garam.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87v2002c3yvbukiafs55",
+      "audio_url": "https://cdn.muxiv.com/cmvev87v2002c3yvbukiafs55/48.ogg"
+    },
+    {
+      "id": "cmvev87uo00293yvbad5y2na5",
+      "track_number": 15,
+      "title": "Al yadi yadi",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-15__C. Souse__Al yadi yadi.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87uo00293yvbad5y2na5",
+      "audio_url": "https://cdn.muxiv.com/cmvev87uo00293yvbad5y2na5/48.ogg"
+    },
+    {
+      "id": "cmvev87uc00263yvbgnffpqs4",
+      "track_number": 16,
+      "title": "Addi mahobak",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-16__C. Souse__Addi mahobak.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87uc00263yvbgnffpqs4",
+      "audio_url": "https://cdn.muxiv.com/cmvev87uc00263yvbgnffpqs4/48.ogg"
+    },
+    {
+      "id": "cmvev87u200233yvb6s3zc4tn",
+      "track_number": 17,
+      "title": "Marmar zamani",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-17__C. Souse__Marmar zamani.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87u200233yvb6s3zc4tn",
+      "audio_url": "https://cdn.muxiv.com/cmvev87u200233yvb6s3zc4tn/48.ogg"
+    },
+    {
+      "id": "cmvev87ts00203yvb4ffnbps4",
+      "track_number": 18,
+      "title": "Rahna nesid",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-18__C. Souse__Rahna nesid.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87ts00203yvb4ffnbps4",
+      "audio_url": "https://cdn.muxiv.com/cmvev87ts00203yvb4ffnbps4/48.ogg"
+    },
+    {
+      "id": "cmvev87tf001x3yvb1oetk42k",
+      "track_number": 19,
+      "title": "Ana el sabab",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-19__C. Souse__Ana el sabab.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87tf001x3yvb1oetk42k",
+      "audio_url": "https://cdn.muxiv.com/cmvev87tf001x3yvb1oetk42k/48.ogg"
+    },
+    {
+      "id": "cmvev87t2001u3yvbq1lctpnv",
+      "track_number": 20,
+      "title": "Boulboul naga",
+      "artist": "C. Souse",
+      "filename": "ALI-ARCHIVE-20__C. Souse__Boulboul naga.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87t2001u3yvbq1lctpnv",
+      "audio_url": "https://cdn.muxiv.com/cmvev87t2001u3yvbq1lctpnv/48.ogg"
+    },
+    {
+      "id": "cmvev87sl001q3yvbcs1ybov1",
+      "track_number": 21,
+      "title": "El Ozoubiah",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-21__Louis Wardiny__El Ozoubiah.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87sl001q3yvbcs1ybov1",
+      "audio_url": "https://cdn.muxiv.com/cmvev87sl001q3yvbcs1ybov1/48.ogg"
+    },
+    {
+      "id": "cmvev87s8001n3yvbp4mfsqdu",
+      "track_number": 22,
+      "title": "Ya Mnagrashi",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-22__Louis Wardiny__Ya Mnagrashi.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87s8001n3yvbp4mfsqdu",
+      "audio_url": "https://cdn.muxiv.com/cmvev87s8001n3yvbp4mfsqdu/48.ogg"
+    },
+    {
+      "id": "cmvev87rz001k3yvbbtsld9ho",
+      "track_number": 23,
+      "title": "Gazalaton Agbalat",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-23__Louis Wardiny__Gazalaton Agbalat.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87rz001k3yvbbtsld9ho",
+      "audio_url": "https://cdn.muxiv.com/cmvev87rz001k3yvbbtsld9ho/48.ogg"
+    },
+    {
+      "id": "cmvev87rq001h3yvbq2wy7agl",
+      "track_number": 24,
+      "title": "Labat Salamy",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-24__Louis Wardiny__Labat Salamy.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87rq001h3yvbq2wy7agl",
+      "audio_url": "https://cdn.muxiv.com/cmvev87rq001h3yvbq2wy7agl/48.ogg"
+    },
+    {
+      "id": "cmvev87rh001e3yvbm9imdphl",
+      "track_number": 25,
+      "title": "Hagarny Habibi",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-25__Louis Wardiny__Hagarny Habibi.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87rh001e3yvbm9imdphl",
+      "audio_url": "https://cdn.muxiv.com/cmvev87rh001e3yvbm9imdphl/48.ogg"
+    },
+    {
+      "id": "cmvev87r6001b3yvbey9adn34",
+      "track_number": 26,
+      "title": "Haje Elgaram",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-26__Louis Wardiny__Haje Elgaram.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87r6001b3yvbey9adn34",
+      "audio_url": "https://cdn.muxiv.com/cmvev87r6001b3yvbey9adn34/48.ogg"
+    },
+    {
+      "id": "cmvev87qw00183yvbdir5kca0",
+      "track_number": 27,
+      "title": "Dari man tahwa",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-27__Louis Wardiny__Dari man tahwa.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87qw00183yvbdir5kca0",
+      "audio_url": "https://cdn.muxiv.com/cmvev87qw00183yvbdir5kca0/48.ogg"
+    },
+    {
+      "id": "cmvev87qn00153yvbnqapfvse",
+      "track_number": 28,
+      "title": "Dondorma",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-28__Louis Wardiny__Dondorma.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87qn00153yvbnqapfvse",
+      "audio_url": "https://cdn.muxiv.com/cmvev87qn00153yvbnqapfvse/48.ogg"
+    },
+    {
+      "id": "cmvev87qd00123yvbbslbbmvp",
+      "track_number": 29,
+      "title": "Yekfa Bena Yazaman",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-29__Louis Wardiny__Yekfa Bena Yazaman.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87qd00123yvbbslbbmvp",
+      "audio_url": "https://cdn.muxiv.com/cmvev87qd00123yvbbslbbmvp/48.ogg"
+    },
+    {
+      "id": "cmvev87q3000z3yvb7gxlyhzj",
+      "track_number": 30,
+      "title": "Ya zain Tetbah Halak",
+      "artist": "Louis Wardiny",
+      "filename": "ALI-ARCHIVE-30__Louis Wardiny__Ya zain Tetbah Halak.ogg",
+      "license": "Public Domain",
+      "source_page": "https://www.muxiv.com/originals/cmvev87q3000z3yvb7gxlyhzj",
+      "audio_url": "https://cdn.muxiv.com/cmvev87q3000z3yvb7gxlyhzj/48.ogg"
+    }
+  ]
+}
