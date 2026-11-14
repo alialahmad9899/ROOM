@@ -79,6 +79,7 @@ public final class NavigationBannerView extends LinearLayout {
         details.setEllipsize(android.text.TextUtils.TruncateAt.END);
         textColumn.addView(details, new LayoutParams(
                 LayoutParams.MATCH_PARENT, dp(18)));
+        setTag("navigation_guidance_banner");
         setVisibility(GONE);
     }
 
