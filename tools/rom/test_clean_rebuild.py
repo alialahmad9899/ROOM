@@ -116,6 +116,9 @@ require(not (SRC/"assets/music").exists(),
 require("ArtistMatcher.isSupportedArtist" in music
         and "if(!isSupportedArtist(song))continue" in music,
         "music library is restricted to the requested singer list and normalized aliases")
+require("MusicFilePolicy.MAX_TRACK_BYTES" in music
+        and "MusicFilePolicy.isAllowed" in service,
+        "music imports and MediaStore scans enforce a 4 MiB per-track limit")
 require("OpenMusicInstaller.install" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
         and "Remove obsolete bundled music index" in (SRC/"java/com/ali/carsystem/OpenMusicInstaller.java").read_text(encoding="utf-8"),
         "upgrade removes obsolete bundled archive and indexes only local user music")
@@ -159,12 +162,16 @@ require("gmsAvailabilityCode" in NAV and "gmsLocationStatus" in NAV,"Google Play
 require("windowSoftInputMode=" in MAN and "adjustResize" in MAN,"navigation keyboard resize")
 require("sendExtraCommand" in NAV and "force_xtra_injection" in NAV and "force_time_injection" in NAV,"optional A-GPS assistance refresh")
 require("ACCESS_LOCATION_EXTRA_COMMANDS" in MAN,"GPS assistance permission")
-for name in ("GeoMathTest.java","VideoApiTest.java","ArtistMatcherTest.java"):
+for name in ("GeoMathTest.java","VideoApiTest.java","ArtistMatcherTest.java","MusicFilePolicyTest.java"):
  require((APP/"src/test/java/com/ali/carsystem"/name).is_file(),"unit test "+name)
 require((APP/"src/androidTest/java/com/ali/carsystem/LaunchSmokeTest.java").is_file(),"dashboard UI smoke test")
 require((APP/"src/androidTest/java/com/ali/carsystem/DashboardSleepSmokeTest.java").is_file(),"dashboard sleep and gauge UI smoke test")
 require((APP/"src/androidTest/java/com/ali/carsystem/MusicActivitySmokeTest.java").is_file(),"music screen UI smoke test")
 require((APP/"src/androidTest/java/com/ali/carsystem/MusicPlaybackLifecycleTest.java").is_file(),"local audio playback lifecycle instrumentation test")
+require((APP/"src/androidTest/java/com/ali/carsystem/PhoneActivitySmokeTest.java").is_file(),"phone and Bluetooth UI instrumentation test")
+require((SRC/"java/com/ali/carsystem/PhoneActivity.java").is_file()
+        and 'android:name=".PhoneActivity"' in MAN and "dashboard_phone_button" in MAIN,
+        "dashboard phone/contact/Bluetooth integration is registered")
 require((APP/"src/androidTest/java/com/ali/carsystem/OpenMusicInstallerSmokeTest.java").is_file(),"legacy bundled music removal instrumentation test")
 require((APP/"src/androidTest/java/com/ali/carsystem/NavigationActivitySmokeTest.java").is_file(),"navigation screen UI smoke test")
 java="\n".join(p.read_text(encoding="utf-8") for p in (SRC/"java").rglob("*.java"))
