@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.IBinder;
+import android.os.Environment;
 import android.provider.MediaStore;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -25,7 +26,9 @@ public final class MusicPlaybackLifecycleTest {
 
     @Test public void localTrackCanBeIndexedPlayedPausedAndResumed() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        File wav = new File(context.getCacheDir(), "ali-car-lifecycle-test.wav");
+        File musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
+        if (!musicDir.isDirectory()) assertTrue(musicDir.mkdirs());
+        File wav = new File(musicDir, "ali-car-lifecycle-test.wav");
         writeTestWave(wav, 18);
         Uri row = null;
         try {
