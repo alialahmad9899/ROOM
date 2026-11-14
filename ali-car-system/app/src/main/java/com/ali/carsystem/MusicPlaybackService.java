@@ -48,7 +48,7 @@ public final class MusicPlaybackService extends Service
     private MediaPlayer player;
     private int index = -1;
     private int pendingIndex = -1;
-    private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground;
+    private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending;
     private String pendingAction;
     private Listener listener;
 
@@ -152,6 +152,11 @@ public final class MusicPlaybackService extends Service
                 libraryLoaded = true;
                 restoreLastSong();
                 notifyChanged();
+                if (refreshPending) {
+                    refreshPending = false;
+                    libraryLoaded = false;
+                    loadLibraryAsync();
+                }
                 if (pendingAction != null) {
                     String action = pendingAction;
                     pendingAction = null;
@@ -215,7 +220,10 @@ public final class MusicPlaybackService extends Service
     public boolean isLibraryLoaded() { return libraryLoaded; }
 
     public void refreshLibrary() {
-        if (libraryLoading) return;
+        if (libraryLoading) {
+            refreshPending = true;
+            return;
+        }
         libraryLoaded = false;
         loadLibraryAsync();
     }
