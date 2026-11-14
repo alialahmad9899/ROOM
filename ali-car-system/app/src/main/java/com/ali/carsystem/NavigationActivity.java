@@ -61,6 +61,14 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private float lastFixAccuracy=-1f;
     private long lastFixElapsedNanos;
     private final Handler locationHandler=new Handler(Looper.getMainLooper());
+    private final Handler backgroundStartHandler=new Handler(Looper.getMainLooper());
+    private boolean backgroundStartPending;
+    private final Runnable backgroundStartTimeout=()->{
+        if(!backgroundStartPending)return;
+        backgroundStartPending=false;
+        if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);
+        Toast.makeText(this,"لم تؤكد خدمة الملاحة جاهزيتها خلال المهلة؛ تحقق من حالة الخدمة والموقع",Toast.LENGTH_LONG).show();
+    };
     private final Runnable locationStatusTicker=new Runnable(){
         @Override public void run(){
             if(status!=null&&destination!=null&&waitingForFix)status.setText(gpsStatusText());
@@ -200,9 +208,21 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         navigationStateReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
             if(!NavigationGuidanceService.ACTION_STATE.equals(i.getAction()))return;
             boolean active=i.getBooleanExtra("active",false);
+            boolean ready=i.getBooleanExtra("ready",false);
             String guidance=i.getStringExtra("guidance");
             if(maneuver!=null&&guidance!=null)maneuver.setText(guidance);
             if(stopBackgroundNavigationButton!=null)stopBackgroundNavigationButton.setEnabled(active);
+            if(backgroundStartPending&&ready&&active){
+                backgroundStartPending=false;
+                backgroundStartHandler.removeCallbacks(backgroundStartTimeout);
+                Toast.makeText(NavigationActivity.this,"تم تأكيد تشغيل خدمة الملاحة الخلفية بنجاح",Toast.LENGTH_LONG).show();
+            }else if(backgroundStartPending&&guidance!=null
+                    &&(guidance.contains("تعذر تحميل")||guidance.contains("لا يوجد ملف مسار"))){
+                backgroundStartPending=false;
+                backgroundStartHandler.removeCallbacks(backgroundStartTimeout);
+                if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);
+                Toast.makeText(NavigationActivity.this,guidance,Toast.LENGTH_LONG).show();
+            }
         }};
         registerReceiver(navigationStateReceiver,new IntentFilter(NavigationGuidanceService.ACTION_STATE));
     }
@@ -228,21 +248,57 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(destination==null||selectedRouteIndex<0){
             Toast.makeText(this,"احسب المسار واختره أولاً",Toast.LENGTH_LONG).show();return;
         }
-        try{
-            String payload=buildBackgroundRoutePayload();
-            if(payload==null||payload.isEmpty())throw new IllegalStateException("بيانات المسار غير جاهزة");
-            Intent intent=new Intent(this,NavigationGuidanceService.class);
-            intent.setAction(NavigationGuidanceService.ACTION_START);
-            intent.putExtra(NavigationGuidanceService.EXTRA_ROUTE_JSON,payload);
-            intent.putExtra(NavigationGuidanceService.EXTRA_DEST_NAME,destinationName);
-            intent.putExtra(NavigationGuidanceService.EXTRA_DEST_LAT,destination.getLatitude());
-            intent.putExtra(NavigationGuidanceService.EXTRA_DEST_LON,destination.getLongitude());
-            startService(intent);
-            if(stopBackgroundNavigationButton!=null)stopBackgroundNavigationButton.setEnabled(true);
-            Toast.makeText(this,"تم حفظ المسار وتشغيل خدمة الملاحة الخلفية",Toast.LENGTH_LONG).show();
-        }catch(Exception error){
-            Toast.makeText(this,"تعذر تشغيل المسار بالخلفية: "+error.getMessage(),Toast.LENGTH_LONG).show();
-        }
+        if(backgroundStartPending)return;
+        if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(false);
+        Toast.makeText(this,"جارٍ تجهيز ملف المسار وتشغيل خدمة الملاحة...",Toast.LENGTH_SHORT).show();
+
+        new AsyncTask<Void,Void,File>(){
+            private String errorMessage;
+            @Override protected File doInBackground(Void... ignored){
+                try{
+                    String payload=buildBackgroundRoutePayload();
+                    if(payload==null||payload.isEmpty())throw new IllegalStateException("بيانات المسار غير جاهزة");
+                    File directory=new File(getFilesDir(),"navigation");
+                    if(!directory.exists()&&!directory.mkdirs())throw new IOException("تعذر إنشاء مجلد بيانات الملاحة");
+                    File target=new File(directory,"active-route.json");
+                    File temporary=new File(directory,"active-route.json.tmp");
+                    try(Writer writer=new BufferedWriter(new OutputStreamWriter(
+                            new FileOutputStream(temporary,false),"UTF-8"))){
+                        writer.write(payload);
+                        writer.flush();
+                    }
+                    if(target.exists()&&!target.delete())throw new IOException("تعذر استبدال ملف المسار السابق");
+                    if(!temporary.renameTo(target))throw new IOException("تعذر تثبيت ملف المسار");
+                    return target;
+                }catch(Exception error){
+                    errorMessage=error.getMessage()==null?error.getClass().getSimpleName():error.getMessage();
+                    return null;
+                }
+            }
+            @Override protected void onPostExecute(File routeFile){
+                if(isFinishing())return;
+                if(routeFile==null||!routeFile.isFile()||routeFile.length()==0){
+                    if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);
+                    Toast.makeText(NavigationActivity.this,"تعذر تجهيز المسار: "+errorMessage,Toast.LENGTH_LONG).show();
+                    return;
+                }
+                try{
+                    Intent intent=new Intent(NavigationActivity.this,NavigationGuidanceService.class);
+                    intent.setAction(NavigationGuidanceService.ACTION_START);
+                    intent.putExtra(NavigationGuidanceService.EXTRA_ROUTE_FILE,routeFile.getAbsolutePath());
+                    intent.putExtra(NavigationGuidanceService.EXTRA_DEST_NAME,destinationName);
+                    intent.putExtra(NavigationGuidanceService.EXTRA_DEST_LAT,destination.getLatitude());
+                    intent.putExtra(NavigationGuidanceService.EXTRA_DEST_LON,destination.getLongitude());
+                    startService(intent);
+                    backgroundStartPending=true;
+                    backgroundStartHandler.removeCallbacks(backgroundStartTimeout);
+                    backgroundStartHandler.postDelayed(backgroundStartTimeout,20000L);
+                }catch(Exception error){
+                    if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);
+                    Toast.makeText(NavigationActivity.this,"تعذر إرسال أمر تشغيل الملاحة: "+error.getMessage(),Toast.LENGTH_LONG).show();
+                }
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
     private void stopBackgroundNavigation(){
         Intent intent=new Intent(this,NavigationGuidanceService.class);
@@ -714,6 +770,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
     @Override protected void onDestroy(){
         locationHandler.removeCallbacksAndMessages(null);
+        backgroundStartHandler.removeCallbacksAndMessages(null);
+        backgroundStartPending=false;
         if(geocodeTask!=null)geocodeTask.cancel(true);if(routeTask!=null)routeTask.cancel(true);
         if(lm!=null){try{lm.removeUpdates(this);}catch(Exception ignored){}if(gpsStatusRegistered)try{lm.removeGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}}
         stopGoogleFusedLocation();
