@@ -18,5 +18,9 @@ public final class MusicActivitySmokeTest {
         View content=screen.findViewById(android.R.id.content);
         assertTrue(content instanceof ViewGroup);
         assertTrue(((ViewGroup)content).getChildCount()>0);
+        assertNotNull("Music must display live navigation guidance", content.findViewWithTag("navigation_guidance_banner"));
+        assertNotNull("Playlist filters must be available", content.findViewWithTag("music_playlist_filters"));
+        assertNotNull("Licensed local audio import must be available", content.findViewWithTag("music_add_local_files"));
+        assertNotNull("Empty playlist state must be available", content.findViewWithTag("music_playlist_empty"));
     }
 }
