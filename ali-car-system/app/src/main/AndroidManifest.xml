@@ -43,6 +43,7 @@
         <service android:name=".MusicPlaybackService" android:exported="false"/>
         <service android:name=".LocationTrackingService" android:enabled="true" android:exported="false"/>
         <service android:name=".NavigationGuidanceService" android:enabled="true" android:exported="false"/>
+        <activity android:name=".PhoneActivity" android:screenOrientation="landscape" android:exported="false"/>
         <activity android:name=".SettingsActivity" android:screenOrientation="landscape" android:exported="false"/>
         <receiver android:name=".CarAdminReceiver" android:permission="android.permission.BIND_DEVICE_ADMIN" android:exported="true">
             <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin"/>
