@@ -84,7 +84,7 @@ public final class ArtistMatcher {
             return new String[]{"جورج وسوف","ابو وديع","george wassouf","georges wassouf","george wasouf","wassouf"};
         if (key.contains("صباح فخري") || key.contains("sabah fakhri"))
             return new String[]{"صباح فخري","sabah fakhri","sabah fakri"};
-        if (key.contains("ميادة بسيليس") || key.contains("mayada"))
+        if (key.contains("مياده بسيليس") || key.contains("ميادة بسيليس") || key.contains("mayada"))
             return new String[]{"ميادة بسيليس","mayada basilis","mayada basiliss","mayada"};
         if (key.contains("ليندا بيطار") || key.contains("linda baytar"))
             return new String[]{"ليندا بيطار","linda baytar","linda baitar"};
