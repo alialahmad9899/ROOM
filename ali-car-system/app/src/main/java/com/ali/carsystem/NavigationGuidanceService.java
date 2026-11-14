@@ -16,6 +16,8 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.Handler;
+import android.os.Process;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 
@@ -28,6 +30,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.HashMap;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Offline-first foreground turn guidance. The selected route is persisted as JSON,
@@ -39,18 +47,32 @@ public final class NavigationGuidanceService extends Service implements Location
     public static final String ACTION_STOP = "com.ali.carsystem.NAVIGATION_STOP";
     public static final String ACTION_STATE = "com.ali.carsystem.NAVIGATION_STATE";
     public static final String EXTRA_ROUTE_JSON = "route_json";
+    public static final String EXTRA_ROUTE_FILE = "route_file";
     public static final String EXTRA_DEST_NAME = "destination_name";
     public static final String EXTRA_DEST_LAT = "destination_lat";
     public static final String EXTRA_DEST_LON = "destination_lon";
 
     private static final String PREFS = "ali_car_navigation";
     private static final String KEY_ROUTE = "active_route_json";
+    private static final String KEY_ROUTE_FILE = "active_route_file";
+    private static final String KEY_ACTIVE = "active";
+    private static final String KEY_LATEST_STATE = "latest_state";
     private static final int NOTIFICATION_ID = 7391;
     private static final float MAX_GUIDANCE_ACCURACY_M = 50f;
     private static final long MAX_FIX_AGE_MS = 6000L;
 
     private final List<GeoPoint> routePoints = new ArrayList<>();
     private final List<Maneuver> maneuvers = new ArrayList<>();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService routeExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "ali-car-navigation-io");
+        thread.setPriority(Thread.NORM_PRIORITY - 1);
+        return thread;
+    });
+    private RouteProgressEngine progressEngine;
+    private RouteProgressEngine.Progress latestProgress;
+    private boolean routeLoaded, gpsRegistered, networkRegistered, criteriaRegistered;
+    private int routeLoadGeneration;
     private SharedPreferences prefs;
     private LocationManager locationManager;
     private TextToSpeech tts;
@@ -73,8 +95,10 @@ public final class NavigationGuidanceService extends Service implements Location
     }
 
     public static boolean isActive(Context context) {
-        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_ROUTE, "").length() > 0;
+        SharedPreferences state = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String path = state.getString(KEY_ROUTE_FILE, "");
+        return state.getBoolean(KEY_ACTIVE, false) && path != null
+                && !path.isEmpty() && new File(path).isFile();
     }
 
     @Override public void onCreate() {
@@ -93,39 +117,61 @@ public final class NavigationGuidanceService extends Service implements Location
             return START_NOT_STICKY;
         }
 
-        String routeJson = intent == null ? null : intent.getStringExtra(EXTRA_ROUTE_JSON);
-        if (routeJson != null && !routeJson.trim().isEmpty()) {
-            prefs.edit().putString(KEY_ROUTE, routeJson).apply();
-        } else {
-            routeJson = prefs.getString(KEY_ROUTE, "");
+        ensureForeground("جارٍ تجهيز المسار المحلي للملاحة...");
+        String routeFilePath = intent == null ? null : intent.getStringExtra(EXTRA_ROUTE_FILE);
+        if (routeFilePath == null || routeFilePath.trim().isEmpty()) {
+            routeFilePath = prefs.getString(KEY_ROUTE_FILE, "");
         }
-        if (routeJson == null || routeJson.trim().isEmpty()) {
-            publishState("لا يوجد مسار محفوظ لاستعادته", false);
-            stopSelf();
-            return START_NOT_STICKY;
-        }
-
-        try {
-            parsePayload(new JSONObject(routeJson));
-        } catch (Exception error) {
-            publishState("تعذر استعادة المسار المحفوظ؛ أعد حسابه من الخريطة", false);
-            clearRoute();
+        if (routeFilePath == null || routeFilePath.trim().isEmpty()
+                || !new File(routeFilePath).isFile()) {
+            publishState("لا يوجد ملف مسار محفوظ صالح للاستعادة", false);
+            stopForeground(true);
             stopSelf();
             return START_NOT_STICKY;
         }
 
         if (intent != null && ACTION_START.equals(intent.getAction())) {
-            destinationName = intent.getStringExtra(EXTRA_DEST_NAME) == null
-                    ? destinationName : intent.getStringExtra(EXTRA_DEST_NAME);
+            String name = intent.getStringExtra(EXTRA_DEST_NAME);
+            if (name != null && !name.trim().isEmpty()) destinationName = name;
             destinationLat = intent.getDoubleExtra(EXTRA_DEST_LAT, destinationLat);
             destinationLon = intent.getDoubleExtra(EXTRA_DEST_LON, destinationLon);
         }
-        prefs.edit().putString("destination_name", destinationName)
-                .putFloat("destination_lat", (float) destinationLat)
-                .putFloat("destination_lon", (float) destinationLon).apply();
 
-        ensureForeground("المسار محفوظ • بانتظار إشارة GPS");
-        startGps();
+        final String selectedFile = routeFilePath;
+        final int generation = ++routeLoadGeneration;
+        prefs.edit().putString(KEY_ROUTE_FILE, selectedFile).putBoolean(KEY_ACTIVE, false).apply();
+        routeExecutor.execute(() -> {
+            try {
+                StringBuilder json = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(new FileInputStream(selectedFile), "UTF-8"))) {
+                    char[] buffer = new char[8192];
+                    int count;
+                    while ((count = reader.read(buffer)) != -1) json.append(buffer, 0, count);
+                }
+                if (json.length() == 0) throw new IllegalArgumentException("ملف المسار فارغ");
+                parsePayload(new JSONObject(json.toString()));
+                mainHandler.post(() -> {
+                    if (generation != routeLoadGeneration) return;
+                    routeLoaded = true;
+                    prefs.edit().putString("destination_name", destinationName)
+                            .putFloat("destination_lat", (float) destinationLat)
+                            .putFloat("destination_lon", (float) destinationLon).apply();
+                    startGps();
+                    publishState("خدمة الملاحة جاهزة • جارٍ تحديد موقع السيارة", true);
+                });
+            } catch (Exception error) {
+                final String detail = error.getMessage() == null
+                        ? error.getClass().getSimpleName() : error.getMessage();
+                mainHandler.post(() -> {
+                    if (generation != routeLoadGeneration) return;
+                    publishState("تعذر تحميل المسار المحفوظ: " + detail, false);
+                    clearRoute();
+                    stopForeground(true);
+                    stopSelf();
+                });
+            }
+        });
         return START_STICKY;
     }
 
@@ -168,6 +214,16 @@ public final class NavigationGuidanceService extends Service implements Location
             }
         }
         Collections.sort(maneuvers, (a, b) -> Double.compare(a.distanceAlong, b.distanceAlong));
+        List<RouteProgressEngine.Point> matcherPoints = new ArrayList<>(routePoints.size());
+        for (GeoPoint point : routePoints) {
+            matcherPoints.add(new RouteProgressEngine.Point(point.getLatitude(), point.getLongitude()));
+        }
+        List<RouteProgressEngine.Turn> matcherTurns = new ArrayList<>(maneuvers.size());
+        for (Maneuver turn : maneuvers) {
+            matcherTurns.add(new RouteProgressEngine.Turn(nearestRouteIndex(turn.point), turn.text));
+        }
+        progressEngine = new RouteProgressEngine(matcherPoints, matcherTurns);
+        latestProgress = null;
         currentProgressMeters = 0d;
         nextManeuverIndex = 0;
         lastAnnouncedStage = -1;
@@ -190,116 +246,151 @@ public final class NavigationGuidanceService extends Service implements Location
     }
 
     private void startGps() {
-        if (locationManager == null) {
-            publishState("خدمة GPS غير متاحة في الجهاز", true);
+        if (locationManager == null || !routeLoaded) {
+            publishState("محرك الموقع غير جاهز بعد؛ المسار محفوظ", true);
             return;
         }
-        if (checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")
-                != PackageManager.PERMISSION_GRANTED) {
-            publishState("إذن GPS الدقيق غير ممنوح؛ فعّله لاستمرار الملاحة", true);
+        boolean fine = checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")
+                == PackageManager.PERMISSION_GRANTED;
+        boolean coarse = checkCallingOrSelfPermission("android.permission.ACCESS_COARSE_LOCATION")
+                == PackageManager.PERMISSION_GRANTED;
+        if (!fine && !coarse) {
+            publishState("إذن الموقع غير ممنوح؛ فعّله لمتابعة الملاحة", true);
             return;
+        }
+
+        try { locationManager.removeUpdates(this); } catch (Exception ignored) { }
+        gpsRegistered = false;
+        networkRegistered = false;
+        criteriaRegistered = false;
+        boolean gpsEnabled = false, networkEnabled = false;
+        try { gpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER); }
+        catch (Exception ignored) { }
+        try { networkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER); }
+        catch (Exception ignored) { }
+
+        if (fine && gpsEnabled) {
+            try {
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
+                        1000L, 0f, this, Looper.getMainLooper());
+                gpsRegistered = true;
+            } catch (Exception ignored) { gpsRegistered = false; }
+        }
+        if (coarse && networkEnabled) {
+            try {
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,
+                        2500L, 0f, this, Looper.getMainLooper());
+                networkRegistered = true;
+            } catch (Exception ignored) { networkRegistered = false; }
         }
         try {
-            if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                publishState("GPS متوقف؛ فعّل الموقع لمتابعة المسار", true);
-                return;
+            Criteria criteria = new Criteria();
+            criteria.setAccuracy(fine ? Criteria.ACCURACY_FINE : Criteria.ACCURACY_COARSE);
+            criteria.setPowerRequirement(Criteria.POWER_MEDIUM);
+            criteria.setAltitudeRequired(false);
+            criteria.setBearingRequired(false);
+            criteria.setSpeedRequired(false);
+            criteria.setCostAllowed(true);
+            String best = locationManager.getBestProvider(criteria, true);
+            if (best != null) {
+                locationManager.requestLocationUpdates(2000L, 0f, criteria, this, Looper.getMainLooper());
+                criteriaRegistered = true;
             }
-            locationManager.removeUpdates(this);
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f,
-                    this, Looper.getMainLooper());
-            Location last = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            if (last != null) onLocationChanged(last);
-            publishState("الملاحة الخلفية نشطة • توجيه محلي دون إنترنت", true);
-        } catch (SecurityException error) {
-            publishState("رفض النظام إذن الوصول إلى GPS", true);
-        } catch (Exception error) {
-            publishState("تعذر تشغيل GPS: " + error.getClass().getSimpleName(), true);
+        } catch (Exception ignored) { criteriaRegistered = false; }
+
+        Location bestFix = null;
+        for (String provider : new String[]{LocationManager.GPS_PROVIDER,
+                LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER}) {
+            try {
+                if (!locationManager.getAllProviders().contains(provider)) continue;
+                Location candidate = locationManager.getLastKnownLocation(provider);
+                if (candidate == null) continue;
+                long age = candidate.getElapsedRealtimeNanos() > 0
+                        ? Math.max(0L, (android.os.SystemClock.elapsedRealtimeNanos()
+                        - candidate.getElapsedRealtimeNanos()) / 1000000L)
+                        : Math.max(0L, System.currentTimeMillis() - candidate.getTime());
+                if (age > 300000L) continue;
+                if (bestFix == null || !bestFix.hasAccuracy()
+                        || (candidate.hasAccuracy() && candidate.getAccuracy() < bestFix.getAccuracy())
+                        || candidate.getTime() > bestFix.getTime()) {
+                    bestFix = candidate;
+                }
+            } catch (SecurityException ignored) { }
+            catch (Exception ignored) { }
+        }
+        if (bestFix != null) onLocationChanged(bestFix);
+        if (gpsRegistered || networkRegistered || criteriaRegistered) {
+            publishState("الملاحة الخلفية جاهزة • GPS "
+                    + (gpsRegistered ? "مسجّل" : "بانتظار GPS")
+                    + " • الشبكة " + (networkRegistered ? "متاحة" : "غير متاحة"), true);
+        } else {
+            publishState("الخدمة تعمل والمسار محفوظ • فعّل الموقع للحصول على التوجيه", true);
         }
     }
 
     @Override public void onLocationChanged(Location location) {
-        if (location == null) return;
+        if (location == null || progressEngine == null || !routeLoaded) return;
         lastAccuracy = location.hasAccuracy() ? location.getAccuracy() : -1f;
         long ageMs = location.getElapsedRealtimeNanos() > 0
                 ? Math.max(0L, (android.os.SystemClock.elapsedRealtimeNanos()
                 - location.getElapsedRealtimeNanos()) / 1000000L)
                 : Math.max(0L, System.currentTimeMillis() - location.getTime());
-        if (lastAccuracy <= 0 || lastAccuracy > MAX_GUIDANCE_ACCURACY_M || ageMs > MAX_FIX_AGE_MS) {
+        if (ageMs > MAX_FIX_AGE_MS || lastAccuracy <= 0f
+                || lastAccuracy > MAX_GUIDANCE_ACCURACY_M) {
             long now = android.os.SystemClock.elapsedRealtime();
             if (now - lastPoorGpsNotice > 15000L) {
                 lastPoorGpsNotice = now;
-                publishState("إشارة GPS ضعيفة أو قديمة؛ تحقق من الطريق ولا تعتمد على التوجيه حالياً", true);
+                publishState("الموقع التقريبي متاح، ننتظر GPS أدق قبل إعطاء تعليمات انعطاف", true);
             }
             return;
         }
 
-        Match match = matchRoute(location);
-        currentProgressMeters = Math.max(currentProgressMeters, match.progressMeters);
-        if (match.distanceMeters > 120d) {
-            offRouteFixes++;
-            if (offRouteSince == 0d) offRouteSince = android.os.SystemClock.elapsedRealtime();
-            long now = android.os.SystemClock.elapsedRealtime();
-            if (offRouteFixes >= 2 && now - offRouteSince >= 10000L
-                    && now - lastRerouteAt > 20000L && !rerouting) {
-                lastRerouteAt = now;
-                recalculateRoute(location);
+        float bearing = location.hasBearing() ? location.getBearing() : Float.NaN;
+        float speed = location.hasSpeed() ? location.getSpeed() : 0f;
+        latestProgress = progressEngine.update(location.getLatitude(), location.getLongitude(),
+                lastAccuracy, bearing, speed);
+        if (latestProgress == null || !latestProgress.onRoute) {
+            double distance = latestProgress == null ? Double.MAX_VALUE
+                    : latestProgress.distanceFromRouteMeters;
+            if (distance > 90d) {
+                offRouteFixes++;
+                if (offRouteSince == 0L) offRouteSince = android.os.SystemClock.elapsedRealtime();
+                long now = android.os.SystemClock.elapsedRealtime();
+                if (offRouteFixes >= 3 && now - offRouteSince >= 10000L
+                        && now - lastRerouteAt > 20000L && !rerouting) {
+                    lastRerouteAt = now;
+                    recalculateRoute(location);
+                } else if (now - lastPoorGpsNotice > 8000L) {
+                    lastPoorGpsNotice = now;
+                    publishState("قد تكون خارج المسار • جارٍ التحقق من الموقع", true);
+                }
             }
-        } else {
-            offRouteFixes = 0;
-            offRouteSince = 0L;
+            return;
         }
+
+        offRouteFixes = 0;
+        offRouteSince = 0L;
+        currentProgressMeters = Math.max(currentProgressMeters, latestProgress.progressMeters);
+        nextManeuverIndex = latestProgress.nextTurnIndex < 0
+                ? maneuvers.size() : latestProgress.nextTurnIndex;
         updateNextManeuver();
         publishProgress();
     }
 
-    private static final class Match {
-        final double distanceMeters, progressMeters;
-        Match(double d, double p) { distanceMeters = d; progressMeters = p; }
-    }
-
-    private Match matchRoute(Location location) {
-        double bestDistance = Double.MAX_VALUE, bestProgress = currentProgressMeters;
-        double cumulative = 0d;
-        double latScale = 110540d;
-        double cos = Math.cos(Math.toRadians(location.getLatitude()));
-        for (int i = 0; i + 1 < routePoints.size(); i++) {
-            GeoPoint a = routePoints.get(i), b = routePoints.get(i + 1);
-            double ax = (a.getLongitude() - location.getLongitude()) * 111320d * cos;
-            double ay = (a.getLatitude() - location.getLatitude()) * latScale;
-            double bx = (b.getLongitude() - location.getLongitude()) * 111320d * cos;
-            double by = (b.getLatitude() - location.getLatitude()) * latScale;
-            double dx = bx - ax, dy = by - ay;
-            double denom = dx * dx + dy * dy;
-            double t = denom <= 0d ? 0d : Math.max(0d, Math.min(1d, -(ax * dx + ay * dy) / denom));
-            double px = ax + t * dx, py = ay + t * dy;
-            double distance = Math.sqrt(px * px + py * py);
-            double segment = GeoMath.distanceMeters(a.getLatitude(), a.getLongitude(),
-                    b.getLatitude(), b.getLongitude());
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestProgress = cumulative + segment * t;
-            }
-            cumulative += segment;
-        }
-        return new Match(bestDistance, bestProgress);
-    }
-
     private void updateNextManeuver() {
-        while (nextManeuverIndex < maneuvers.size()
-                && maneuvers.get(nextManeuverIndex).distanceAlong < currentProgressMeters - 25d) {
-            nextManeuverIndex++;
-            lastAnnouncedStage = -1;
-        }
-        if (nextManeuverIndex >= maneuvers.size()) {
+        if (latestProgress == null || !latestProgress.onRoute) return;
+        if (latestProgress.nextTurnIndex < 0 || latestProgress.nextTurnIndex >= maneuvers.size()) {
+            nextManeuverIndex = maneuvers.size();
             publishState("تابع حتى الوصول إلى " + destinationName, true);
             return;
         }
+        nextManeuverIndex = latestProgress.nextTurnIndex;
         Maneuver next = maneuvers.get(nextManeuverIndex);
-        double distance = Math.max(0d, next.distanceAlong - currentProgressMeters);
-        String label = "بعد " + Math.round(distance) + " متر، " + next.text;
-        double remaining = Math.max(0d, totalMeters - currentProgressMeters);
+        double distance = Math.max(0d, latestProgress.remainingToTurnMeters);
+        double remaining = Math.max(0d, latestProgress.remainingRouteMeters);
         long etaMinutes = routeSeconds > 0d && totalMeters > 0d
                 ? Math.round((routeSeconds * (remaining / totalMeters)) / 60d) : -1L;
+        String label = "بعد " + Math.round(distance) + " متر، " + next.text;
         publishState(label + " • متبقٍ " + distanceLabel(remaining)
                 + (etaMinutes >= 0 ? " • وصول خلال " + etaMinutes + " دقيقة" : ""), true);
 
@@ -466,10 +557,11 @@ public final class NavigationGuidanceService extends Service implements Location
         long now = android.os.SystemClock.elapsedRealtime();
         if (now - lastStateNotice < 900L) return;
         lastStateNotice = now;
-        if (nextManeuverIndex < maneuvers.size()) {
+        if (latestProgress != null && latestProgress.onRoute
+                && nextManeuverIndex < maneuvers.size()) {
             Maneuver m = maneuvers.get(nextManeuverIndex);
-            double distance = Math.max(0d, m.distanceAlong - currentProgressMeters);
-            double remaining = Math.max(0d, totalMeters - currentProgressMeters);
+            double distance = Math.max(0d, latestProgress.remainingToTurnMeters);
+            double remaining = Math.max(0d, latestProgress.remainingRouteMeters);
             long eta = routeSeconds > 0d && totalMeters > 0d
                     ? Math.round(routeSeconds * remaining / totalMeters / 60d) : -1L;
             String message = "بعد " + Math.round(distance) + " متر، " + m.text
@@ -483,18 +575,35 @@ public final class NavigationGuidanceService extends Service implements Location
 
     private void publishState(String message, boolean active) {
         latestState = message == null ? "" : message;
+        prefs.edit().putBoolean(KEY_ACTIVE, active && routeLoaded)
+                .putString(KEY_LATEST_STATE, latestState).apply();
         Intent update = new Intent(ACTION_STATE);
         update.setPackage(getPackageName());
         update.putExtra("guidance", latestState);
-        update.putExtra("active", active);
+        update.putExtra("active", active && routeLoaded);
+        update.putExtra("ready", routeLoaded);
         update.putExtra("accuracy_meters", lastAccuracy);
         sendBroadcast(update);
         if (active) ensureForeground(latestState);
     }
 
     private void clearRoute() {
-        prefs.edit().remove(KEY_ROUTE).remove("destination_name")
-                .remove("destination_lat").remove("destination_lon").apply();
+        routeLoadGeneration++;
+        routeLoaded = false;
+        gpsRegistered = false;
+        networkRegistered = false;
+        criteriaRegistered = false;
+        routePoints.clear();
+        maneuvers.clear();
+        progressEngine = null;
+        latestProgress = null;
+        String oldPath = prefs.getString(KEY_ROUTE_FILE, "");
+        prefs.edit().remove(KEY_ROUTE).remove(KEY_ROUTE_FILE)
+                .remove("destination_name").remove("destination_lat").remove("destination_lon")
+                .putBoolean(KEY_ACTIVE, false).apply();
+        if (oldPath != null && !oldPath.isEmpty()) {
+            try { new File(oldPath).delete(); } catch (Exception ignored) { }
+        }
         try { if (locationManager != null) locationManager.removeUpdates(this); } catch (Exception ignored) { }
         if (tts != null) tts.stop();
         if (audioManager != null) audioManager.abandonAudioFocus(this);
@@ -512,6 +621,8 @@ public final class NavigationGuidanceService extends Service implements Location
         try { if (locationManager != null) locationManager.removeUpdates(this); } catch (Exception ignored) { }
         if (tts != null) { try { tts.stop(); tts.shutdown(); } catch (Exception ignored) { } }
         if (audioManager != null) audioManager.abandonAudioFocus(this);
+        mainHandler.removeCallbacksAndMessages(null);
+        routeExecutor.shutdownNow();
         if (foregroundStarted) stopForeground(true);
         super.onDestroy();
     }
