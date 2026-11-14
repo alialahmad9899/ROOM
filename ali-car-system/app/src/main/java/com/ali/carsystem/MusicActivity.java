@@ -125,6 +125,10 @@ public final class MusicActivity extends BaseActivity {
         head.addView(back,new LinearLayout.LayoutParams(dp(48),dp(42)));
         TextView heading=text("مركز الموسيقى",24,Color.WHITE,true);heading.setGravity(Gravity.CENTER);
         head.addView(heading,new LinearLayout.LayoutParams(0,dp(42),1));head.addView(text("مكتبتك المحلية  •  ALI CAR",13,0xFF8ABAD0,false));root.addView(head);
+        NavigationBannerView navigationBanner = new NavigationBannerView(this);
+        LinearLayout.LayoutParams navigationBannerLp = new LinearLayout.LayoutParams(-1,dp(56));
+        navigationBannerLp.topMargin = dp(5);
+        root.addView(navigationBanner, navigationBannerLp);
         LinearLayout body=new LinearLayout(this);LinearLayout.LayoutParams bodyLp=new LinearLayout.LayoutParams(-1,0,1);
         bodyLp.topMargin=dp(8);root.addView(body,bodyLp);
         LinearLayout now=panel();now.setOrientation(LinearLayout.VERTICAL);now.setPadding(dp(14),dp(12),dp(14),dp(10));
