@@ -51,11 +51,11 @@ public final class LaunchSmokeTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
 
         assertEquals("Active route must reveal the floating HUD", View.VISIBLE, hud.getVisibility());
-        TextView distance = content.findViewWithTag("navigation_hud_distance");
+        TextView distance = (TextView) content.findViewWithTag("navigation_hud_distance");
         assertEquals("100 م", distance.getText().toString());
-        TextView instruction = content.findViewWithTag("navigation_hud_instruction");
+        TextView instruction = (TextView) content.findViewWithTag("navigation_hud_instruction");
         assertEquals("انعطف يميناً", instruction.getText().toString());
-        TextView details = content.findViewWithTag("navigation_hud_details");
+        TextView details = (TextView) content.findViewWithTag("navigation_hud_details");
         assertTrue("Route details include remaining distance",
                 details.getText().toString().contains("متبقي 5.2 كم"));
         assertTrue("Route details include live speed",
