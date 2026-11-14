@@ -530,6 +530,22 @@ public final class NavigationGuidanceService extends Service implements Location
                     if (backup.exists()) backup.delete();
                     return payload;
                 } catch (Exception error) {
+                    // Restore the last known-good route in memory if the replacement failed.
+                    try {
+                        String oldPath = prefs.getString(KEY_ROUTE_FILE, "");
+                        if (oldPath != null && !oldPath.isEmpty()) {
+                            StringBuilder oldJson = new StringBuilder();
+                            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                                    new FileInputStream(oldPath), "UTF-8"))) {
+                                char[] buffer = new char[8192];
+                                int count;
+                                while ((count = reader.read(buffer)) != -1) oldJson.append(buffer, 0, count);
+                            }
+                            if (oldJson.length() > 0) parsePayload(new JSONObject(oldJson.toString()));
+                        }
+                    } catch (Exception restoreError) {
+                        android.util.Log.e("ALI-CAR-Navigation", "Could not restore previous route", restoreError);
+                    }
                     JSONObject failure = new JSONObject();
                     try { failure.put("_ali_error", error.getMessage() == null
                             ? error.getClass().getSimpleName() : error.getMessage()); }
