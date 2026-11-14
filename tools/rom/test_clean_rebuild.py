@@ -113,7 +113,7 @@ require("RecyclerView" in music and "Visualizer" in music and "1000L/duration" i
 require("VinylDiscView" in music and "setSpinning" in music and "new float[36]" in music,"rotating record and redesigned 36-bar live equalizer")
 require(not (SRC/"assets/music").exists(),
         "no historical or unrelated audio archive is bundled in the APK")
-require("ArtistMatcher.matchesAny" in music and "SUPPORTED_ARTISTS" in music
+require("ArtistMatcher.isSupportedArtist" in music
         and "if(!isSupportedArtist(song))continue" in music,
         "music library is restricted to the requested singer list and normalized aliases")
 require("OpenMusicInstaller.install" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
