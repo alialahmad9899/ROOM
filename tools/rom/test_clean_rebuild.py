@@ -43,6 +43,28 @@ require("LocationTrackingService.ACTION_RESET_TRIP" in MAIN and "setPositiveButt
 require("sleepBlocked()" in MAIN and "Intent.ACTION_POWER_CONNECTED" in MAIN and "MusicPlaybackService.isAudioPlaying" in MAIN,"sleep blocked while charging or music playback")
 require("static boolean shouldBlockSleep" in MAIN and "showAmbientClockForTest" in MAIN,"testable sleep power interlock and isolated visual test")
 require("FLAG_KEEP_SCREEN_ON" in MAIN,"main dashboard sleep policy")
+POWER=(SRC/"java/com/ali/carsystem/PowerReceiver.java").read_text(encoding="utf-8")
+require("ACTION_POWER_CONNECTED" not in POWER and "startActivity" not in POWER,
+        "plugging in charger must not relaunch MainActivity or interrupt foreground app")
+require('android:name=".PowerReceiver"' in MAN and 'ACTION_POWER_CONNECTED' not in MAN.split('android:name=".PowerReceiver"')[1],
+        "PowerReceiver must restore navigation only at boot, never on charger connection")
+NAV_GUIDANCE=(SRC/"java/com/ali/carsystem/NavigationGuidanceService.java").read_text(encoding="utf-8")
+require("NETWORK_PROVIDER" in NAV_GUIDANCE and "GPS_PROVIDER" in NAV_GUIDANCE,
+        "background guidance requests GPS and network location providers")
+require("RouteProgressEngine" in NAV_GUIDANCE and "remainingToTurnMeters" in NAV_GUIDANCE,
+        "background guidance uses bounded route-progress matching")
+require("EXTRA_ROUTE_FILE" in NAV_GUIDANCE and "FileInputStream" in NAV_GUIDANCE
+        and "startForeground" in NAV_GUIDANCE,
+        "background route is restored from a file after foreground service start")
+require("NavigationBannerView" in MAIN and
+        (SRC/"java/com/ali/carsystem/NavigationBannerView.java").is_file(),
+        "persistent navigation banner exists in dashboard")
+require((APP/"src/androidTest/java/com/ali/carsystem/PowerReceiverSmokeTest.java").is_file(),
+        "charger focus regression test exists")
+require((APP/"src/androidTest/java/com/ali/carsystem/BackgroundNavigationServiceSmokeTest.java").is_file(),
+        "background navigation service smoke test exists")
+require((APP/"src/test/java/com/ali/carsystem/RouteProgressEngineTest.java").is_file(),
+        "route progress unit tests exist")
 require("MusicPlaybackService.dispatch" in MAIN,"dashboard music buttons share playback service")
 require("ExecutorCompletionService" in VIDEO,"parallel video search")
 require("instances.json" in VIDEO and "TeamPiped/Piped/wiki/Instances" in VIDEO,"dynamic API discovery")
@@ -79,10 +101,18 @@ require("OpenStreetMap contributors" in NAV,"map attribution")
 music=(SRC/"java/com/ali/carsystem/MusicActivity.java").read_text(encoding="utf-8")
 require("RecyclerView" in music and "Visualizer" in music and "1000L/duration" in music,"redesigned music, actual waveform and normalized progress")
 require("VinylDiscView" in music and "setSpinning" in music and "new float[36]" in music,"rotating record and redesigned 36-bar live equalizer")
+require("NavigationBannerView" in music and "music_playlist_filters" in music,
+        "music screen has navigation guidance and playlist filters")
+require("music_add_local_files" in music and "ACTION_OPEN_DOCUMENT" in music
+        and "MediaScannerConnection.scanFile" in music,
+        "licensed local audio import is supported")
+require("addSongToPlaylist" in music and "service.isFavorite" in music,
+        "custom playlists and favorites are managed from music UI")
+
 require("showMusicSleep" in music and "sleepClockTick" in music and "sleepBlocked()" in music,"music screen ambient clock respects charger and active playback")
 require("categoryPattern" in (SRC/"java/com/ali/carsystem/OfflinePlacesDb.java").read_text(encoding="utf-8"),"Arabic offline POI category search")
 service=(SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
-require("START_STICKY" in service and "MediaPlayer" in service and "isAudioPlaying" in service and "ali_car_audio" in service,"shared music playback service with persisted playing state")
+require("START_STICKY" in service and "MediaPlayer" in service and "isAudioPlaying" in service and "ali_car_audio" in service and "libraryExecutor" in service and "startForeground" in service and "toggleFavorite" in service and "rememberRecent" in service,"foreground music service with background indexing, favorites and recent tracks")
 player=(SRC/"java/com/ali/carsystem/VideoPlayerActivity.java").read_text(encoding="utf-8")
 require("ExoPlayer" in player and "DashMediaSource" in player and "HlsMediaSource" in player and "MergingMediaSource" in player,"MP4/DASH/HLS video player")
 require("GpsStatus.Listener" in NAV and "addGpsStatusListener" in NAV,"GPS satellite diagnostics")
