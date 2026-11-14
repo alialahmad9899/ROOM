@@ -84,7 +84,7 @@ public final class ArtistMatcher {
             return new String[]{"وائل جسار","wael jassar","wael jaser"};
         if (key.contains("ميريام فارس") || key.contains("مريام فارس") || key.contains("myriam"))
             return new String[]{"ميريام فارس","مريام فارس","myriam fares","myriam faris"};
-        if (key.contains("هبة طوجي") || key.contains("hiba tawaji"))
+        if (key.contains("هبه طوجي") || key.contains("hiba tawaji"))
             return new String[]{"هبة طوجي","hiba tawaji","hiba tawagy"};
         if (key.contains("زياد برجي") || key.contains("ziad bourji"))
             return new String[]{"زياد برجي","ziad bourji","ziad borji"};
