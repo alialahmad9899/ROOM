@@ -4,19 +4,22 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+/**
+ * Restores persisted navigation after boot only.
+ *
+ * Plugging in a charger must never launch MainActivity: the user may be in
+ * YouTube, Music, Navigation, or another foreground screen. Charging state
+ * is observed by the foreground activities themselves.
+ */
 public final class PowerReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
-        if (intent == null) return;
-        if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
-            if (NavigationGuidanceService.isActive(context)) {
-                try { context.startService(new Intent(context, NavigationGuidanceService.class)); }
-                catch (Exception ignored) { }
+        if (intent == null || !Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) return;
+        if (NavigationGuidanceService.isActive(context)) {
+            try {
+                context.startService(new Intent(context, NavigationGuidanceService.class));
+            } catch (Exception ignored) {
+                // The service records its own startup state when it can be recreated.
             }
-            return;
         }
-        if (!Intent.ACTION_POWER_CONNECTED.equals(intent.getAction())) return;
-        Intent launch = new Intent(context, MainActivity.class);
-        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        try { context.startActivity(launch); } catch (Exception ignored) { }
     }
 }
