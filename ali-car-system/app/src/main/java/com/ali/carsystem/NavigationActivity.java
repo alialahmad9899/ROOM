@@ -202,13 +202,14 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         Button savedDestinationsButton=new Button(this);savedDestinationsButton.setTag("navigation_saved_places");styleButton(savedDestinationsButton,"وجهاتي",0xFF183F55);savedDestinationsButton.setTextSize(10);
         Button parkingButton=new Button(this);parkingButton.setTag("navigation_parking");styleButton(parkingButton,"موقفي",0xFF1B665F);parkingButton.setTextSize(10);
         nightModeButton=new Button(this);nightModeButton.setTag("navigation_night_mode");styleButton(nightModeButton,"ليل: تلقائي",0xFF263B58);nightModeButton.setTextSize(10);
-        savedActions.addView(saveDestinationButton,new LinearLayout.LayoutParams(0,dp(38),1));
-        LinearLayout.LayoutParams savedLp=new LinearLayout.LayoutParams(0,dp(38),1);savedLp.setMargins(dp(5),0,0,0);
+        savedActions.addView(saveDestinationButton,new LinearLayout.LayoutParams(0,dp(42),1));
+        LinearLayout.LayoutParams savedLp=new LinearLayout.LayoutParams(0,dp(42),1);savedLp.setMargins(dp(5),0,0,0);
         savedActions.addView(savedDestinationsButton,savedLp);
-        LinearLayout.LayoutParams parkingLp=new LinearLayout.LayoutParams(0,dp(38),1);parkingLp.setMargins(dp(5),0,0,0);
+        LinearLayout.LayoutParams parkingLp=new LinearLayout.LayoutParams(0,dp(42),1);parkingLp.setMargins(dp(5),0,0,0);
         savedActions.addView(parkingButton,parkingLp);
-        LinearLayout.LayoutParams nightLp=new LinearLayout.LayoutParams(0,dp(38),1);nightLp.setMargins(dp(5),0,0,0);
-        savedActions.addView(nightModeButton,nightLp);panel.addView(savedActions);
+        LinearLayout.LayoutParams nightLp=new LinearLayout.LayoutParams(0,dp(42),1);nightLp.setMargins(dp(5),0,0,0);
+        savedActions.addView(nightModeButton,nightLp);
+        panel.addView(savedActions,new LinearLayout.LayoutParams(-1,dp(44)));
         FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(dp(560),-2,Gravity.TOP|Gravity.LEFT);pp.setMargins(dp(16),dp(16),dp(16),0);root.addView(panel,pp);
         followButton=new Button(this);styleButton(followButton,"تتبّع السيارة ✓",0xF20A1B2A);FrameLayout.LayoutParams flp=new FrameLayout.LayoutParams(dp(150),dp(44),Gravity.TOP|Gravity.RIGHT);flp.setMargins(0,dp(18),dp(18),0);root.addView(followButton,flp);
         LinearLayout bottom=new LinearLayout(this);bottom.setOrientation(LinearLayout.VERTICAL);bottom.setPadding(dp(14),dp(10),dp(14),dp(10));bottom.setBackground(rounded(0xF20A1B2A,0xFF24465B,18));
@@ -287,7 +288,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             routeOptions=new ArrayList<>();routeOptions.add(new RouteOption(points,meters/1000d,payload.optDouble("duration_seconds",0d)/60d,turns,turns.size()));selectedRouteIndex=0;activeManeuvers=turns;
             routeLine=new Polyline(map);routeLine.setPoints(points);routeLine.setColor(0xFF00C8F0);routeLine.setWidth(dp(6));map.getOverlays().add(routeLine);destMarker=new Marker(map);destMarker.setPosition(destination);destMarker.setTitle(destinationName);map.getOverlays().add(destMarker);
             rebuildRouteChoices();buildRouteProgressEngine(routeOptions.get(0));updateManeuver(current,activeManeuvers);status.setText("تمت استعادة المسار السابق • التتبع مستمر بالخلفية");if(backgroundNavigationButton!=null)backgroundNavigationButton.setEnabled(true);
-            if(!restoreMapCamera())map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points),true);
+            // With an active route, always frame the complete route first; a saved free-map
+            // camera is restored only when no route is active.
+            map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points),true);
             map.invalidate();search.setText(destinationName);
         }catch(Exception error){AppDiagnostics.record(this,"Restore selected navigation route",error);}
     }
