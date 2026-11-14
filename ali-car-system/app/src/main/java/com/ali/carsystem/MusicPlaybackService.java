@@ -47,7 +47,7 @@ public final class MusicPlaybackService extends Service
     });
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable debouncedLibraryRefresh = () -> {
-        if (!isDestroyed()) refreshLibrary();
+        if (!destroyed) refreshLibrary();
     };
     private final ContentObserver mediaStoreObserver = new ContentObserver(mainHandler) {
         @Override public void onChange(boolean selfChange) {
@@ -63,7 +63,7 @@ public final class MusicPlaybackService extends Service
     private MediaPlayer player;
     private int index = -1;
     private int pendingIndex = -1;
-    private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending, resumePlaybackAfterLoad;
+    private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending, resumePlaybackAfterLoad, destroyed;
     private int restoredPositionMs;
     private String pendingAction;
     private Listener listener;
@@ -608,6 +608,7 @@ public final class MusicPlaybackService extends Service
     }
 
     @Override public void onDestroy() {
+        destroyed = true;
         savePlaybackPosition();
         try { getContentResolver().unregisterContentObserver(mediaStoreObserver); }
         catch (Exception ignored) { }
