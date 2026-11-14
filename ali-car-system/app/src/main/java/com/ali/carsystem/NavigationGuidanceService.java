@@ -245,6 +245,21 @@ public final class NavigationGuidanceService extends Service implements Location
         return bestAlong;
     }
 
+    private int nearestRouteIndex(GeoPoint point) {
+        int bestIndex = 0;
+        double bestDistance = Double.MAX_VALUE;
+        for (int i = 0; i < routePoints.size(); i++) {
+            GeoPoint candidate = routePoints.get(i);
+            double distance = GeoMath.distanceMeters(point.getLatitude(), point.getLongitude(),
+                    candidate.getLatitude(), candidate.getLongitude());
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = i;
+            }
+        }
+        return bestIndex;
+    }
+
     private void startGps() {
         if (locationManager == null || !routeLoaded) {
             publishState("محرك الموقع غير جاهز بعد؛ المسار محفوظ", true);
