@@ -43,6 +43,14 @@ require("LocationTrackingService.ACTION_RESET_TRIP" in MAIN and "setPositiveButt
 require("sleepBlocked()" in MAIN and "Intent.ACTION_POWER_CONNECTED" in MAIN and "MusicPlaybackService.isAudioPlaying" in MAIN,"sleep blocked while charging or music playback")
 require("static boolean shouldBlockSleep" in MAIN and "showAmbientClockForTest" in MAIN,"testable sleep power interlock and isolated visual test")
 require("FLAG_KEEP_SCREEN_ON" in MAIN,"main dashboard sleep policy")
+APP_DIAGNOSTICS=(SRC/"java/com/ali/carsystem/AppDiagnostics.java").read_text(encoding="utf-8")
+require("setDefaultUncaughtExceptionHandler" in APP_DIAGNOSTICS
+        and "previous.uncaughtException" in APP_DIAGNOSTICS
+        and "app-errors.log" in APP_DIAGNOSTICS,
+        "internal crash logging preserves Android's default crash handler")
+require((APP/"src/androidTest/java/com/ali/carsystem/AppDiagnosticsSmokeTest.java").is_file(),
+        "internal diagnostics smoke test exists")
+
 POWER=(SRC/"java/com/ali/carsystem/PowerReceiver.java").read_text(encoding="utf-8")
 require("ACTION_POWER_CONNECTED" not in POWER and "startActivity" not in POWER,
         "plugging in charger must not relaunch MainActivity or interrupt foreground app")
