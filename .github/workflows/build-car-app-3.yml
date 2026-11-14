@@ -105,7 +105,7 @@ jobs:
           packages: platform-tools
 
       - name: Install Android platform and emulator
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'system-images;android-21;default;x86'
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'emulator' 'system-images;android-21;default;x86'
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -160,7 +160,7 @@ jobs:
           compression-level: 0
 
       - name: Create writable API21 emulator SD card
-        run: mksdcard 2G /tmp/ali-car-sdcard.img
+        run: "$ANDROID_HOME/emulator/mksdcard" 2G /tmp/ali-car-sdcard.img
 
       - name: Run API21 x86 UI smoke test
         id: api21-ui-test
