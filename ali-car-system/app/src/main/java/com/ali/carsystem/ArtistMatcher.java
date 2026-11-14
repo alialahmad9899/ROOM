@@ -2,6 +2,7 @@ package com.ali.carsystem;
 
 import java.text.Normalizer;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /** Artist matching across Arabic and common Latin spellings used in audio metadata. */
 public final class ArtistMatcher {
@@ -13,10 +14,31 @@ public final class ArtistMatcher {
             "وائل كفوري","راغب علامة","ملحم زين","مروان خوري","كارول سماحة","فضل شاكر",
             "جوليا بطرس","عاصي الحلاني","فارس كرم","وائل جسار","ميريام فارس","هبة طوجي","زياد برجي"
     };
+    private static final Pattern MARKS = Pattern.compile("\\p{M}+");
+    private static final Pattern NON_WORD = Pattern.compile("[^\\p{IsAlphabetic}\\p{IsDigit}]+");
+    private static final Pattern SPACES = Pattern.compile("\\s+");
+    private static final String[][] NORMALIZED_SUPPORTED = buildSupportedAliases();
+
+    private static String[][] buildSupportedAliases() {
+        String[][] result = new String[SUPPORTED_ARTISTS.length][];
+        for (int i = 0; i < SUPPORTED_ARTISTS.length; i++) {
+            String[] aliases = aliasesFor(SUPPORTED_ARTISTS[i]);
+            String[] normalized = new String[aliases.length + 1];
+            normalized[0] = normalize(SUPPORTED_ARTISTS[i]);
+            for (int j = 0; j < aliases.length; j++) normalized[j + 1] = normalize(aliases[j]);
+            result[i] = normalized;
+        }
+        return result;
+    }
 
     public static boolean isSupportedArtist(String artist, String title) {
-        for (String supported : SUPPORTED_ARTISTS) {
-            if (matchesAny(artist, title, supported)) return true;
+        String a = normalize(artist);
+        String t = normalize(title);
+        if (a.isEmpty() && t.isEmpty()) return false;
+        for (String[] aliases : NORMALIZED_SUPPORTED) {
+            for (String alias : aliases) {
+                if (!alias.isEmpty() && (a.contains(alias) || t.contains(alias))) return true;
+            }
         }
         return false;
     }
@@ -41,13 +63,12 @@ public final class ArtistMatcher {
 
     public static String normalize(String value) {
         if (value == null) return "";
-        String s = Normalizer.normalize(value, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}+", "")
-                .toLowerCase(Locale.ROOT)
+        String s = MARKS.matcher(Normalizer.normalize(value, Normalizer.Form.NFD))
+                .replaceAll("").toLowerCase(Locale.ROOT)
                 .replace('أ','ا').replace('إ','ا').replace('آ','ا')
                 .replace('ى','ي').replace('ة','ه');
-        s = s.replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}]+", " ").trim();
-        return s.replaceAll("\\s+", " ");
+        s = NON_WORD.matcher(s).replaceAll(" ").trim();
+        return SPACES.matcher(s).replaceAll(" ");
     }
 
     public static String[] aliasesFor(String artist) {
