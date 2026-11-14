@@ -143,7 +143,9 @@ public final class MusicPlaybackService extends Service
                 }
             } catch (SecurityException ignored) {
                 // On Android 5 the user grants shared-storage access at install time.
-            } catch (Exception ignored) { }
+            } catch (Exception error) {
+                AppDiagnostics.record(MusicPlaybackService.this, "Music MediaStore scan", error);
+            }
 
             mainHandler.post(() -> {
                 songs.clear();
@@ -293,6 +295,7 @@ public final class MusicPlaybackService extends Service
             player.prepareAsync();
             notifyChanged();
         } catch (Exception error) {
+            AppDiagnostics.record(this, "Music MediaPlayer setup", error);
             releasePlayer();
             notifyChanged();
         }
