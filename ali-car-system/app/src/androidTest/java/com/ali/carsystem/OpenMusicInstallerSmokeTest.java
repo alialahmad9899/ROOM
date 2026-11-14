@@ -19,7 +19,7 @@ public final class OpenMusicInstallerSmokeTest {
         OpenMusicInstaller.install(context);
         File archive = OpenMusicInstaller.getArchiveDirectory();
         assertTrue("Arabic open-music archive directory must exist", archive.isDirectory());
-        File[] tracks = archive.listFiles((dir, name) -> name.toLowerCase().endsWith(".ogg"));
+        File[] tracks = archive.listFiles((dir, name) -> name.toLowerCase().endsWith(".mp3"));
         assertNotNull(tracks);
         assertTrue("At least 30 public-domain Arabic OGG recordings must be installed",
                 tracks.length >= 30);
