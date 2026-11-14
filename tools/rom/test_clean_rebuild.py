@@ -122,6 +122,9 @@ require("WRITE_EXTERNAL_STORAGE" in MAN,
         "API21 shared music archive has legacy write-storage permission")
 require("context.getFilesDir()" in (SRC/"java/com/ali/carsystem/OfflineMapsManager.java").read_text(encoding="utf-8"),
         "offline map installer falls back to app-private storage when external storage is unavailable")
+require("File root = new File(privateFiles, \"offline\")" in (SRC/"java/com/ali/carsystem/OfflineMapsManager.java").read_text(encoding="utf-8")
+        and "getExternalFilesDir" not in (SRC/"java/com/ali/carsystem/OfflineMapsManager.java").read_text(encoding="utf-8"),
+        "offline map installation always uses writable app-private internal storage")
 require("-sdcard /tmp/ali-car-sdcard.img" in (ROOT/".github/workflows/build-car-app-3.yml").read_text(encoding="utf-8"),
         "API21 emulator is provisioned with writable SD storage for music and map installation")
 
