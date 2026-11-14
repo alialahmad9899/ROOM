@@ -44,7 +44,6 @@ public final class MusicPlaybackService extends Service
         return thread;
     });
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final SharedPreferences preferences;
     private AudioManager audioManager;
     private MediaPlayer player;
     private int index = -1;
@@ -52,10 +51,6 @@ public final class MusicPlaybackService extends Service
     private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground;
     private String pendingAction;
     private Listener listener;
-
-    public MusicPlaybackService() {
-        preferences = null;
-    }
 
     public static boolean isAudioPlaying(Context context) {
         return context.getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE)
@@ -218,6 +213,12 @@ public final class MusicPlaybackService extends Service
 
     public boolean isPrepared() { return prepared; }
     public boolean isLibraryLoaded() { return libraryLoaded; }
+
+    public void refreshLibrary() {
+        if (libraryLoading) return;
+        libraryLoaded = false;
+        loadLibraryAsync();
+    }
 
     public void setListener(Listener listener) {
         this.listener = listener;
