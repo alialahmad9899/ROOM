@@ -27,8 +27,15 @@ public final class DashboardSleepSmokeTest {
         clock.getLocationOnScreen(clockPosition);speed.getLocationOnScreen(speedPosition);
         assertTrue("Analog clock must be physically left of the speedometer",
                 clockPosition[0] < speedPosition[0]);
-        assertNotNull("Dashboard must host persistent navigation guidance",
-                content.findViewWithTag("navigation_guidance_banner"));
+        View hud = content.findViewWithTag("dashboard_navigation_hud");
+        assertNotNull("Dashboard must host the centered floating navigation HUD", hud);
+        assertNotNull("Navigation HUD must include a vector turn arrow",
+                content.findViewWithTag("navigation_hud_arrow"));
+        assertNotNull("Navigation HUD must expose turn distance",
+                content.findViewWithTag("navigation_hud_distance"));
+        assertNotNull("Navigation HUD must expose maneuver text",
+                content.findViewWithTag("navigation_hud_instruction"));
+        assertEquals("HUD is hidden until a route is active", View.GONE, hud.getVisibility());
     }
 
     @Test public void sleepPolicySeparatesManualAndAutomaticSleep() {

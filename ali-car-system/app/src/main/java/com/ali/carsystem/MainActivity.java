@@ -178,7 +178,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
         ambientTime=label(new SimpleDateFormat("HH:mm",Locale.US).format(new Date()),150,0xFFE7F8FF,true);
         ambientTime.setTag("ambient_sleep_time");
         ambientTime.setGravity(Gravity.CENTER);
-        ambientTime.setShadowLayer(dp(20),0,0,0xFF218DB8);
+        // Android 5 RenderThread/RenderScript crashes when the blur radius exceeds 25 px.
+        ambientTime.setShadowLayer(Math.min(dp(20), 24f), 0, 0, 0xFF218DB8);
         TextView date=label(new SimpleDateFormat("EEEE، d MMMM yyyy",new Locale("ar")).format(new Date()),22,0xFF9BB9CA,false);
         date.setGravity(Gravity.CENTER);
         TextView motto=label("REST  •  RESET  •  DRIVE SAFE",18,0xFF76DFFF,true);
