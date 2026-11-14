@@ -2,7 +2,7 @@ name: ALI CAR 3.8.3 API21 x86 music import and trip reset
 
 on:
   push:
-    branches: ["ali-car-system/3.0.0-clean-rebuild", "ali-car-system/3.7.0-navigation-power", "ali-car-system/3.7.0-build-final", "ali-car-system/3.8.0-full-repair-2026-11-14", "ali-car-system/3.8.3-full-repair-2026-11-14", "ali-car-system/3.8.3-comprehensive-audit-2026-11-14", "ali-car-system/3.8.3-music-import-trip-reset-2026-11-14"]
+    branches: ["ali-car-system/3.0.0-clean-rebuild", "ali-car-system/3.7.0-navigation-power", "ali-car-system/3.7.0-build-final", "ali-car-system/3.8.0-full-repair-2026-11-14", "ali-car-system/3.8.2-full-repair-2026-11-14", "ali-car-system/3.8.2-comprehensive-audit-2026-11-14", "ali-car-system/3.8.3-full-repair-2026-11-14", "ali-car-system/3.8.3-comprehensive-audit-2026-11-14", "ali-car-system/3.8.3-music-import-trip-reset-2026-11-14"]
     paths: ["ali-car-system/**","tools/rom/**","tools/maps/**",".github/workflows/build-car-app-3.yml"]
   workflow_dispatch:
 
