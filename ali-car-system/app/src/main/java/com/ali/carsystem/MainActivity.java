@@ -44,7 +44,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
         tripKm=prefs().contains("trip_meters")?prefs().getLong("trip_meters",0L)/1000d:prefs().getFloat("trip_km",0f);
         odometerKm=prefs().contains("odometer_meters")?prefs().getLong("odometer_meters",0L)/1000d:prefs().getFloat("odometer_km",0f);
         maxSpeed=prefs().getFloat("max_speed",0f);
-        tts=new TextToSpeech(this,this);
+        try{tts=new TextToSpeech(this,this);}
+        catch(Exception error){tts=null;ttsReady=false;AppDiagnostics.record(this,"Initialize dashboard TTS",error);}
         locationManager=(LocationManager)getSystemService(LOCATION_SERVICE);
         pager=new ViewPager(this);pager.setId(View.generateViewId());
         pager.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
