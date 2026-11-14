@@ -1,7 +1,9 @@
 package com.ali.carsystem;
 
 import android.content.Context;
+import android.database.Cursor;
 import android.media.MediaPlayer;
+import android.provider.MediaStore;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -31,6 +33,16 @@ public final class OpenMusicInstallerSmokeTest {
             if (firstTrack == null) firstTrack = track;
         }
         assertNotNull(firstTrack);
+        try (Cursor cursor = context.getContentResolver().query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                new String[]{MediaStore.Audio.Media._ID},
+                MediaStore.Audio.Media.IS_MUSIC + "=1 AND "
+                        + MediaStore.Audio.Media.DATA + " LIKE ?",
+                new String[]{"%/ALI CAR/Open Arabic Archive/%"}, null)) {
+            assertNotNull("MediaStore query must be available for the music archive", cursor);
+            assertTrue("At least 20 open Arabic tracks must be indexed for the player",
+                    cursor.getCount() >= 20);
+        }
         MediaPlayer player = new MediaPlayer();
         try {
             player.setDataSource(firstTrack.getAbsolutePath());
