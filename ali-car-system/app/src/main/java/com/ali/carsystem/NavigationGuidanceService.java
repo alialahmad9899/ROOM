@@ -442,6 +442,7 @@ public final class NavigationGuidanceService extends Service implements Location
         nextManeuverIndex = latestProgress.nextTurnIndex;
         Maneuver next = maneuvers.get(nextManeuverIndex);
         distanceToNextTurnMeters = Math.max(0d, latestProgress.remainingToTurnMeters);
+        double distance = distanceToNextTurnMeters;
         nextManeuverText = next.text;
         String label = "بعد " + Math.round(distanceToNextTurnMeters) + " متر، " + next.text;
         publishState(label + " • متبقٍ " + distanceLabel(remainingRouteMeters)

@@ -46,6 +46,7 @@ public final class MusicPlaybackService extends Service
         return thread;
     });
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean destroyed;
     private final Runnable debouncedLibraryRefresh = () -> {
         if (!destroyed) refreshLibrary();
     };
@@ -63,7 +64,7 @@ public final class MusicPlaybackService extends Service
     private MediaPlayer player;
     private int index = -1;
     private int pendingIndex = -1;
-    private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending, resumePlaybackAfterLoad, destroyed;
+    private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending, resumePlaybackAfterLoad;
     private int restoredPositionMs;
     private String pendingAction;
     private Listener listener;
