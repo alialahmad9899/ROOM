@@ -25,7 +25,7 @@ public final class LaunchSmokeTest {
     public ActivityTestRule<MainActivity> activity =
             new ActivityTestRule<>(MainActivity.class);
 
-    @Test public void dashboardActivityStartsAndCreatesItsContentTree() {
+    @Test public void dashboardActivityStartsAndCreatesItsContentTree() throws Exception {
         MainActivity main = activity.getActivity();
         assertNotNull("MainActivity must be created", main);
         assertFalse("MainActivity must remain alive after launch", main.isFinishing());
