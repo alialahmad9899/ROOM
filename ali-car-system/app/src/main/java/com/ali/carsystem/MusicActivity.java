@@ -30,7 +30,7 @@ public final class MusicActivity extends BaseActivity {
     private TextView emptyLibrary;
     private String activePlaylist="كل الأغاني";
     private static final String[] PLAYLISTS={
-            "كل الأغاني","الأرشيف العربي المجاني","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
+            "كل الأغاني","فيروزيات","نصيف زيتون","أصالة نصري","جورج وسوف",
             "صباح فخري","ميادة بسيليس","ليندا بيطار","الشامي","فايا يونان","شادي جميل",
             "إليسا","نانسي عجرم","وائل كفوري","راغب علامة","ملحم زين","مروان خوري",
             "كارول سماحة","فضل شاكر","جوليا بطرس","عاصي الحلاني","فارس كرم",
@@ -272,7 +272,6 @@ public final class MusicActivity extends BaseActivity {
                     case "أصالة": include=artistMatches(song,"أصالة","asala","assala")||manual.contains(song.id); break;
                     case "أغاني سورية": include=artistMatches(song,SYRIAN_ARTISTS)||manual.contains(song.id); break;
                     case "أغاني لبنانية": include=artistMatches(song,LEBANESE_ARTISTS)||manual.contains(song.id); break;
-                    case "الأرشيف العربي المجاني": include=song.openArchive; break;
                     case "المفضلة": include=service.isFavorite(song.id); break;
                     case "آخر تشغيل": include=recent.contains(song.id); break;
                     default: include=artistMatches(song,activePlaylist)||manual.contains(song.id); break;
@@ -285,20 +284,15 @@ public final class MusicActivity extends BaseActivity {
     }
 
     private boolean artistMatches(MusicPlaybackService.Song song,String... values){
-        String artist=(song.artist==null?"":song.artist).toLowerCase(Locale.ROOT);
-        String titleText=(song.name==null?"":song.name).toLowerCase(Locale.ROOT);
-        for(String value:values){
-            String needle=value.toLowerCase(Locale.ROOT);
-            if(artist.contains(needle)||titleText.contains(needle))return true;
-        }
-        return false;
+        if(song==null)return false;
+        return ArtistMatcher.matchesAny(song.artist,song.name,values);
     }
 
     private void addSongToPlaylist(MusicPlaybackService.Song song){
         if(service==null||song==null)return;
         ArrayList<String> manageable=new ArrayList<>();
         for(String item:PLAYLISTS){
-            if(!"كل الأغاني".equals(item)&&!"الأرشيف العربي المجاني".equals(item)
+            if(!"كل الأغاني".equals(item)
                     &&!"المفضلة".equals(item)&&!"آخر تشغيل".equals(item))
                 manageable.add(item);
         }
