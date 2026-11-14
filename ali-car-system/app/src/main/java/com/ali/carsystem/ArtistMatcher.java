@@ -63,7 +63,8 @@ public final class ArtistMatcher {
 
     public static String normalize(String value) {
         if (value == null) return "";
-        String s = MARKS.matcher(Normalizer.normalize(value, Normalizer.Form.NFD))
+        String normalizedInput = value.replace('ئ','ي').replace('ؤ','و').replace('ء','');
+        String s = MARKS.matcher(Normalizer.normalize(normalizedInput, Normalizer.Form.NFD))
                 .replaceAll("").toLowerCase(Locale.ROOT)
                 .replace('أ','ا').replace('إ','ا').replace('آ','ا')
                 .replace('ى','ي').replace('ة','ه');
@@ -97,7 +98,7 @@ public final class ArtistMatcher {
             return new String[]{"إليسا","اليسا","elissa","elissar","elisa"};
         if (key.contains("نانسي") || key.contains("nancy"))
             return new String[]{"نانسي عجرم","nancy ajram","nancy"};
-        if (key.contains("وائل كفوري") || key.contains("wael kfoury"))
+        if (key.contains("وايل كفوري") || key.contains("وائل كفوري") || key.contains("wael kfoury"))
             return new String[]{"وائل كفوري","wael kfoury","wael kafoury"};
         if (key.contains("راغب") || key.contains("ragheb"))
             return new String[]{"راغب علامة","ragheb alama","ragheb allama","ragheb"};
@@ -115,7 +116,7 @@ public final class ArtistMatcher {
             return new String[]{"عاصي الحلاني","assie el helani","assi al helani"};
         if (key.contains("فارس كرم") || key.contains("fares karam"))
             return new String[]{"فارس كرم","fares karam","farris karam"};
-        if (key.contains("وائل جسار") || key.contains("wael jassar"))
+        if (key.contains("وايل جسار") || key.contains("وائل جسار") || key.contains("wael jassar"))
             return new String[]{"وائل جسار","wael jassar","wael jaser"};
         if (key.contains("ميريام فارس") || key.contains("مريام فارس") || key.contains("myriam"))
             return new String[]{"ميريام فارس","مريام فارس","myriam fares","myriam faris"};
