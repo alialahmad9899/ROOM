@@ -64,6 +64,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private long lastFixElapsedNanos,routeRetryAfterMs;
     private Location lastRouteStartLocation;
     private float lastRouteStartAccuracy=-1f;
+    private long gpsWaitStartedAt;
     private final Handler locationHandler=new Handler(Looper.getMainLooper());
     private final Handler backgroundStartHandler=new Handler(Looper.getMainLooper());
     private boolean backgroundStartPending;
@@ -423,7 +424,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
 
     private void setDestination(GeoCandidate candidate){
-        destination=candidate.point;destinationName=candidate.name;routeAttemptedForDestination=false;routeRetryAfterMs=0L;
+        destination=candidate.point;destinationName=candidate.name;routeAttemptedForDestination=false;
+        routeRetryAfterMs=0L;gpsWaitStartedAt=SystemClock.elapsedRealtime();
         showDestination();drawRouteIfPossible();
     }
 
@@ -719,8 +721,11 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(destination==null)return;
         if(!isRouteStartUsable(current)){
             waitingForFix=true;
-            status.setText("تم تحديد الوجهة • ننتظر موقعاً صالحاً من GPS أو الشبكة — "
-                    +gpsStatusText());
+            long waited = gpsWaitStartedAt > 0L
+                    ? SystemClock.elapsedRealtime() - gpsWaitStartedAt : 0L;
+            status.setText(waited >= 15000L
+                    ? "لم يصل موقع صالح خلال 15 ثانية • لا يمكن حساب طريق آمن دون نقطة انطلاق. افحص GPS أو انتظر قراءة الشبكة"
+                    : "تم تحديد الوجهة • ننتظر موقعاً صالحاً من GPS أو الشبكة — "+gpsStatusText());
             return;
         }
         long now=SystemClock.elapsedRealtime();
