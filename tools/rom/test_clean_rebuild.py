@@ -15,7 +15,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 383" in GRADLE and "versionName '3.8.3'" in GRADLE,"ALI CAR version 3.8.3")
+require("versionCode 384" in GRADLE and "versionName '3.8.4'" in GRADLE,"ALI CAR version 3.8.3")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -34,10 +34,23 @@ require('digitalClock=label("00:00"' not in MAIN,"digital dashboard clock remove
 require("dashboard_sleep_toggle" in MAIN and "ambient_sleep_overlay" in MAIN,"manual and automatic sleep screen")
 require("ambient_wake_button" in MAIN and "REST  •  RESET  •  DRIVE SAFE" in MAIN,"sleep clock wake control and English motto")
 require("screenBrightness=0.045f" in MAIN and "restoreWindowBrightness" in MAIN,"sleep dim brightness restore")
-require("90000" in MAIN and "ACTION_SCREEN_ON" in MAIN,"ambient clock and wake splash")
+require("90000" in MAIN and "ACTION_SCREEN_ON" not in MAIN,
+        "ambient clock remains without replaying welcome on every screen wake")
 require("final class NeonSplashView" in DASH and "أهلاً بك في تجربة قيادة أذكى" in DASH and "SMART  •  CONNECTED  •  READY TO DRIVE" in DASH,"professional branded welcome screen")
-require("postInvalidateDelayed(33)" in DASH and "drawArc" in DASH and "welcome_splash_overlay" in DASH,"animated welcome emblem and 30fps canvas motion")
-require("setDuration(520)" in MAIN and "setDuration(420)" in MAIN,"welcome fade-in and fade-out transitions")
+require("setLayerType(View.LAYER_TYPE_SOFTWARE,null)" in DASH
+        and "welcome_splash_overlay" in DASH and "drawArc" in DASH
+        and "postInvalidateDelayed(33)" not in DASH,
+        "first-boot welcome is static software-rendered without continuous GPU redraw")
+require("handler.postDelayed(this::dismissWelcome,3000)" in MAIN
+        and "v.animate()" not in MAIN,
+        "welcome has a short fixed display and no animated layer transitions")
+MAIN_CREATE = MAIN.split("@Override protected void onCreate(Bundle state) {",1)[1].split("private android.content.SharedPreferences prefs()",1)[0]
+require("new TextToSpeech(this,this)" not in MAIN_CREATE
+        and "startGps()" not in MAIN_CREATE and "handler.post(clockTick)" not in MAIN_CREATE
+        and "ACTION_SCREEN_ON" not in MAIN,
+        "GPS, TTS and clock initialization are deferred until after welcome")
+require("initializeTts();" in MAIN and "if(!splashPending&&welcomeOverlay==null)" in MAIN,
+        "deferred TTS and GPS startup resumes after welcome closes")
 TRACK=(SRC/"java/com/ali/carsystem/LocationTrackingService.java").read_text(encoding="utf-8")
 require("trip_meters" in TRACK and "odometer_meters" in TRACK and "LocationManager.GPS_PROVIDER" in TRACK,"persistent local GPS distance and odometer service")
 require("startForeground" in TRACK and "ACTION_UPDATE" in TRACK,"foreground GPS tracking service broadcasts state")
@@ -185,6 +198,8 @@ require("ACCESS_LOCATION_EXTRA_COMMANDS" in MAN,"GPS assistance permission")
 for name in ("GeoMathTest.java","VideoApiTest.java","ArtistMatcherTest.java","MusicFilePolicyTest.java","TripResetPolicyTest.java"):
  require((APP/"src/test/java/com/ali/carsystem"/name).is_file(),"unit test "+name)
 require((APP/"src/androidTest/java/com/ali/carsystem/LaunchSmokeTest.java").is_file(),"dashboard UI smoke test")
+require((APP/"src/androidTest/java/com/ali/carsystem/WelcomeStartupSmokeTest.java").is_file(),
+        "first-boot welcome stability and deferred-startup instrumentation test")
 require((APP/"src/androidTest/java/com/ali/carsystem/DashboardSleepSmokeTest.java").is_file(),"dashboard sleep and gauge UI smoke test")
 require((APP/"src/androidTest/java/com/ali/carsystem/MusicActivitySmokeTest.java").is_file(),"music screen UI smoke test")
 require((APP/"src/androidTest/java/com/ali/carsystem/MusicPlaybackLifecycleTest.java").is_file(),"local audio playback lifecycle instrumentation test")

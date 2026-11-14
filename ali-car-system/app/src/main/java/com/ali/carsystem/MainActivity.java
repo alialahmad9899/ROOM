@@ -28,7 +28,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private TextView gpsStatus, songTitle, digitalClock, dateLabel, ambientTime;
     private LocationManager locationManager;
     private Location previousFix;
-    private boolean gpsStarted, dashboardCriteriaRegistered, splashPending=true, ttsReady, pendingSpeak;
+    private boolean gpsStarted, dashboardCriteriaRegistered, splashPending=true, ttsReady, pendingSpeak, activityResumed, ttsInitializationAttempted;
     private TextToSpeech tts;
     private double tripKm, odometerKm;
     private float maxSpeed;
@@ -38,7 +38,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private View ambientOverlay,welcomeOverlay;
     private float previousWindowBrightness=-1f;
     private boolean previousBrightnessCaptured;
-    private BroadcastReceiver screenReceiver,musicReceiver,powerReceiver,trackingReceiver,navigationReceiver;
+    private BroadcastReceiver musicReceiver,powerReceiver,trackingReceiver,navigationReceiver;
     private boolean charging, musicPlaying;
 
     @Override protected void onCreate(Bundle state) {
@@ -46,8 +46,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         tripKm=prefs().contains("trip_meters")?prefs().getLong("trip_meters",0L)/1000d:prefs().getFloat("trip_km",0f);
         odometerKm=prefs().contains("odometer_meters")?prefs().getLong("odometer_meters",0L)/1000d:prefs().getFloat("odometer_km",0f);
         maxSpeed=prefs().getFloat("max_speed",0f);
-        try{tts=new TextToSpeech(this,this);}
-        catch(Exception error){tts=null;ttsReady=false;AppDiagnostics.record(this,"Initialize dashboard TTS",error);}
+        // Text-to-Speech is initialized only after the first-boot welcome screen.
         locationManager=(LocationManager)getSystemService(LOCATION_SERVICE);
         pager=new ViewPager(this);pager.setId(View.generateViewId());
         pager.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -60,8 +59,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
                 updateStats();
             }
         });
-        screenReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){if(Intent.ACTION_SCREEN_ON.equals(i.getAction()))handler.postDelayed(()->showWelcome(),350);}};
-        registerReceiver(screenReceiver,new IntentFilter(Intent.ACTION_SCREEN_ON));
+        // Do not replay the welcome screen every time the display wakes.
         musicPlaying=MusicPlaybackService.isAudioPlaying(this);
         musicReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
             if(songTitle!=null){String name=i.getStringExtra("title");songTitle.setText(name==null||name.isEmpty()?"لا توجد أغنية قيد التشغيل":name);}
@@ -100,8 +98,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
         IntentFilter powerFilter=new IntentFilter();powerFilter.addAction(Intent.ACTION_POWER_CONNECTED);powerFilter.addAction(Intent.ACTION_POWER_DISCONNECTED);
         registerReceiver(powerReceiver,powerFilter);
         refreshChargingState();
-        handler.post(clockTick);
-        if(splashPending){handler.postDelayed(()->showWelcome(),250);splashPending=false;}
+        // Keep first-paint startup quiet; GPS, TTS and the live clock start after welcome.
+        if(splashPending)handler.postDelayed(()->showWelcome(),250);
     }
 
     private android.content.SharedPreferences prefs(){return getSharedPreferences("ali_car_v3",MODE_PRIVATE);}
@@ -234,25 +232,37 @@ public final class MainActivity extends BaseActivity implements LocationListener
     }
     private void showWelcome(){
         if(isFinishing()||pager==null||welcomeOverlay!=null)return;
+        splashPending=false;
         dismissAmbient();handler.removeCallbacks(idleTick);
         NeonSplashView splash=new NeonSplashView(this);welcomeOverlay=splash;
-        splash.setBackgroundColor(0xFF030B16); splash.setClickable(true); splash.setFocusable(true);
-        if(android.os.Build.VERSION.SDK_INT>=21)splash.setElevation(dp(24));
+        splash.setBackgroundColor(0xFF030B16);
         addContentView(splash,new FrameLayout.LayoutParams(-1,-1));
-        splash.setAlpha(0);splash.animate().alpha(1).setDuration(520).setInterpolator(new DecelerateInterpolator()).start();
-        if(ttsReady)try{tts.speak("Welcome Ali",TextToSpeech.QUEUE_FLUSH,null,"ali-welcome");}catch(Exception ignored){pendingSpeak=true;}
-        else pendingSpeak=true;
-        handler.postDelayed(this::dismissWelcome,5200);
+        // Static software-rendered brand screen: no animated redraws or GPU shader effects.
+        pendingSpeak=true;
+        handler.postDelayed(this::dismissWelcome,3000);
     }
     private void dismissWelcome(){
-        if(welcomeOverlay!=null){
+        boolean dismissed=welcomeOverlay!=null;
+        if(dismissed){
             View v=welcomeOverlay;welcomeOverlay=null;
-            Runnable remove=()->{if(v.getParent() instanceof ViewGroup)((ViewGroup)v.getParent()).removeView(v);};
-            if(isFinishing())remove.run();
-            else v.animate().alpha(0f).setDuration(420).setInterpolator(new DecelerateInterpolator()).withEndAction(remove).start();
+            if(v.getParent() instanceof ViewGroup)((ViewGroup)v.getParent()).removeView(v);
         }
-        if(!isFinishing())scheduleIdle();
+        if(!isFinishing()&&dismissed&&activityResumed){
+            handler.removeCallbacks(clockTick);
+            handler.post(clockTick);
+            initializeTts();
+            startGps();
+            scheduleIdle();
+        }
     }
+    private void initializeTts(){
+        if(ttsInitializationAttempted||isFinishing())return;
+        ttsInitializationAttempted=true;
+        try{tts=new TextToSpeech(this,this);}
+        catch(Exception error){tts=null;ttsReady=false;AppDiagnostics.record(this,"Initialize dashboard TTS",error);}
+    }
+    boolean isGpsStartedForTest(){return gpsStarted;}
+    boolean isTtsInitializationAttemptedForTest(){return ttsInitializationAttempted;}
     @Override public void onInit(int status){
         ttsReady=status==TextToSpeech.SUCCESS;
         if(ttsReady){try{tts.setLanguage(Locale.US);}catch(Exception ignored){}if(pendingSpeak){pendingSpeak=false;tts.speak("Welcome Ali",TextToSpeech.QUEUE_FLUSH,null,"ali-welcome");}}
@@ -455,6 +465,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     }
 
     private void startGps(){
+        if(gpsStarted)return;
         try{startService(new Intent(this,LocationTrackingService.class));gpsStarted=true;}
         catch(Exception e){if(gpsStatus!=null)gpsStatus.setText("تعذر تشغيل خدمة تتبع GPS");}
     }
@@ -476,12 +487,21 @@ public final class MainActivity extends BaseActivity implements LocationListener
         }return best;
     }
     @Override protected void onResume(){
-        super.onResume();refreshChargingState();musicPlaying=MusicPlaybackService.isAudioPlaying(this);startGps();applySleepPolicy();
+        super.onResume();
+        activityResumed=true;
+        refreshChargingState();
+        musicPlaying=MusicPlaybackService.isAudioPlaying(this);
+        if(!splashPending&&welcomeOverlay==null){
+            handler.removeCallbacks(clockTick);
+            handler.post(clockTick);
+            initializeTts();
+            startGps();
+        }
+        applySleepPolicy();
     }
-    @Override protected void onPause(){handler.removeCallbacks(idleTick);super.onPause();}
+    @Override protected void onPause(){activityResumed=false;handler.removeCallbacks(idleTick);super.onPause();}
     @Override protected void onDestroy(){
         handler.removeCallbacksAndMessages(null);
-        if(screenReceiver!=null)try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}
         if(musicReceiver!=null)try{unregisterReceiver(musicReceiver);}catch(Exception ignored){}
         if(powerReceiver!=null)try{unregisterReceiver(powerReceiver);}catch(Exception ignored){}
         if(trackingReceiver!=null)try{unregisterReceiver(trackingReceiver);}catch(Exception ignored){}
