@@ -76,13 +76,29 @@ public final class MusicPlaybackService extends Service
     public static final class Song {
         public final long id, duration, albumId;
         public final String name, artist;
+        public final boolean openArchive;
 
-        Song(long id, String name, String artist, long duration, long albumId) {
+        Song(long id, String name, String artist, long duration, long albumId, String dataPath) {
             this.id = id;
-            this.name = name == null || name.trim().isEmpty() ? "مقطع صوتي" : name;
-            this.artist = artist == null ? "" : artist;
             this.duration = duration;
             this.albumId = albumId;
+            String resolvedName = name == null || name.trim().isEmpty() ? "مقطع صوتي" : name;
+            String resolvedArtist = artist == null ? "" : artist;
+            this.openArchive = dataPath != null
+                    && dataPath.replace('\\\\', '/').contains("/ALI CAR/Open Arabic Archive/");
+            if (openArchive && dataPath != null) {
+                String filename = new java.io.File(dataPath).getName();
+                String[] parts = filename.split("__", 3);
+                if (parts.length == 3) {
+                    resolvedArtist = parts[1].trim();
+                    String title = parts[2];
+                    int dot = title.lastIndexOf('.');
+                    if (dot > 0) title = title.substring(0, dot);
+                    resolvedName = title.replace('_', ' ').trim();
+                }
+            }
+            this.name = resolvedName;
+            this.artist = resolvedArtist;
         }
     }
 
@@ -126,13 +142,15 @@ public final class MusicPlaybackService extends Service
         if (libraryLoading || libraryLoaded) return;
         libraryLoading = true;
         libraryExecutor.execute(() -> {
+            OpenMusicInstaller.install(MusicPlaybackService.this);
             ArrayList<Song> loaded = new ArrayList<>();
             String[] columns = {
                     MediaStore.Audio.Media._ID,
                     MediaStore.Audio.Media.TITLE,
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION,
-                    MediaStore.Audio.Media.ALBUM_ID
+                    MediaStore.Audio.Media.ALBUM_ID,
+                    MediaStore.Audio.Media.DATA
             };
             try (Cursor cursor = getContentResolver().query(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, columns,
@@ -144,11 +162,13 @@ public final class MusicPlaybackService extends Service
                     int artistColumn = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST);
                     int durationColumn = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION);
                     int albumColumn = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID);
+                    int dataColumn = cursor.getColumnIndex(MediaStore.Audio.Media.DATA);
                     while (cursor.moveToNext()) {
                         long duration = cursor.getLong(durationColumn);
                         if (duration < 10000L) continue;
+                        String dataPath = dataColumn >= 0 ? cursor.getString(dataColumn) : "";
                         loaded.add(new Song(cursor.getLong(idColumn), cursor.getString(titleColumn),
-                                cursor.getString(artistColumn), duration, cursor.getLong(albumColumn)));
+                                cursor.getString(artistColumn), duration, cursor.getLong(albumColumn), dataPath));
                     }
                 }
             } catch (SecurityException ignored) {
