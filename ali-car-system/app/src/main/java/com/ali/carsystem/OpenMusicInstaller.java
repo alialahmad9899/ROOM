@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.media.MediaScannerConnection;
+import android.net.Uri;
 import android.media.MediaMetadataRetriever;
 import android.provider.MediaStore;
 import android.os.Environment;
