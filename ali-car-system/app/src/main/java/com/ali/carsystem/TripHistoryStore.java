@@ -30,7 +30,7 @@ final class TripHistoryStore {
             entry.put("max_speed_kmh", Math.max(0f, maxSpeedKmh));
             JSONArray updated = new JSONArray();
             updated.put(entry);
-            for (int i = 0; i < history.length() && updated.length() < MAX_ENTRIES - 1; i++) {
+            for (int i = 0; i < history.length() && updated.length() < MAX_ENTRIES; i++) {
                 JSONObject old = history.optJSONObject(i);
                 if (old != null) updated.put(old);
             }
