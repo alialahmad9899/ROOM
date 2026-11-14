@@ -477,8 +477,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         long savedAge = savedAt > 0L ? Math.max(0L, System.currentTimeMillis() - savedAt)
                 : Long.MAX_VALUE;
         if(savedAge <= 300000L){
-            double lat=saved.getFloat("last_latitude",Double.NaN);
-            double lon=saved.getFloat("last_longitude",Double.NaN);
+            float latValue=saved.getFloat("last_latitude",Float.NaN);
+            float lonValue=saved.getFloat("last_longitude",Float.NaN);
+            double lat=latValue;
+            double lon=lonValue;
             float accuracy=saved.getFloat("last_gps_accuracy",999f);
             if(!Double.isNaN(lat)&&!Double.isNaN(lon)&&accuracy>0f&&accuracy<=1000f){
                 Location cached=new Location("ali-car-saved-location");
