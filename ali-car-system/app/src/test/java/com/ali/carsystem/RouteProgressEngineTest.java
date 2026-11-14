@@ -49,4 +49,29 @@ public class RouteProgressEngineTest {
         RouteProgressEngine.Progress progress = engine().update(0.0, 0.0015, 5f, 270f, 10f);
         assertFalse(progress.onRoute);
     }
+
+    @Test public void reportsNextTurnAfterPassingPreviousTurn() {
+        RouteProgressEngine engine = engine();
+        RouteProgressEngine.Progress progress = engine.update(0.0, 0.0022, 5f);
+        assertTrue(progress.onRoute);
+        assertEquals(1, progress.nextTurnIndex);
+        assertEquals(0.0, progress.remainingToTurnMeters, 2.0);
+    }
+
+    @Test public void canRecoverAfterTemporaryGpsLossOffRouteFix() {
+        RouteProgressEngine engine = engine();
+        RouteProgressEngine.Progress first = engine.update(0.0, 0.0010, 5f);
+        RouteProgressEngine.Progress lost = engine.update(0.02, 0.0015, 5f);
+        RouteProgressEngine.Progress recovered = engine.update(0.0, 0.0018, 5f);
+        assertTrue(first.onRoute);
+        assertFalse(lost.onRoute);
+        assertTrue(recovered.onRoute);
+        assertTrue(recovered.progressMeters >= first.progressMeters);
+    }
+
+    @Test public void rejectsInvalidGpsCoordinatesWithoutCrashing() {
+        RouteProgressEngine.Progress progress = engine().update(Double.NaN, 0.0, 5f);
+        assertFalse(progress.onRoute);
+        assertEquals(0.0, progress.progressMeters, 0.01);
+    }
 }
