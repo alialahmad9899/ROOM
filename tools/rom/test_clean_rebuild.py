@@ -15,7 +15,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 390" in GRADLE and "versionName '3.9.0'" in GRADLE,"ALI CAR version 3.9.0")
+require("versionCode 3100" in GRADLE and "versionName '3.10.0'" in GRADLE,"ALI CAR version 3.10.0")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -28,7 +28,7 @@ require('getIdentifier("bg_dashboard","drawable"' in MAIN,"embedded drawable wal
 require("Bitmap.Config.RGB_565" in MAIN,"RGB565 decode")
 require("new AnalogClockView(this)" in MAIN and "new SpeedometerView(this)" in MAIN,"clock and speed gauge")
 require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN
-        and "dashboard_media_bar" in MAIN and "dp(174)" in MAIN and "dp(224)" in MAIN,
+        and "dashboard_media_bar" in MAIN and "dp(194)" in MAIN and "dp(224)" in MAIN,
         "left media panel, right reference clock and secondary speedometer are installed")
 require(DASH.count("InstrumentDialStyle.drawFace(c,p,cx,cy,r)") == 2,"shared speedometer and analog clock face")
 require("import android.graphics.Path;" in NAV,"navigation dot heading Path import")
@@ -93,8 +93,8 @@ HUD=(SRC/"java/com/ali/carsystem/NavigationBannerView.java").read_text(encoding=
 require("NavigationBannerView" in MAIN and
         (SRC/"java/com/ali/carsystem/NavigationBannerView.java").is_file()
         and "dashboard_navigation_hud" in HUD and "navigation_hud_distance" in HUD
-        and "left.addView(navigationHud,navigationHudParams)" in MAIN
-        and "left.addView(mediaBar" in MAIN
+        and "all.addView(navigationHud,hudLp)" in MAIN
+        and "all.addView(mediaBar,mediaLp)" in MAIN
         and "setCompactMode(true)" in MAIN and "setCompactMode(boolean compact)" in HUD,
         "compact collapsible navigation HUD is directly below the left media panel")
 require((APP/"src/androidTest/java/com/ali/carsystem/PowerReceiverSmokeTest.java").is_file(),
@@ -226,10 +226,11 @@ require(not (SRC/"java/com/ali/carsystem/GeocodingClient.java").exists(),"obsole
 require(not (APP/"src/test/java/com/ali/carsystem/RouteNetworkClientTest.java").exists(),"obsolete online routing tests removed")
 require("showImportAlbumPicker(selected)" in music and "addImportedSongsToAlbum" in music and "متنوعة" in music,"multi-select import chooses and persists an album")
 require("music_variety_album" in music and "music_archive_album" in music and "الأرشيف" in music and 'TextView label=text("",16,Color.WHITE,true)' in music,"variety album and larger track font")
-require("dashboard_media_bar" in MAIN and "left.addView(navigationHud,navigationHudParams)" in MAIN
+require("dashboard_media_bar" in MAIN and "all.addView(navigationHud,hudLp)" in MAIN
         and "dashboard_analog_clock" in MAIN and "dashboard_bottom_dock" in MAIN
+        and "dashboard_trip_top" in MAIN and "dashboard_speed_gauge" in MAIN
         and "setCompactMode(true)" in MAIN,
-        "reference-aligned media-left, clock-right, bottom dock and navigation HUD layout")
+        "top route and music strips, frameless main speedometer and clock, and bottom dock")
 require("connectionStatus" in MAIN and "dashboard_night_overlay" in MAIN and "smart_night_mode" in MAIN,"live Wi-Fi/Bluetooth/GPS indicators and smart dashboard night mode")
 require("TripHistoryStore.record" in TRACK and "trip_started_at" in TRACK and "showTripHistory" in MAIN,"completed trip history is stored and visible")
 require("96L*1024*1024" in NAV and "64L*1024*1024" in NAV and "setTilesScaledToDpi(false)" in NAV and "sharedOfflineTileSource" in NAV,"bounded warm offline vector map cache and native-resolution rendering")
@@ -262,4 +263,16 @@ require("welcome_voice_rate" in MAIN and "setSpeechRate" in MAIN and "setPitch" 
 require("Math.min(Visualizer.getMaxCaptureRate(),10000)" in music
         and "postInvalidateDelayed(66)" in music,
         "music visualizer and disc animation are throttled for low-memory devices")
-print("PASS: ALI CAR 3.9.0 reference cockpit, flat map, music performance and welcome voice contracts")
+require("openYouTubeLite" in MAIN and "https://m.youtube.com" in MAIN
+        and "YouTube Lite" in MAIN and "openRadioApp" not in MAIN,
+        "radio is removed and the dock opens the lightweight YouTube mobile site")
+require("dashboard_four_way_swipe_surface" in MAIN
+        and "pager.setCurrentItem(1,true)" in MAIN
+        and "NavigationActivity.class" in MAIN and "MusicActivity.class" in MAIN,
+        "left/right dashboard paging and up/down navigation/music gestures")
+require("shouldAcceptIncomingFix" in NAV and "isNewerFix" in NAV
+        and "isFreshLocation(candidate,180000L)" in NAV,
+        "stale and out-of-order GPS fixes cannot replace the live marker")
+require((APP/"src/androidTest/java/com/ali/carsystem/NavigationLocationRegressionTest.java").is_file(),
+        "instrumented live/stale GPS regression test exists")
+print("PASS: ALI CAR 3.10.0 cockpit, YouTube Lite shortcut, four-way gestures, GPS fix policy, offline maps and music contracts")
