@@ -9,6 +9,7 @@ MAIN=(SRC/"java/com/ali/carsystem/MainActivity.java").read_text(encoding="utf-8"
 DASH=(SRC/"java/com/ali/carsystem/DashboardWidgets.java").read_text(encoding="utf-8")
 VIDEO=(SRC/"java/com/ali/carsystem/VideoApi.java").read_text(encoding="utf-8")
 NAV=(SRC/"java/com/ali/carsystem/NavigationActivity.java").read_text(encoding="utf-8")
+TRACKING=(SRC/"java/com/ali/carsystem/LocationTrackingService.java").read_text(encoding="utf-8")
 TLS=(SRC/"java/com/ali/carsystem/LegacyTls.java").read_text(encoding="utf-8")
 SETTINGS=(SRC/"java/com/ali/carsystem/SettingsActivity.java").read_text(encoding="utf-8")
 def require(ok,msg):
