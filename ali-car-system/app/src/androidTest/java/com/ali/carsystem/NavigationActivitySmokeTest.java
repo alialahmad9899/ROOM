@@ -2,6 +2,7 @@ package com.ali.carsystem;
 
 import android.view.View;
 import android.view.ViewGroup;
+import android.os.SystemClock;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -32,6 +33,34 @@ public final class NavigationActivitySmokeTest {
         assertNotNull("Save/reopen parking position",content.findViewWithTag("navigation_parking"));
         assertNotNull("Automatic day/night map control",content.findViewWithTag("navigation_night_mode"));
         assertNotNull("Map night overlay",content.findViewWithTag("navigation_night_overlay"));
+    }
+
+    @Test(timeout = 240000)
+    public void bundledOfflineMapsFinishInstallingAndActivateTheTileProvider() {
+        NavigationActivity screen=activity.getActivity();
+        long deadline=SystemClock.elapsedRealtime()+180000L;
+        boolean[] state=new boolean[3];
+        String[] status={""};
+        while(SystemClock.elapsedRealtime()<deadline){
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
+                state[0]=screen.areOfflineAssetsReadyForTest();
+                state[1]=screen.isOfflineTileProviderReadyForTest();
+                status[0]=screen.offlineStatusForTest();
+            });
+            if(state[0]&&state[1])break;
+            SystemClock.sleep(500L);
+        }
+        assertTrue("Syria map, POI database and BRouter files must be installed within 180 seconds. Status: "+status[0],
+                state[0]);
+        assertTrue("MapsForge tile provider must be created after the offline package is installed. Status: "+status[0],
+                state[1]);
+        assertTrue("The visible map status must show a ready Syria map. Status: "+status[0],
+                status[0].contains("الخريطة: جاهزة"));
+        assertTrue("The visible map status must show the POI database as ready. Status: "+status[0],
+                status[0].contains("الأماكن: جاهزة"));
+        assertTrue("The visible map status must show offline routing as ready. Status: "+status[0],
+                status[0].contains("توجيه دون إنترنت: جاهز"));
     }
 
     @Test public void canSwitchBetweenFreeMapAndGuidedDrivingWithoutGps(){
