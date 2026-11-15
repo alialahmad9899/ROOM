@@ -16,7 +16,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 3100" in GRADLE and "versionName '3.10.0'" in GRADLE,"ALI CAR version 3.10.0")
+require("versionCode 3110" in GRADLE and "versionName '3.11.0'" in GRADLE,"ALI CAR version 3.11.0")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -283,6 +283,28 @@ require("dashboard_four_way_swipe_surface" in MAIN
         and (SRC/"java/com/ali/carsystem/DashboardGesturePolicy.java").is_file()
         and (APP/"src/test/java/com/ali/carsystem/DashboardGesturePolicyTest.java").is_file(),
         "left/right dashboard paging and up/down navigation/music gestures have four-direction unit tests")
+require("LocationFixPolicy.isUsable" in TRACKING and "MAX_FIX_AGE_MS" in TRACKING
+        and "SPEED_STALE_TIMEOUT_MS" in TRACKING
+        and (APP/"src/main/java/com/ali/carsystem/LocationFixPolicy.java").is_file()
+        and (APP/"src/test/java/com/ali/carsystem/LocationFixPolicyTest.java").is_file(),
+        "tracking service rejects stale, out-of-order, inaccurate and invalid GPS fixes and times speed out")
+require("AudioFocusPolicy.shouldResumeAfterTransientLoss" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
+        and (APP/"src/test/java/com/ali/carsystem/AudioFocusPolicyTest.java").is_file(),
+        "music resumes after transient focus loss only when playback was previously active and still wanted")
+require("BrouterManeuverPolicy" in (SRC/"java/com/ali/carsystem/OfflineRoutingEngine.java").read_text(encoding="utf-8")
+        and (APP/"src/test/java/com/ali/carsystem/BrouterManeuverPolicyTest.java").is_file(),
+        "BRouter maneuver IDs are mapped from authoritative 1.7.10 command codes")
+require("manifest.sha256" in (SRC/"java/com/ali/carsystem/OfflineMapsManager.java").read_text(encoding="utf-8")
+        and "verifyInstalledBundle" in (SRC/"java/com/ali/carsystem/OfflineMapsManager.java").read_text(encoding="utf-8")
+        and "requireStorage" in (SRC/"java/com/ali/carsystem/OfflineMapsManager.java").read_text(encoding="utf-8"),
+        "offline maps use storage preflight and SHA-256 manifest verification")
+require("isApplicationHidden" in SETTINGS,"hidden-app dialog reflects Device Owner application state")
+require("GpsStatus" in (SRC/"java/com/ali/carsystem/DeviceDiagnosticsActivity.java").read_text(encoding="utf-8")
+        and "BluetoothProfile.A2DP" in (SRC/"java/com/ali/carsystem/DeviceDiagnosticsActivity.java").read_text(encoding="utf-8"),
+        "diagnostics report satellite fix and actual Bluetooth A2DP connection state")
+require("dashboard_settings_button" in MAIN and "dashboard_media_previous" in MAIN
+        and "dashboard_media_next" in MAIN and "R.drawable.ic_cockpit_settings" in MAIN,
+        "dashboard control symbols use real vector resources")
 require("shouldAcceptIncomingFix" in NAV and "isNewerFix" in NAV
         and "isFreshLocation(candidate,180000L)" in NAV
         and "onProviderEnabled(String p)" in NAV

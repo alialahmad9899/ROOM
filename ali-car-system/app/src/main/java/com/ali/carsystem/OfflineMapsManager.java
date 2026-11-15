@@ -86,8 +86,10 @@ final class OfflineMapsManager {
             File file = new File(segments, name);
             if (!file.isFile() || file.length() < 4096) return false;
         }
-        return new File(profiles, "car-fast.brf").isFile()
-                && new File(profiles, "lookups.dat").isFile();
+        File carProfile = new File(profiles, "car-fast.brf");
+        File lookups = new File(profiles, "lookups.dat");
+        return carProfile.isFile() && carProfile.length() > 1024L
+                && lookups.isFile() && lookups.length() > 0L;
     }
 
     static boolean isInstalled(Context context) {

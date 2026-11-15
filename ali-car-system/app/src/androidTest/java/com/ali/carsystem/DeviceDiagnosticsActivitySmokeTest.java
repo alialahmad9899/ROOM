@@ -20,7 +20,7 @@ public final class DeviceDiagnosticsActivitySmokeTest {
         assertNotNull(screen.findViewById(android.R.id.content).findViewWithTag("device_diagnostics_title"));
         for(String tag:new String[]{"device_diagnostics_android","device_diagnostics_gps",
                 "device_diagnostics_bluetooth","device_diagnostics_network","device_diagnostics_audio",
-                "device_diagnostics_memory","device_diagnostics_storage","device_diagnostics_battery",
+                "device_diagnostics_map_renderer","device_diagnostics_memory","device_diagnostics_storage","device_diagnostics_battery",
                 "device_diagnostics_offline_maps","device_diagnostics_browser"}) {
             assertNotNull("Missing diagnostics row: "+tag,
                     screen.findViewById(android.R.id.content).findViewWithTag(tag));

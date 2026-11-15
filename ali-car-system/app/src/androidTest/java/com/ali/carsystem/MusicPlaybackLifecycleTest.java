@@ -77,6 +77,19 @@ public final class MusicPlaybackLifecycleTest {
             }
             assertTrue("Resume must restart playback", service.isPlaying());
             assertTrue("Playback position must advance after resume", service.getPosition() > 0);
+
+            service.onAudioFocusChange(android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT);
+            assertFalse("Transient focus loss pauses the track",service.isPlaying());
+            service.onAudioFocusChange(android.media.AudioManager.AUDIOFOCUS_GAIN);
+            deadline=System.currentTimeMillis()+5000L;
+            while(System.currentTimeMillis()<deadline&&!service.isPlaying())Thread.sleep(100L);
+            assertTrue("A transient focus interruption resumes the previously playing track",service.isPlaying());
+
+            service.onAudioFocusChange(android.media.AudioManager.AUDIOFOCUS_LOSS);
+            assertFalse("Permanent focus loss pauses the track",service.isPlaying());
+            service.onAudioFocusChange(android.media.AudioManager.AUDIOFOCUS_GAIN);
+            Thread.sleep(500L);
+            assertFalse("Permanent focus loss must not restart music on focus gain",service.isPlaying());
             service.toggleFavorite(id);
             service.addSongToPlaylist(id,"ALI CAR Test Playlist");
             assertTrue("The test song is in favorites before delete",service.isFavorite(id));

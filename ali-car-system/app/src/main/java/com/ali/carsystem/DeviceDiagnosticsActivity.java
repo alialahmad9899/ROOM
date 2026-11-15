@@ -2,6 +2,9 @@ package com.ali.carsystem;
 
 import android.app.ActivityManager;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothProfile;
+import android.location.GpsSatellite;
+import android.location.GpsStatus;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -117,6 +120,9 @@ public final class DeviceDiagnosticsActivity extends BaseActivity {
                 Build.MANUFACTURER+" "+Build.MODEL+" • Android "+Build.VERSION.RELEASE+" • API "+Build.VERSION.SDK_INT,true);
 
         boolean gps=false,networkProvider=false;String locationLine="لا توجد قراءة موقع حديثة";
+        String satelliteLine="الأقمار الصناعية: غير متاحة حالياً";
+        int satellitesVisible=0,satellitesUsed=0,ttffMs=0;
+        boolean freshLocation=false;
         try{
             LocationManager lm=(LocationManager)getSystemService(LOCATION_SERVICE);
             gps=lm!=null&&lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
@@ -128,32 +134,54 @@ public final class DeviceDiagnosticsActivity extends BaseActivity {
                         Location candidate=lm.getLastKnownLocation(provider);
                         if(candidate==null)continue;
                         long age=candidate.getElapsedRealtimeNanos()>0
-                                ?Math.max(0L,(SystemClock.elapsedRealtimeNanos()-candidate.getElapsedRealtimeNanos())/1000000L)
-                                :Math.max(0L,System.currentTimeMillis()-candidate.getTime());
-                        if(age>180000L)continue;
+                                ?(SystemClock.elapsedRealtimeNanos()-candidate.getElapsedRealtimeNanos())/1000000L
+                                :System.currentTimeMillis()-candidate.getTime();
+                        if(age<0L||age>180000L)continue;
                         if(best==null||candidate.getTime()>best.getTime())best=candidate;
                     }catch(SecurityException ignored){}
                 }
+                try{
+                    GpsStatus gpsStatus=lm.getGpsStatus(null);
+                    if(gpsStatus!=null){
+                        for(GpsSatellite satellite:gpsStatus.getSatellites()){
+                            satellitesVisible++;
+                            if(satellite.usedInFix())satellitesUsed++;
+                        }
+                        ttffMs=gpsStatus.getTimeToFirstFix();
+                    }
+                }catch(Exception ignored){}
             }
             if(best!=null){
                 long age=best.getElapsedRealtimeNanos()>0
-                        ?Math.max(0L,(SystemClock.elapsedRealtimeNanos()-best.getElapsedRealtimeNanos())/1000000L)
-                        :Math.max(0L,System.currentTimeMillis()-best.getTime());
+                        ?(SystemClock.elapsedRealtimeNanos()-best.getElapsedRealtimeNanos())/1000000L
+                        :System.currentTimeMillis()-best.getTime();
+                if(age>=0L&&age<=15000L&&best.hasAccuracy()&&best.getAccuracy()<=100f)freshLocation=true;
                 locationLine=(best.getProvider()==null?"موقع":best.getProvider())+" • دقة ±"+
                         (best.hasAccuracy()?Math.round(best.getAccuracy())+" متر":"غير معروفة")+" • منذ "+(age/1000)+" ثانية";
             }
+            satelliteLine="الأقمار المرئية: "+satellitesVisible+" • المستخدمة في التثبيت: "+satellitesUsed
+                    +(ttffMs>0?" • TTFF: "+(ttffMs/1000f)+" ثانية":" • TTFF: لا توجد قراءة متاحة");
         }catch(Exception error){locationLine="تعذر قراءة حالة GPS: "+error.getClass().getSimpleName();}
         addRow("device_diagnostics_gps","الموقع وGPS",
-                "GPS: "+yesNo(gps)+" • موقع الشبكة: "+yesNo(networkProvider)+"\n"+locationLine,gps||networkProvider);
-        report.append("GPS: ").append(gps).append(", network provider: ").append(networkProvider)
-                .append(", last fix: ").append(locationLine).append("\n");
+                "GPS: "+(gps?"مفعّل":"متوقف")+" • الشبكة: "+(networkProvider?"مفعّلة":"متوقفة")
+                        +" • تثبيت حديث ودقيق: "+yesNo(freshLocation)+"\n"+locationLine+"\n"+satelliteLine,
+                freshLocation);
+        report.append("GPS enabled: ").append(gps).append(", network provider: ").append(networkProvider)
+                .append(", fresh accurate fix: ").append(freshLocation).append(", last fix: ").append(locationLine)
+                .append(", ").append(satelliteLine).append("\n");
 
-        BluetoothAdapter bt=null;boolean bluetooth=false;
-        try{bt=BluetoothAdapter.getDefaultAdapter();bluetooth=bt!=null&&bt.isEnabled();}
-        catch(Exception ignored){}
+        BluetoothAdapter bt=null;boolean bluetooth=false,a2dpConnected=false;
+        try{
+            bt=BluetoothAdapter.getDefaultAdapter();bluetooth=bt!=null&&bt.isEnabled();
+            a2dpConnected=bluetooth&&bt.getProfileConnectionState(BluetoothProfile.A2DP)
+                    ==BluetoothProfile.STATE_CONNECTED;
+        }catch(Exception ignored){}
         addRow("device_diagnostics_bluetooth","البلوتوث",
-                bt==null?"لا يوجد محول Bluetooth":"Bluetooth: "+yesNo(bluetooth),bt!=null);
-        report.append("Bluetooth: ").append(bt==null?"not available":bluetooth).append("\n");
+                bt==null?"لا يوجد محول Bluetooth":"المحول: "+(bluetooth?"مفعّل":"متوقف")
+                        +" • اتصال A2DP بالسيارة: "+(a2dpConnected?"متصل":"غير متصل"),
+                bt!=null&&bluetooth);
+        report.append("Bluetooth: ").append(bt==null?"not available":bluetooth)
+                .append(", A2DP connected: ").append(a2dpConnected).append("\n");
 
         boolean wifi=false,connected=false;
         try{WifiManager wm=(WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);wifi=wm!=null&&wm.isWifiEnabled();}catch(Exception ignored){}
@@ -167,7 +195,9 @@ public final class DeviceDiagnosticsActivity extends BaseActivity {
         if(audio!=null){
             int volume=audio.getStreamVolume(AudioManager.STREAM_MUSIC);
             int maximum=audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-            audioLine="صوت الموسيقى: "+volume+"/"+maximum+" • وضع الصوت: "+audio.getMode();
+            boolean btRoute=audio.isBluetoothA2dpOn();
+            audioLine="صوت الموسيقى: "+volume+"/"+maximum+" • وضع الصوت: "+audio.getMode()
+                    +" • مسار الإخراج: "+(btRoute?"Bluetooth A2DP":"مكبر/مسار الجهاز");
         }
         addRow("device_diagnostics_audio","الصوت",
                 audioLine,audioGood);
@@ -204,10 +234,30 @@ public final class DeviceDiagnosticsActivity extends BaseActivity {
         report.append("Battery: ").append(batteryLine).append("\n");
 
         String offline=OfflineMapsManager.status(this);
-        boolean offlineGood=OfflineMapsManager.getMapFile(this)!=null&&OfflineMapsManager.hasOfflineRouting(this);
-        addRow("device_diagnostics_offline_maps","الخرائط دون إنترنت",
-                offline+" • BRouter: "+(offlineGood?"جاهز":"غير جاهز"),offlineGood);
-        report.append("Offline maps: ").append(offline).append(", routing: ").append(offlineGood).append("\n");
+        boolean mapReady=OfflineMapsManager.getMapFile(this)!=null;
+        boolean placesReady=OfflineMapsManager.getPlacesDatabase(this)!=null;
+        boolean routingReady=OfflineMapsManager.hasOfflineRouting(this);
+        boolean manifestReady=OfflineMapsManager.hasValidManifest(OfflineMapsManager.getRoot(this));
+        long requiredMapBytes=OfflineMapsManager.requiredBundleBytes(this);
+        long availableMapBytes=OfflineMapsManager.availableStorageBytes(this);
+        boolean offlineGood=mapReady&&placesReady&&routingReady&&manifestReady;
+        String mapLine="ملف الخريطة: "+yesNo(mapReady)+" • قاعدة الأماكن: "+yesNo(placesReady)
+                +" • BRouter: "+yesNo(routingReady)+" • manifest والأحجام: "+yesNo(manifestReady)
+                +" • مساحة الحزمة: "+mb(requiredMapBytes)+" • المتاح: "+mb(availableMapBytes);
+        addRow("device_diagnostics_offline_maps","الخرائط دون إنترنت",mapLine,offlineGood);
+        report.append("Offline maps: ").append(offline).append("\n")
+                .append("Map package required: ").append(mb(requiredMapBytes))
+                .append(", available: ").append(mb(availableMapBytes))
+                .append(", manifest/size valid: ").append(manifestReady).append("\n");
+        boolean mapThemeReady=false;
+        try(java.io.InputStream theme=getAssets().open("mapsforge/ali-car-dark.xml")){
+            mapThemeReady=theme.read()>=0;
+        }catch(Exception ignored){}
+        addRow("device_diagnostics_map_renderer","نمط عرض الخريطة",
+                mapThemeReady?"ملف نمط MapsForge موجود؛ اختبار الرسم الفعلي يتم داخل شاشة الملاحة":"ملف نمط MapsForge غير موجود",
+                mapThemeReady);
+        report.append("MapsForge theme asset: ").append(mapThemeReady)
+                .append(" (actual tile rendering is validated by navigation screen instrumentation)\n");
 
         Intent browserIntent=new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://m.youtube.com"));
         boolean browser=getPackageManager().resolveActivity(browserIntent,0)!=null;
