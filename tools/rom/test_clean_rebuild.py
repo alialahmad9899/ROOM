@@ -234,7 +234,9 @@ require("dashboard_media_bar" in MAIN and "all.addView(navigationHud,hudLp)" in 
 require("connectionStatus" in MAIN and "dashboard_night_overlay" in MAIN and "smart_night_mode" in MAIN,"live Wi-Fi/Bluetooth/GPS indicators and smart dashboard night mode")
 require("TripHistoryStore.record" in TRACK and "trip_started_at" in TRACK and "showTripHistory" in MAIN,"completed trip history is stored and visible")
 require("96L*1024*1024" in NAV and "64L*1024*1024" in NAV and "setTilesScaledToDpi(false)" in NAV and "sharedOfflineTileSource" in NAV,"bounded warm offline vector map cache and native-resolution rendering")
-require("restoreMapCamera" in NAV and "saved_destinations" in NAV and "recent_destinations" in NAV and "parking_lat" in NAV and "map_night_mode" in NAV,"persistent map camera, favorites, recent places, parking and map night mode")
+require("restoreMapCamera" in NAV and "saved_destinations" in NAV and "recent_destinations" in NAV and "parking_lat" in NAV and "map_night_mode" in NAV
+        and "if(followCar&&guidedMode)centerOnCar(current)" in NAV,
+        "persistent map camera, saved places and recentering on current live location")
 require("music_search" in music and "music_duplicates" in music and "knownHashes.add(fingerprint)" in music and "حذف نهائياً من الجهاز" in music,"music search, exact duplicate prevention, review workflow and confirmed permanent delete")
 service=(SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
 require("dataPath" in service and "deleteSong(long songId)" in service and "removeSongReferences" in service and "isHiddenFromPlaylist" in service,"safe MediaStore deletion and complete playlist reference cleanup")
