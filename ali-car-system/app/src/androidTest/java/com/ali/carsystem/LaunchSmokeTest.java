@@ -34,7 +34,7 @@ public final class LaunchSmokeTest {
         View hud = content.findViewWithTag("dashboard_navigation_hud");
         assertNotNull(content.findViewWithTag("dashboard_cockpit_body"));
         assertNotNull(content.findViewWithTag("dashboard_bottom_dock"));
-        assertNotNull(content.findViewWithTag("dashboard_secondary_hint"));
+        assertNotNull(content.findViewWithTag("dashboard_secondary_swipe_hint"));
         assertNotNull(content.findViewWithTag("dashboard_digital_clock"));
         androidx.viewpager.widget.ViewPager pager=
                 (androidx.viewpager.widget.ViewPager)content.findViewWithTag("dashboard_view_pager");
