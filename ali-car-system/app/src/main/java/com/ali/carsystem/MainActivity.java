@@ -25,7 +25,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private final Handler handler=new Handler(Looper.getMainLooper());
     private ViewPager pager;
     private FrameLayout dashboardRoot;
-    private View navigationHud;
+    private NavigationBannerView navigationHud;
     private boolean navigationRouteActive;
     private static final int REQUEST_DASHBOARD_SETTINGS=9100;
     private SpeedometerView speedometer, clusterGauge;
@@ -323,10 +323,10 @@ public final class MainActivity extends BaseActivity implements LocationListener
 
     private void createNavigationHud(){
         if(navigationHud==null&&dashboardRoot!=null)
-            navigationHud=dashboardRoot.findViewWithTag("dashboard_navigation_hud");
+            navigationHud=(NavigationBannerView)dashboardRoot.findViewWithTag("dashboard_navigation_hud");
         if(navigationHud==null&&pager!=null)pager.post(()->{
             if(navigationHud==null&&dashboardRoot!=null)
-                navigationHud=dashboardRoot.findViewWithTag("dashboard_navigation_hud");
+                navigationHud=(NavigationBannerView)dashboardRoot.findViewWithTag("dashboard_navigation_hud");
             if(navigationHud!=null)
                 navigationHud.setVisibility(navigationRouteActive?View.VISIBLE:View.GONE);
         });
@@ -336,11 +336,11 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private void updateNavigationHud(Intent state,boolean active){
         navigationRouteActive=active;
         if(navigationHud==null&&dashboardRoot!=null)
-            navigationHud=dashboardRoot.findViewWithTag("dashboard_navigation_hud");
+            navigationHud=(NavigationBannerView)dashboardRoot.findViewWithTag("dashboard_navigation_hud");
         if(navigationHud==null&&pager!=null){
             pager.post(()->{
                 if(navigationHud==null&&dashboardRoot!=null)
-                    navigationHud=dashboardRoot.findViewWithTag("dashboard_navigation_hud");
+                    navigationHud=(NavigationBannerView)dashboardRoot.findViewWithTag("dashboard_navigation_hud");
                 if(navigationHud!=null)
                     navigationHud.setVisibility(navigationRouteActive?View.VISIBLE:View.GONE);
             });

@@ -552,7 +552,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                     if(sharedOfflineTileSource==null){
                         MapsForgeTileSource.createInstance(getApplication());
                         AssetsRenderTheme cockpitTheme=new AssetsRenderTheme(
-                                getApplicationContext(),"mapsforge/","ali-car-dark.xml");
+                                getAssets(),"mapsforge/","ali-car-dark.xml");
                         sharedOfflineTileSource=MapsForgeTileSource.createFromFiles(
                                 maps,cockpitTheme,"ALI-CAR-COCKPIT-FLAT","ar");
                     }
