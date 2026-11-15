@@ -44,6 +44,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private static volatile MapsForgeTileSource sharedOfflineTileSource;
     private View nightOverlay;
     private Button nightModeButton;
+    private TextView offlineStatus;
     private static final int REQUEST_IMPORT_OFFLINE_MAPS=8401;
     private FusedLocationProviderClient fusedClient;private LocationCallback fusedCallback;
     private boolean fusedRegistered,fusedRequestPending,offlinePreparationRunning;private int gmsAvailabilityCode=-1;
@@ -198,7 +199,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         retryRouteButton.setVisibility(View.GONE);panel.addView(retryRouteButton,new LinearLayout.LayoutParams(-1,dp(38)));
                 Button offlineMapsButton=new Button(this);styleButton(offlineMapsButton,"استيراد خريطة سوريا والمسارات دون إنترنت",0xFF1B665F);offlineMapsButton.setTextSize(12);
         panel.addView(offlineMapsButton,new LinearLayout.LayoutParams(-1,dp(42)));
-        TextView offlineStatus=new TextView(this);offlineStatus.setTextColor(0xFF9BD9D5);offlineStatus.setTextSize(10);offlineStatus.setText(OfflineMapsManager.status(this));offlineStatus.setGravity(Gravity.RIGHT);panel.addView(offlineStatus);
+        offlineStatus=new TextView(this);offlineStatus.setTag("navigation_offline_status");offlineStatus.setTextColor(0xFF9BD9D5);offlineStatus.setTextSize(10);offlineStatus.setText(OfflineMapsManager.status(this));offlineStatus.setGravity(Gravity.RIGHT);panel.addView(offlineStatus);
         LinearLayout savedActions=new LinearLayout(this);savedActions.setOrientation(LinearLayout.HORIZONTAL);
         Button saveDestinationButton=new Button(this);saveDestinationButton.setTag("navigation_save_destination");styleButton(saveDestinationButton,"★ حفظ الوجهة",0xFF725A26);saveDestinationButton.setTextSize(10);
         Button savedDestinationsButton=new Button(this);savedDestinationsButton.setTag("navigation_saved_places");styleButton(savedDestinationsButton,"وجهاتي",0xFF183F55);savedDestinationsButton.setTextSize(10);
@@ -543,10 +544,26 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,q);
     }
+    private void refreshOfflineStatus(){
+        if(offlineStatus==null)return;
+        String packageState=OfflineMapsManager.status(this);
+        boolean ready=OfflineMapsManager.isInstalled(this)&&OfflineMapsManager.hasOfflineRouting(this);
+        offlineStatus.setText(offlinePreparationRunning&&!ready
+                ?"جارٍ نسخ وتثبيت بيانات الخرائط المحلية... • "+packageState
+                :packageState);
+        offlineStatus.setTextColor(ready?0xFF9BD9D5:0xFFFFD28A);
+    }
+
     private void configureMapTiles(){
+        refreshOfflineStatus();
         if(map==null)return;
         File[] maps=OfflineMapsManager.getMapFiles(this);
-        if(maps.length==0){if(status!=null)status.setText("الخريطة المحلية غير مثبتة — لا يتم تحميل خرائط من الإنترنت");return;}
+        if(maps.length==0){
+            if(status!=null)status.setText(offlinePreparationRunning
+                    ?"جارٍ تجهيز ملفات خريطة سوريا داخل التخزين الداخلي..."
+                    :"الخريطة المحلية غير مثبتة — لا يتم تحميل خرائط من الإنترنت");
+            return;
+        }
         try{
             if(sharedOfflineTileSource==null){
                 synchronized(NavigationActivity.class){
@@ -561,18 +578,34 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             }
             offlineTileSource=sharedOfflineTileSource;
             map.setTileProvider(new MapsForgeTileProvider(new SimpleRegisterReceiver(this),offlineTileSource,null));
+            refreshOfflineStatus();
             if(status!=null)status.setText("خريطة سوريا المحلية جاهزة • "+OfflineMapsManager.status(this));
         }catch(Exception error){
             offlineTileSource=null;
             map.setUseDataConnection(false);
-            if(status!=null)status.setText("تعذر فتح الخريطة المحلية: "+error.getClass().getSimpleName()+" — تم إيقاف اتصال الخرائط بالإنترنت");
+            refreshOfflineStatus();
+            if(status!=null)status.setText("تعذر فتح الخريطة المحلية: "+error.getClass().getSimpleName()+" — "+error.getMessage()+" • تم إيقاف اتصال الخرائط بالإنترنت");
         }
     }
 
+    boolean areOfflineAssetsReadyForTest(){
+        return OfflineMapsManager.isInstalled(this)&&OfflineMapsManager.hasOfflineRouting(this);
+    }
+    boolean isOfflineTileProviderReadyForTest(){
+        return map!=null&&offlineTileSource!=null;
+    }
+    String offlineStatusForTest(){
+        return offlineStatus==null?"":String.valueOf(offlineStatus.getText());
+    }
+
     private void ensureBundledOfflineData(){
-        if(OfflineMapsManager.getMapFile(this)!=null&&OfflineMapsManager.getPlacesDatabase(this)!=null&&OfflineMapsManager.hasOfflineRouting(this))return;
+        if(OfflineMapsManager.isInstalled(this)&&OfflineMapsManager.hasOfflineRouting(this)){
+            refreshOfflineStatus();
+            return;
+        }
         offlinePreparationRunning=true;
-        status.setText("جارٍ تجهيز الخريطة المحلية...");
+        refreshOfflineStatus();
+        if(status!=null)status.setText("جارٍ تجهيز الخريطة المحلية وبيانات التوجيه...");
         new AsyncTask<Void,Void,String>(){
             protected String doInBackground(Void...ignored){
                 try{OfflineMapsManager.ensureBundledAssets(getApplicationContext());return null;}
@@ -582,9 +615,12 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 offlinePreparationRunning=false;
                 if(isFinishing())return;
                 configureMapTiles();
+                refreshOfflineStatus();
                 String packageState=OfflineMapsManager.status(NavigationActivity.this);
-                if(error!=null)status.setText("تعذر تجهيز خريطة سوريا المضمّنة: "+error);
-                else status.setText(packageState);
+                if(error!=null)status.setText("تعذر تجهيز خريطة سوريا المضمّنة: "+error+" • "+packageState);
+                else if(!areOfflineAssetsReadyForTest()||!isOfflineTileProviderReadyForTest())
+                    status.setText("اكتمل النسخ لكن لم تكتمل تهيئة مزود الخريطة: "+packageState);
+                else status.setText("تم تثبيت الخريطة وقاعدة الأماكن والتوجيه دون إنترنت بنجاح");
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
