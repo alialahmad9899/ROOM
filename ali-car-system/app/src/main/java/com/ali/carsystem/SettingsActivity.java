@@ -18,6 +18,7 @@ public final class SettingsActivity extends BaseActivity {
         ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(0xFF07121E);box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(20),dp(14),dp(20),dp(14));scroll.addView(box);setContentView(scroll);render();}
     private void render(){
         box.removeAllViews();TextView title=label("إدارة الجهاز",22);title.setGravity(Gravity.CENTER);box.addView(title);
+        button("تشخيص حالة الجهاز وGPS والبلوتوث والصوت",()->startActivity(new Intent(this,DeviceDiagnosticsActivity.class)));
         add("الملاحة الصوتية العربية");
         SharedPreferences voicePrefs=getSharedPreferences("ali_car_navigation",MODE_PRIVATE);
         CheckBox voiceEnabled=new CheckBox(this);voiceEnabled.setText("تفعيل الإرشادات الصوتية");voiceEnabled.setTextColor(-1);
