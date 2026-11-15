@@ -660,40 +660,16 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(criteriaProvider!=null&&!criteriaProvider.isEmpty()&&!providers.contains(criteriaProvider))providers.add(criteriaProvider);
         for(String provider:providers)try{
             if(!lm.getAllProviders().contains(provider))continue;
-            Location l=lm.getLastKnownLocation(provider);
-            if(l==null||!isFreshLocation(l,300000))continue;
-            float acc=l.hasAccuracy()?l.getAccuracy():999f;
-            if(acc>350f)continue;
-            boolean newer=best==null;
-            if(best!=null){
-                long candidateElapsed=l.getElapsedRealtimeNanos(),bestElapsed=best.getElapsedRealtimeNanos();
-                newer=candidateElapsed>0&&bestElapsed>0?candidateElapsed>bestElapsed:l.getTime()>best.getTime();
-            }
-            if(newer)best=l;
-        }catch(SecurityException e){providerError="صلاحية الموقع مرفوضة من النظام";}catch(Exception ignored){}
-        SharedPreferences saved = getSharedPreferences("ali_car_v3", MODE_PRIVATE);
-        long savedAt = saved.getLong("last_location_time", 0L);
-        long savedAge = savedAt > 0L ? Math.max(0L, System.currentTimeMillis() - savedAt)
-                : Long.MAX_VALUE;
-        if(savedAge <= 300000L){
-            float latValue=saved.getFloat("last_latitude",Float.NaN);
-            float lonValue=saved.getFloat("last_longitude",Float.NaN);
-            double lat=latValue;
-            double lon=lonValue;
-            float accuracy=saved.getFloat("last_gps_accuracy",999f);
-            if(!Double.isNaN(lat)&&!Double.isNaN(lon)&&accuracy>0f&&accuracy<=1000f){
-                Location cached=new Location("ali-car-saved-location");
-                cached.setLatitude(lat);cached.setLongitude(lon);cached.setAccuracy(accuracy);
-                cached.setTime(savedAt);
-                long ageNanos=savedAge*1000000L;
-                cached.setElapsedRealtimeNanos(Math.max(1L,SystemClock.elapsedRealtimeNanos()-ageNanos));
-                if(best==null||!isRouteStartUsable(best)
-                        ||(isNavigationFixUsable(cached)&&!isNavigationFixUsable(best)))best=cached;
-            }
-        }
-        // A cached provider result must never replace a newer live fix already received.
+            Location candidate=lm.getLastKnownLocation(provider);
+            // Use only a real provider fix. A saved preference coordinate is not a live
+            // device location and can make the blue marker appear at yesterday's position.
+            if(!isRouteStartUsable(candidate))continue;
+            if(best==null||isNewerFix(candidate,best))best=candidate;
+        }catch(SecurityException e){providerError="صلاحية الموقع مرفوضة من النظام";}
+         catch(Exception ignored){}
         if(best!=null&&(current==null||!isFreshLocation(current,180000L)||isNewerFix(best,current))){
-            current=new Location(best);lastFixProvider=best.getProvider();
+            current=new Location(best);
+            lastFixProvider=best.getProvider()==null?"غير معروف":best.getProvider();
             lastFixAccuracy=best.hasAccuracy()?best.getAccuracy():-1f;
             lastFixElapsedNanos=best.getElapsedRealtimeNanos();
         }
