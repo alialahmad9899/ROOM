@@ -12,7 +12,7 @@ public final class OffRouteReroutePolicy {
     public boolean shouldReroute(boolean onRoute,float accuracyMeters,long nowMs,
                                  boolean routeRequestInFlight) {
         if(onRoute||routeRequestInFlight||Float.isNaN(accuracyMeters)||Float.isInfinite(accuracyMeters)
-                ||accuracyMeters<=0f||accuracyMeters>60f){
+                ||accuracyMeters<=0f||accuracyMeters>45f){
             offRouteFixes=0;offRouteSinceMs=0L;return false;
         }
         if(lastRerouteAtMs!=Long.MIN_VALUE&&nowMs-lastRerouteAtMs<COOLDOWN_MS)return false;
