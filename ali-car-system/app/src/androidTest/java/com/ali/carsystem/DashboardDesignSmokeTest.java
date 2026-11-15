@@ -22,7 +22,9 @@ public final class DashboardDesignSmokeTest {
             assertTrue(content instanceof ViewGroup);
             assertNotNull(content.findViewWithTag("dashboard_cockpit_body"));
             assertNotNull(content.findViewWithTag("dashboard_media_bar"));
-            assertNotNull(content.findViewWithTag("dashboard_media_bar"));
+            assertNotNull(content.findViewWithTag("dashboard_trip_top"));
+            assertNotNull(content.findViewWithTag("dashboard_speed_gauge"));
+            assertNotNull(content.findViewWithTag("dashboard_four_way_swipe_surface"));
             assertNotNull(content.findViewWithTag("dashboard_analog_clock"));
             assertNotNull(content.findViewWithTag("dashboard_digital_clock"));
             View dock=content.findViewWithTag("dashboard_bottom_dock");
@@ -32,11 +34,17 @@ public final class DashboardDesignSmokeTest {
                     (androidx.viewpager.widget.ViewPager)content.findViewWithTag("dashboard_view_pager");
             assertNotNull(pager);
             assertEquals(2,pager.getAdapter().getCount());
+            View speed=content.findViewWithTag("dashboard_speed_gauge");
+            View clock=content.findViewWithTag("dashboard_analog_clock");
+            assertNotNull(speed);assertNotNull(clock);
+            assertNull("Speedometer must not be wrapped in a card",speed.getParent() instanceof android.widget.LinearLayout
+                    ? ((android.widget.LinearLayout)speed.getParent()).getBackground() : null);
+            assertNotNull("YouTube Lite dock entry is present",content.findViewWithTag("dashboard_bottom_dock"));
             pager.setCurrentItem(1,false);
             assertNotNull(content.findViewWithTag("dashboard_secondary_page"));
             assertNotNull(content.findViewWithTag("dashboard_secondary_shortcuts"));
-            assertNotNull("Live speed gauge belongs to the secondary drive-centre page",
-                    content.findViewWithTag("dashboard_speed_gauge"));
+            assertNotNull("Trip and odometer shortcuts remain on the secondary drive-centre page",
+                    content.findViewWithTag("dashboard_secondary_shortcuts"));
             pager.setCurrentItem(0,false);
         });
     }
