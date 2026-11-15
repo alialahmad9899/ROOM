@@ -1076,6 +1076,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         return true;
     }
     boolean acceptsLocationForTest(Location candidate){return shouldAcceptIncomingFix(candidate);}
+    boolean hasCurrentLocationMarkerForTest(){return map!=null&&carMarker!=null&&map.getOverlays().contains(carMarker);}
 
     @Override public void onLocationChanged(Location l){
         // Fused getLastLocation may return an old cached fix asynchronously; do not let it
