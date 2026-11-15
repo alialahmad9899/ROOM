@@ -690,7 +690,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                         ||(isNavigationFixUsable(cached)&&!isNavigationFixUsable(best)))best=cached;
             }
         }
-        if(best!=null){
+        // A cached provider result must never replace a newer live fix already received.
+        if(best!=null&&(current==null||!isFreshLocation(current,180000L)||isNewerFix(best,current))){
             current=new Location(best);lastFixProvider=best.getProvider();
             lastFixAccuracy=best.hasAccuracy()?best.getAccuracy():-1f;
             lastFixElapsedNanos=best.getElapsedRealtimeNanos();
@@ -701,7 +702,14 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         catch(Exception e){status.setText("افتح إعدادات الجهاز ثم الموقع");}
     }
     private void requestLocationSources(){
-        gpsRegistered=false;networkRegistered=false;criteriaRegistered=false;providerError="";
+        // Clear previous registrations before requesting again (provider toggles and resume).
+        if(lm!=null){
+            try{lm.removeUpdates(this);}catch(Exception ignored){}
+            if(gpsStatusRegistered){
+                try{lm.removeGpsStatusListener(gpsStatusListener);}catch(Exception ignored){}
+            }
+        }
+        gpsRegistered=false;networkRegistered=false;criteriaRegistered=false;gpsStatusRegistered=false;providerError="";
         if(lm==null){status.setText("خدمة الموقع غير متاحة في نظام Android");return;}
         if(!hasLocationPermission()){status.setText("إذن الموقع غير ممنوح للتطبيق");return;}
         boolean gpsOn=false,networkOn=false,passiveAvailable=false;
@@ -1050,8 +1058,33 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 +" متر، "+steps.get(next).text+" • متبقٍ "
                 +String.format(Locale.US,"%.1f كم",latestRouteProgress.remainingRouteMeters/1000d));
     }
+    private boolean isNewerFix(Location candidate,Location reference){
+        if(candidate==null||reference==null)return candidate!=null;
+        long candidateElapsed=candidate.getElapsedRealtimeNanos();
+        long referenceElapsed=reference.getElapsedRealtimeNanos();
+        if(candidateElapsed>0&&referenceElapsed>0)return candidateElapsed>=referenceElapsed;
+        return candidate.getTime()>=reference.getTime();
+    }
+    private boolean shouldAcceptIncomingFix(Location candidate){
+        if(candidate==null)return false;
+        double lat=candidate.getLatitude(),lon=candidate.getLongitude();
+        if(Double.isNaN(lat)||Double.isNaN(lon)||Math.abs(lat)>90d||Math.abs(lon)>180d)return false;
+        if(!isFreshLocation(candidate,180000L))return false;
+        float accuracy=candidate.hasAccuracy()?candidate.getAccuracy():999f;
+        if(!GeoMath.isAccuracyUsable(accuracy,1000f))return false;
+        if(current!=null&&isFreshLocation(current,180000L)&&!isNewerFix(candidate,current))return false;
+        return true;
+    }
+    boolean acceptsLocationForTest(Location candidate){return shouldAcceptIncomingFix(candidate);}
+
     @Override public void onLocationChanged(Location l){
-        if(l==null)return;current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
+        // Fused getLastLocation may return an old cached fix asynchronously; do not let it
+        // overwrite a newer GPS reading or move the car marker backwards.
+        if(!shouldAcceptIncomingFix(l)){
+            if(status!=null&&destination!=null)status.setText("تم تجاهل قراءة موقع قديمة أو غير دقيقة؛ ننتظر تحديث GPS جديد");
+            return;
+        }
+        current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
         if(guidedMode&&followCar&&map!=null){long now=SystemClock.elapsedRealtime();GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());
             if(now-lastFollowAt>1800&&(lastFollowPoint==null||GeoMath.distanceMeters(lastFollowPoint.getLatitude(),lastFollowPoint.getLongitude(),p.getLatitude(),p.getLongitude())>18)){map.getController().animateTo(p);lastFollowPoint=p;lastFollowAt=now;}}
         float accuracy=l.hasAccuracy()?l.getAccuracy():999;
