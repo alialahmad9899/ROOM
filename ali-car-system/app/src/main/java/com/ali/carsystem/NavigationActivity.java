@@ -56,6 +56,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private List<Maneuver> activeManeuvers=Collections.emptyList();private List<RouteOption> routeOptions=Collections.emptyList();
     private RouteProgressEngine routeProgressEngine;
     private RouteProgressEngine.Progress latestRouteProgress;
+    private final OffRouteReroutePolicy offRouteReroutePolicy=new OffRouteReroutePolicy();
     private int selectedRouteIndex=-1,routeRequestId,geocodeRequestId;private boolean guidedMode=true,followCar=true,routeAttemptedForDestination;
     private GeoPoint lastFollowPoint,previousCarPoint;private long lastFollowAt;
     private float lastCarHeading;
@@ -1032,10 +1033,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         routeProgressEngine=new RouteProgressEngine(points,turns);
     }
     private void updateManeuver(Location location,List<Maneuver> steps){
-        if(maneuver==null||!guidedMode)return;
-        if(steps==null||steps.isEmpty()||location==null||routeProgressEngine==null){
-            maneuver.setText("اتبع الخط السماوي");return;
-        }
+        if(maneuver==null||!guidedMode||location==null||routeProgressEngine==null)return;
         float accuracy=location.hasAccuracy()?location.getAccuracy():999f;
         if(accuracy>60f){
             maneuver.setText("ننتظر GPS أدق لحساب مسافة الانعطاف بأمان");
@@ -1045,8 +1043,20 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         float speed=location.hasSpeed()?location.getSpeed():0f;
         latestRouteProgress=routeProgressEngine.update(location.getLatitude(),location.getLongitude(),
                 accuracy,bearing,speed);
-        if(latestRouteProgress==null||!latestRouteProgress.onRoute){
-            maneuver.setText("إشارة الموقع لا تطابق الطريق حالياً • تحقق من المسار");
+        boolean onRoute=latestRouteProgress!=null&&latestRouteProgress.onRoute;
+        if(!onRoute){
+            maneuver.setText("خرجت السيارة عن المسار • نتحقق من الموقع ونعيد الحساب تلقائياً");
+            if(destination!=null&&offRouteReroutePolicy.shouldReroute(false,accuracy,
+                    SystemClock.elapsedRealtime(),routeTask!=null)){
+                routeAttemptedForDestination=false;routeRetryAfterMs=0L;
+                status.setText("تم تأكيد الخروج عن المسار • جارٍ حساب طريق بديل دون إنترنت...");
+                requestRoute(location,destination,destinationName);
+            }
+            return;
+        }
+        offRouteReroutePolicy.shouldReroute(true,accuracy,SystemClock.elapsedRealtime(),routeTask!=null);
+        if(steps==null||steps.isEmpty()){
+            maneuver.setText("اتبع الخط السماوي");
             return;
         }
         int next=latestRouteProgress.nextTurnIndex;
@@ -1058,26 +1068,6 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 +" متر، "+steps.get(next).text+" • متبقٍ "
                 +String.format(Locale.US,"%.1f كم",latestRouteProgress.remainingRouteMeters/1000d));
     }
-    private boolean isNewerFix(Location candidate,Location reference){
-        if(candidate==null||reference==null)return candidate!=null;
-        long candidateElapsed=candidate.getElapsedRealtimeNanos();
-        long referenceElapsed=reference.getElapsedRealtimeNanos();
-        if(candidateElapsed>0&&referenceElapsed>0)return candidateElapsed>=referenceElapsed;
-        return candidate.getTime()>=reference.getTime();
-    }
-    private boolean shouldAcceptIncomingFix(Location candidate){
-        if(candidate==null)return false;
-        double lat=candidate.getLatitude(),lon=candidate.getLongitude();
-        if(Double.isNaN(lat)||Double.isNaN(lon)||Math.abs(lat)>90d||Math.abs(lon)>180d)return false;
-        if(!isFreshLocation(candidate,180000L))return false;
-        float accuracy=candidate.hasAccuracy()?candidate.getAccuracy():999f;
-        if(!GeoMath.isAccuracyUsable(accuracy,1000f))return false;
-        if(current!=null&&isFreshLocation(current,180000L)&&!isNewerFix(candidate,current))return false;
-        return true;
-    }
-    boolean acceptsLocationForTest(Location candidate){return shouldAcceptIncomingFix(candidate);}
-    boolean hasCurrentLocationMarkerForTest(){return map!=null&&carMarker!=null&&map.getOverlays().contains(carMarker);}
-
     @Override public void onLocationChanged(Location l){
         // Fused getLastLocation may return an old cached fix asynchronously; do not let it
         // overwrite a newer GPS reading or move the car marker backwards.
