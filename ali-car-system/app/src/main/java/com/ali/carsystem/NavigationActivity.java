@@ -1073,11 +1073,16 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     @Override protected void onResume(){
         super.onResume();if(map!=null)map.onResume();
         applyMapNightMode();
+        // Never carry a stale marker across a long pause; reacquire only from live providers.
+        if(!isRouteStartUsable(current))current=null;
         requestLocationSources();
-        if(current!=null){
+        loadLastKnown();
+        if(current!=null&&isRouteStartUsable(current)){
             showCar(current);
             // Restored camera state must not leave the real current-position marker off-screen.
             if(followCar&&guidedMode)centerOnCar(current);
+        }else if(status!=null&&destination==null){
+            status.setText("بانتظار موقع حديث من GPS أو الشبكة...");
         }
         if(destination!=null&&!routeAttemptedForDestination){waitingForFix=true;drawRouteIfPossible();}
         locationHandler.removeCallbacks(locationStatusTicker);locationHandler.post(locationStatusTicker);
