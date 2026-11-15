@@ -14,6 +14,7 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 
 import java.util.Locale;
 
@@ -34,6 +35,8 @@ public final class LocationTrackingService extends Service implements LocationLi
     private static final String PREFS = "ali_car_v3";
     private static final double MAX_CAR_SPEED_MPS = 70.0d;
     private static final float MAX_DISTANCE_ACCURACY_M = 45.0f;
+    private static final long MAX_FIX_AGE_MS = 15000L;
+    private static final long SPEED_STALE_TIMEOUT_MS = 15000L;
 
     private LocationManager locationManager;
     private Location previousAccepted;
@@ -46,6 +49,28 @@ public final class LocationTrackingService extends Service implements LocationLi
     private long lastNotificationAt;
     private boolean gpsRegistered;
     private boolean networkRegistered;
+    private long lastAcceptedFixElapsedNanos;
+    private long lastAcceptedFixTimeMs;
+    private boolean fixMarkedStale;
+    private final android.os.Handler mainHandler = new android.os.Handler(Looper.getMainLooper());
+    private final Runnable staleFixTicker = new Runnable() {
+        @Override public void run() {
+            long nowElapsed = SystemClock.elapsedRealtimeNanos();
+            long nowWall = System.currentTimeMillis();
+            boolean fresh = LocationFixPolicy.isFresh(
+                    lastAcceptedFixElapsedNanos, lastAcceptedFixTimeMs,
+                    nowElapsed, nowWall, SPEED_STALE_TIMEOUT_MS);
+            if (lastAcceptedFixTimeMs > 0L && !fresh && !fixMarkedStale) {
+                speedKmh = 0f;
+                accuracyMeters = -1f;
+                previousAccepted = null;
+                fixMarkedStale = true;
+                publishUpdate();
+                publishStatus("انقطعت تحديثات GPS — السرعة غير متاحة حتى وصول قراءة حديثة");
+            }
+            mainHandler.postDelayed(this, 1000L);
+        }
+    };
 
     @Override public void onCreate() {
         super.onCreate();
@@ -56,6 +81,7 @@ public final class LocationTrackingService extends Service implements LocationLi
         maxSpeedKmh = prefs.getFloat("max_speed", 0f);
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         startForeground(NOTIFICATION_ID, buildNotification("جارٍ تشغيل تتبع GPS"));
+        mainHandler.post(staleFixTicker);
         startLocationUpdates();
     }
 
@@ -119,6 +145,11 @@ public final class LocationTrackingService extends Service implements LocationLi
             return;
         }
         try {
+            if (gpsRegistered || networkRegistered) locationManager.removeUpdates(this);
+        } catch (Exception ignored) { }
+        gpsRegistered = false;
+        networkRegistered = false;
+        try {
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this, Looper.getMainLooper());
                 gpsRegistered = true;
@@ -135,7 +166,8 @@ public final class LocationTrackingService extends Service implements LocationLi
         Location network = lastKnown(LocationManager.NETWORK_PROVIDER);
         Location best = chooseBetter(gps, network);
         if (best != null) onLocationChanged(best);
-        publishStatus((gpsRegistered || networkRegistered) ? "تتبع GPS نشط" : "بانتظار إشارة GPS");
+        else publishUpdate();
+        publishStatus((gpsRegistered || networkRegistered) ? "بانتظار قراءة GPS حديثة" : "مصادر الموقع غير متاحة");
     }
 
     private Location lastKnown(String provider) {
@@ -147,68 +179,90 @@ public final class LocationTrackingService extends Service implements LocationLi
     }
 
     private Location chooseBetter(Location a, Location b) {
-        if (a == null) return b;
-        if (b == null) return a;
+        boolean aUsable = isUsableCurrentFix(a);
+        boolean bUsable = isUsableCurrentFix(b);
+        if (!aUsable) return bUsable ? b : null;
+        if (!bUsable) return a;
         if (!a.hasAccuracy()) return b;
         if (!b.hasAccuracy()) return a;
         return b.getAccuracy() < a.getAccuracy() ? b : a;
     }
 
+    private boolean isUsableCurrentFix(Location location) {
+        if (location == null) return false;
+        return LocationFixPolicy.isUsable(
+                location.getLatitude(), location.getLongitude(),
+                location.hasAccuracy(), location.hasAccuracy() ? location.getAccuracy() : -1f,
+                location.getElapsedRealtimeNanos(), SystemClock.elapsedRealtimeNanos(),
+                location.getTime(), System.currentTimeMillis(),
+                MAX_FIX_AGE_MS, 100f);
+    }
+
     @Override public void onLocationChanged(Location location) {
-        if (location == null) return;
+        // Never let cached, inaccurate, future-dated or out-of-order fixes affect
+        // speed, distance, odometer, maximum speed or the dashboard's GPS status.
+        if (!isUsableCurrentFix(location)) return;
         long now = location.getElapsedRealtimeNanos();
-        long oldTime = previousAccepted == null ? 0L : previousAccepted.getElapsedRealtimeNanos();
-        float accuracy = location.hasAccuracy() ? location.getAccuracy() : 999f;
+        long wallTime = location.getTime();
+        if (!LocationFixPolicy.isNewer(
+                now, wallTime, lastAcceptedFixElapsedNanos, lastAcceptedFixTimeMs)) return;
+
+        float accuracy = location.getAccuracy();
         accuracyMeters = accuracy;
-        if (accuracy <= 100f && Math.abs(location.getLatitude()) <= 90d && Math.abs(location.getLongitude()) <= 180d) {
-            prefs.edit().putFloat("last_latitude", (float) location.getLatitude())
-                    .putFloat("last_longitude", (float) location.getLongitude())
-                    .putFloat("last_gps_accuracy", accuracy)
-                    .putLong("last_location_time", location.getTime()).apply();
-        }
+        lastAcceptedFixElapsedNanos = now;
+        lastAcceptedFixTimeMs = wallTime;
+        fixMarkedStale = false;
+        prefs.edit().putFloat("last_latitude", (float) location.getLatitude())
+                .putFloat("last_longitude", (float) location.getLongitude())
+                .putFloat("last_gps_accuracy", accuracy)
+                .putLong("last_location_time", wallTime).apply();
 
-        float reportedSpeed = location.hasSpeed() ? Math.max(0f, location.getSpeed() * 3.6f) : 0f;
-        if (reportedSpeed > 250f) reportedSpeed = 0f;
-
+        float reportedSpeed = location.hasSpeed()
+                ? LocationFixPolicy.speedKmh(location.getSpeed()) : 0f;
         boolean acceptedMovement = false;
-        if (previousAccepted != null && now > oldTime) {
-            long dtMs = (now - oldTime) / 1000000L;
-            double distance = location.distanceTo(previousAccepted);
-            float oldAccuracy = previousAccepted.hasAccuracy() ? previousAccepted.getAccuracy() : 999f;
-            double measuredSpeed = dtMs > 0 ? distance / (dtMs / 1000d) : Double.POSITIVE_INFINITY;
-            double noiseFloor = Math.max(4.0d, (accuracy + oldAccuracy) * 0.40d);
-            boolean fixesGood = accuracy <= MAX_DISTANCE_ACCURACY_M && oldAccuracy <= MAX_DISTANCE_ACCURACY_M;
-            boolean elapsedValid = dtMs >= 700L && dtMs <= 30000L;
-            boolean movementValid = distance >= noiseFloor && distance <= (dtMs / 1000d) * MAX_CAR_SPEED_MPS + 30d;
-            boolean speedValid = !Double.isNaN(measuredSpeed) && !Double.isInfinite(measuredSpeed)
-                    && measuredSpeed <= MAX_CAR_SPEED_MPS;
-            if (fixesGood && elapsedValid && movementValid && speedValid) {
-                long delta = Math.max(0L, Math.round(distance));
-                if (tripMeters == 0L && prefs.getLong("trip_started_at", 0L) <= 0L)
-                    prefs.edit().putLong("trip_started_at", location.getTime()).apply();
-                tripMeters += delta;
-                odometerMeters += delta;
-                prefs.edit()
-                        .putLong("trip_meters", tripMeters)
-                        .putLong("odometer_meters", odometerMeters)
-                        .putFloat("trip_km", tripMeters / 1000f)
-                        .putFloat("odometer_km", odometerMeters / 1000f)
-                        .apply();
-                acceptedMovement = true;
-                if (reportedSpeed <= 0f) reportedSpeed = (float) (measuredSpeed * 3.6d);
+        if (previousAccepted != null) {
+            long oldTime = previousAccepted.getElapsedRealtimeNanos();
+            long dtMs = oldTime > 0L && now > oldTime ? (now - oldTime) / 1000000L : 0L;
+            if (dtMs > 0L) {
+                double distance = location.distanceTo(previousAccepted);
+                float oldAccuracy = previousAccepted.hasAccuracy() ? previousAccepted.getAccuracy() : 999f;
+                double measuredSpeed = distance / (dtMs / 1000d);
+                double noiseFloor = Math.max(4.0d, (accuracy + oldAccuracy) * 0.40d);
+                boolean fixesGood = accuracy <= MAX_DISTANCE_ACCURACY_M && oldAccuracy <= MAX_DISTANCE_ACCURACY_M;
+                boolean elapsedValid = dtMs >= 700L && dtMs <= 30000L;
+                boolean movementValid = distance >= noiseFloor
+                        && distance <= (dtMs / 1000d) * MAX_CAR_SPEED_MPS + 30d;
+                boolean speedValid = !Double.isNaN(measuredSpeed) && !Double.isInfinite(measuredSpeed)
+                        && measuredSpeed <= MAX_CAR_SPEED_MPS;
+                if (fixesGood && elapsedValid && movementValid && speedValid) {
+                    long delta = Math.max(0L, Math.round(distance));
+                    if (tripMeters == 0L && prefs.getLong("trip_started_at", 0L) <= 0L)
+                        prefs.edit().putLong("trip_started_at", wallTime).apply();
+                    tripMeters += delta;
+                    odometerMeters += delta;
+                    prefs.edit()
+                            .putLong("trip_meters", tripMeters)
+                            .putLong("odometer_meters", odometerMeters)
+                            .putFloat("trip_km", tripMeters / 1000f)
+                            .putFloat("odometer_km", odometerMeters / 1000f)
+                            .apply();
+                    acceptedMovement = true;
+                    if (reportedSpeed <= 0f)
+                        reportedSpeed = (float) (measuredSpeed * 3.6d);
+                }
             }
-            // If GPS has been unusable for too long, re-anchor rather than accumulating
-            // a stale distance that could be mistaken for driving.
-            if (dtMs > 30000L && accuracy <= 100f) previousAccepted = new Location(location);
-        } else if (accuracy <= 100f) {
+            // A long GNSS gap is a new anchor, never a distance estimate across the gap.
+            if (dtMs > 30000L) previousAccepted = new Location(location);
+        } else {
             previousAccepted = new Location(location);
         }
 
-        // Keep the last good anchor across small noisy fixes, so sub-threshold
-        // movement accumulates instead of being discarded every second.
-        if (acceptedMovement && accuracy <= 100f) previousAccepted = new Location(location);
-        if (reportedSpeed > 250f) reportedSpeed = 0f;
-        speedKmh = reportedSpeed;
+        // Keep a good anchor through small movements so they accumulate over fixes.
+        if (acceptedMovement || previousAccepted == null
+                || now - previousAccepted.getElapsedRealtimeNanos() > 30000000000L) {
+            previousAccepted = new Location(location);
+        }
+        speedKmh = reportedSpeed > 250f ? 0f : reportedSpeed;
         maxSpeedKmh = Math.max(maxSpeedKmh, speedKmh);
         prefs.edit().putFloat("max_speed", maxSpeedKmh).apply();
         publishUpdate();
@@ -244,6 +298,7 @@ public final class LocationTrackingService extends Service implements LocationLi
     @Override public void onStatusChanged(String provider, int status, Bundle extras) { }
 
     @Override public void onDestroy() {
+        mainHandler.removeCallbacks(staleFixTicker);
         if (locationManager != null) {
             try { locationManager.removeUpdates(this); } catch (Exception ignored) { }
         }
