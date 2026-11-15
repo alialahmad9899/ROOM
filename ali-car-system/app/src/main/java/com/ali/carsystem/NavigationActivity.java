@@ -646,7 +646,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 &&GeoMath.isAccuracyUsable(l.getAccuracy(),250f);
     }
     private boolean isRouteStartUsable(Location l){
-        return isFreshLocation(l,300000L)&&l.hasAccuracy()
+        return isFreshLocation(l,180000L)&&l.hasAccuracy()
                 &&GeoMath.isAccuracyUsable(l.getAccuracy(),1000f)
                 &&Math.abs(l.getLatitude())<=90d&&Math.abs(l.getLongitude())<=180d;
     }
