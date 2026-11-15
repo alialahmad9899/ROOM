@@ -144,6 +144,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria.map"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria-places.sqlite"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/brouter/segments4/E40_N35.rd5"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/mapsforge/ali-car-dark.xml"
           mkdir -p output
           cp "$APK" output/ALI-Car-System-3.10.0-api21-x86-debug.apk
           sha256sum output/ALI-Car-System-3.10.0-api21-x86-debug.apk > output/SHA256SUMS.txt
@@ -208,13 +209,16 @@ jobs:
             sleep 3
             timeout 15s adb emu geo fix 36.2770 33.5142 || true
             sleep 3
-            echo "UI smoke: capturing navigation"
-            timeout 20s adb shell screencap -p /sdcard/ali-car-navigation.png || true
-            timeout 20s adb pull /sdcard/ali-car-navigation.png emulator-diagnostics/screenshots/navigation-gps-simulation.png || true
-            echo "UI smoke: running API21 instrumentation suite"
+            echo "UI smoke: running API21 instrumentation suite including offline-map installation wait"
             timeout 1200s gradle --no-daemon connectedDebugAndroidTest
             test_rc=$?
             echo "$test_rc" > emulator-diagnostics/exit-code.txt
+            echo "UI smoke: relaunching navigation after offline-map verification"
+            timeout 20s adb shell am force-stop com.ali.carsystem || true
+            timeout 30s adb shell am start -n com.ali.carsystem/.NavigationActivity || true
+            sleep 6
+            timeout 20s adb shell screencap -p /sdcard/ali-car-navigation.png || true
+            timeout 20s adb pull /sdcard/ali-car-navigation.png emulator-diagnostics/screenshots/navigation-gps-simulation.png || true
             adb devices -l > emulator-diagnostics/adb-devices.txt 2>&1
             adb logcat -d -v time > emulator-diagnostics/logcat.txt 2>&1
             adb shell dumpsys activity activities > emulator-diagnostics/activities.txt 2>&1
