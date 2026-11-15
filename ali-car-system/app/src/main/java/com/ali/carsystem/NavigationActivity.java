@@ -1128,7 +1128,17 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(navigationStateReceiver!=null)try{unregisterReceiver(navigationStateReceiver);}catch(Exception ignored){}
         if(map!=null){map.onDetach();map=null;}super.onDestroy();
     }
-    @Override public void onProviderEnabled(String p){if(status!=null)status.setText("تم تفعيل "+p+" — جارٍ طلب تحديث جديد");requestLocationSources();}
+    @Override public void onProviderEnabled(String p){
+        providerError="";
+        if(status!=null)status.setText("تم تفعيل "+p+" — ننتظر أول قراءة موقع حديثة");
+        // The existing LocationManager listener resumes with the provider. Re-registering here
+        // can recursively remove/re-add listeners and interrupt GPS callbacks.
+        loadLastKnown();
+        if(current!=null&&isRouteStartUsable(current)){
+            showCar(current);
+            if(followCar&&guidedMode)centerOnCar(current);
+        }
+    }
     @Override public void onProviderDisabled(String p){if(status!=null)status.setText("تم إيقاف "+p+" — فعّل الموقع من الإعدادات");}
     @Override public void onStatusChanged(String p,int state,Bundle b){
         String label=state==LocationProvider.AVAILABLE?"متاح":state==LocationProvider.TEMPORARILY_UNAVAILABLE?"بانتظار إشارة":state==LocationProvider.OUT_OF_SERVICE?"خارج الخدمة":"غير معروف";
