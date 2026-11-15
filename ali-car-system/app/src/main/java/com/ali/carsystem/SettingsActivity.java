@@ -92,6 +92,10 @@ public final class SettingsActivity extends BaseActivity {
         if(!owner){new AlertDialog.Builder(this).setMessage("هذه الوظيفة تحتاج Device Owner. تفعيل Device Admin وحده لا يكفي.").setPositiveButton("حسناً",null).show();return;}
         String[] names={"Google Maps","YouTube","Google Play Music"};String[] pkgs={"com.google.android.apps.maps","com.google.android.youtube","com.google.android.music"};
         boolean[] checked=new boolean[pkgs.length];
+        for(int i=0;i<pkgs.length;i++){
+            try{checked[i]=dpm.isApplicationHidden(admin,pkgs[i]);}
+            catch(Exception ignored){checked[i]=false;}
+        }
         new AlertDialog.Builder(this).setTitle("إخفاء تطبيقات اختيارية").setMultiChoiceItems(names,checked,(d,w,v)->{
             try{dpm.setApplicationHidden(admin,pkgs[w],v);}catch(Exception e){Toast.makeText(this,"تعذر تغيير التطبيق: "+pkgs[w],Toast.LENGTH_SHORT).show();}
         }).setPositiveButton("تم",null).show();

@@ -184,17 +184,13 @@ final class OfflineRoutingEngine {
                 int command = hint.optInt(1, 1);
                 int exit = hint.optInt(2, 0);
                 double distance = hint.optDouble(3, 0d);
-                if (pointIndex < 0 || pointIndex >= coordinates.length()) continue;
+                if (pointIndex < 0 || pointIndex >= coordinates.length()
+                        || !BrouterManeuverPolicy.isNavigable(command)) continue;
                 JSONArray point = coordinates.optJSONArray(pointIndex);
                 if (point == null || point.length() < 2) continue;
 
-                String modifier = command == 2 || command == 3 || command == 4 || command == 8 || command == 10
-                        ? "left"
-                        : command == 5 || command == 6 || command == 7 || command == 9 || command == 11
-                        ? "right"
-                        : command == 10 || command == 11 || command == 15 ? "uturn" : "straight";
-                if (command == 10 || command == 11 || command == 15) modifier = "uturn";
-                String type = command == 13 || command == 14 ? "roundabout" : command == 1 || command == 16 ? "continue" : "turn";
+                String modifier = BrouterManeuverPolicy.modifier(command);
+                String type = BrouterManeuverPolicy.type(command);
 
                 JSONObject maneuver = new JSONObject();
                 maneuver.put("type", type);

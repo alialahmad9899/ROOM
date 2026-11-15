@@ -35,6 +35,8 @@ public final class OfflineMapsRoutingSmokeTest {
         assertNotNull("Syria POI database must be installed", OfflineMapsManager.getPlacesDatabase(context()));
         assertTrue("All BRouter road tiles and profile files must be installed",
                 OfflineMapsManager.hasOfflineRouting(context()));
+        assertTrue("Every installed map/POI/BRouter file must match its SHA-256 manifest",
+                OfflineMapsManager.verifyInstalledBundle(context()));
     }
 
     @Test

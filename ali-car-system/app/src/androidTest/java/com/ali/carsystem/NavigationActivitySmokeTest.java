@@ -63,6 +63,8 @@ public final class NavigationActivitySmokeTest {
                 status[0].contains("توجيه دون إنترنت: جاهز"));
         assertTrue("The visible map status must confirm that MapsForge is rendering. Status: "+status[0],
                 status[0].contains("عرض الخريطة: جاهز"));
+        assertTrue("The visible map status must confirm its SHA-256 manifest. Status: "+status[0],
+                status[0].contains("سلامة الملفات: البيانات موثقة"));
     }
 
     @Test public void canSwitchBetweenFreeMapAndGuidedDrivingWithoutGps(){

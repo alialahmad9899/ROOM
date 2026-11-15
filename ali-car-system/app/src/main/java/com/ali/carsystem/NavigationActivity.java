@@ -143,12 +143,17 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private void addRouteChoice(String label,int index,boolean selected){Button b=new Button(this);styleButton(b,label,selected?0xFF087FA4:0xFF183447);b.setTextSize(11);b.setTag("route_"+index);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,dp(40));lp.setMargins(0,0,dp(7),0);routeChoices.addView(b,lp);b.setOnClickListener(v->selectRoute(index));}
     private void rebuildRouteChoices(){if(routeChoices==null)return;routeChoices.removeAllViews();if(routeOptions==null||routeOptions.isEmpty())return;int n=routeOptions.size();
+        if(n==1){
+            TextView note=new TextView(this);note.setTag("navigation_single_route_notice");
+            note.setText("المتوفر حالياً مسار واحد من محرك BRouter المحلي؛ لن نعرض بدائل وهمية");
+            note.setTextColor(0xFFCBDCE4);note.setTextSize(11);note.setPadding(dp(5),dp(9),dp(5),0);
+            routeChoices.addView(note);return;
+        }
         double[] d=new double[n],t=new double[n];int[] turns=new int[n];for(int i=0;i<n;i++){RouteOption o=routeOptions.get(i);d[i]=o.km;t[i]=o.minutes;turns[i]=o.turns;}
         int shortest=RouteChoiceLogic.shortestIndex(d),fastest=RouteChoiceLogic.fastestIndex(t),fewest=RouteChoiceLogic.fewestTurnsIndex(turns),longest=RouteChoiceLogic.longestIndex(d);
         addRouteChoice("الأقصر",shortest,selectedRouteIndex==shortest);if(fastest!=shortest)addRouteChoice("الأسرع",fastest,selectedRouteIndex==fastest);
         if(fewest!=shortest&&fewest!=fastest)addRouteChoice("أقل انعطافات",fewest,selectedRouteIndex==fewest);
-        if(longest!=shortest&&longest!=fastest&&longest!=fewest)addRouteChoice("الأطول",longest,selectedRouteIndex==longest);
-        if(n==1){TextView note=new TextView(this);note.setText("المحرك أعاد مساراً واحداً فقط");note.setTextColor(0xFFCBDCE4);note.setTextSize(11);note.setPadding(dp(5),dp(9),dp(5),0);routeChoices.addView(note);}}
+        if(longest!=shortest&&longest!=fastest&&longest!=fewest)addRouteChoice("الأطول",longest,selectedRouteIndex==longest);}
     private void selectRoute(int index){if(index<0||routeOptions==null||index>=routeOptions.size())return;selectedRouteIndex=index;RouteOption o=routeOptions.get(index);
         if(routeLine!=null)map.getOverlays().remove(routeLine);routeLine=new Polyline(map);routeLine.setPoints(o.points);routeLine.setColor(0xFF00C8F0);routeLine.setWidth(dp(6));if(guidedMode)map.getOverlays().add(routeLine);
         status.setText(String.format(Locale.US,"المسافة %.1f كم  •  الوقت %.0f دقيقة  •  %d انعطاف",o.km,o.minutes,o.turns));
@@ -166,8 +171,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             @Override public void onLocationResult(LocationResult result){
                 if(result==null||result.getLastLocation()==null)return;
                 Location fix=result.getLastLocation();
+                boolean accepted=shouldAcceptIncomingFix(fix);
                 onLocationChanged(fix);
-                if(status!=null&&destination==null)status.setText("موقع Google Fused وصل • دقة ±"+(fix.hasAccuracy()?Math.round(fix.getAccuracy()):0)+" متر");
+                if(accepted&&status!=null&&destination==null)
+                    status.setText("موقع Google Fused وصل • دقة ±"+(fix.hasAccuracy()?Math.round(fix.getAccuracy()):0)+" متر");
             }
         };
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
@@ -795,8 +802,11 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             fusedClient.getLastLocation()
                     .addOnSuccessListener(location->{
                         if(location!=null){
+                            boolean accepted=shouldAcceptIncomingFix(location);
                             onLocationChanged(location);
-                            gmsLocationStatus="استلمنا موقعاً محفوظاً من Google Fused";
+                            gmsLocationStatus=accepted
+                                    ?"استلمنا قراءة حديثة وصالحة من Google Fused"
+                                    :"تم تجاهل قراءة Google Fused محفوظة أو قديمة؛ GPS المباشر هو المرجع";
                         }else gmsLocationStatus="Google Fused لا يملك موقعاً محفوظاً؛ ننتظر تحديد موقع جديد";
                     })
                     .addOnFailureListener(error->gmsLocationStatus="قراءة آخر موقع فشلت: "+error.getClass().getSimpleName());
@@ -1026,10 +1036,13 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private static double[] routeDistances(List<RouteOption> o){double[] a=new double[o.size()];for(int i=0;i<a.length;i++)a[i]=o.get(i).km;return a;}
     private static String instruction(JSONObject step){
         JSONObject m=step.optJSONObject("maneuver");String type=m==null?"":m.optString("type","");String mod=m==null?"":m.optString("modifier","");
-        String road=step.optString("name","");String dir=mod.contains("left")?"يسار":mod.contains("right")?"يمين":mod.contains("uturn")?"استدر":"مباشرة";
+        String road=step.optString("name","");String dir=mod.contains("left")?"اليسار":mod.contains("right")?"اليمين":mod.contains("uturn")?"استدر":"مباشرة";
         int exit=m==null?0:m.optInt("exit",0);
         String action="arrive".equals(type)?"وصلت إلى الوجهة"
                 :"roundabout".equals(type)?(exit>0?"ادخل الدوار وخذ المخرج رقم "+exit:"ادخل الدوار")
+                :"exit".equals(type)?"اخرج إلى "+dir
+                :"keep-left".equals(mod)?"ابقَ إلى اليسار"
+                :"keep-right".equals(mod)?"ابقَ إلى اليمين"
                 :"تابع "+dir;
         return action+(road.isEmpty()?"":" باتجاه "+road);
     }
