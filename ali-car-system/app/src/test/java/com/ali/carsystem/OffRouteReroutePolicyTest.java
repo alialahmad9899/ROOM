@@ -31,6 +31,17 @@ public final class OffRouteReroutePolicyTest {
         assertTrue(policy.shouldReroute(false,8f,10000L,false));
     }
 
+    @Test public void poorFixOrActiveRequestResetsOffRouteStreak() {
+        OffRouteReroutePolicy policy=new OffRouteReroutePolicy();
+        policy.shouldReroute(false,8f,1000L,false);
+        policy.shouldReroute(false,8f,2000L,false);
+        assertFalse(policy.shouldReroute(false,100f,3000L,false));
+        assertFalse(policy.shouldReroute(false,8f,4000L,false));
+        assertFalse(policy.shouldReroute(false,8f,5000L,false));
+        assertFalse(policy.shouldReroute(false,8f,6000L,true));
+        assertFalse(policy.shouldReroute(false,8f,7000L,false));
+    }
+
     @Test public void appliesThirtySecondRerouteCooldown() {
         OffRouteReroutePolicy policy=new OffRouteReroutePolicy();
         for(long t:new long[]{1000L,2500L,4000L,5500L})policy.shouldReroute(false,8f,t,false);
