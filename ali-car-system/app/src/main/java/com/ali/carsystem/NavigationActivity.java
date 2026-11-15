@@ -23,6 +23,7 @@ import org.json.*;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.mapsforge.MapsForgeTileProvider;
 import org.osmdroid.mapsforge.MapsForgeTileSource;
+import org.mapsforge.map.android.rendertheme.AssetsRenderTheme;
 import org.osmdroid.tileprovider.util.SimpleRegisterReceiver;
 import org.osmdroid.util.*;
 import org.osmdroid.views.*;
@@ -550,7 +551,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 synchronized(NavigationActivity.class){
                     if(sharedOfflineTileSource==null){
                         MapsForgeTileSource.createInstance(getApplication());
-                        sharedOfflineTileSource=MapsForgeTileSource.createFromFiles(maps,null,"ALI-CAR-SYRIA-OFFLINE","ar");
+                        AssetsRenderTheme cockpitTheme=new AssetsRenderTheme(
+                                getAssets(),"mapsforge/","ali-car-dark.xml");
+                        sharedOfflineTileSource=MapsForgeTileSource.createFromFiles(
+                                maps,cockpitTheme,"ALI-CAR-COCKPIT-FLAT","ar");
                     }
                 }
             }

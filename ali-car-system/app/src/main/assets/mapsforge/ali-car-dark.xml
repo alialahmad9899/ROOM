@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rendertheme xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    map-background="#14212D" map-background-outside="#0B1520"
+    version="5" xmlns="http://mapsforge.org/renderTheme"
+    xsi:schemaLocation="http://mapsforge.org/renderTheme https://raw.githubusercontent.com/mapsforge/mapsforge/master/resources/renderTheme.xsd">
+    <rule e="way" k="natural" v="water|sea|riverbank">
+        <area fill="#18364A" stroke="#28495B" stroke-width="0.35"/>
+    </rule>
+    <rule e="way" k="waterway" v="river|canal|stream">
+        <line stroke="#28526A" stroke-width="1.2"/>
+    </rule>
+    <rule e="way" k="landuse" v="residential|commercial|industrial|retail">
+        <area fill="#1A2B38"/>
+    </rule>
+    <rule e="way" k="landuse" v="grass|forest|meadow|orchard|vineyard">
+        <area fill="#203A39"/>
+    </rule>
+    <rule e="way" k="leisure" v="park|garden|nature_reserve|recreation_ground">
+        <area fill="#24433D"/>
+    </rule>
+    <rule e="way" k="building" v="*">
+        <area fill="#263847" stroke="#344B5C" stroke-width="0.25"/>
+    </rule>
+    <rule e="way" k="highway" v="motorway|trunk|motorway_link|trunk_link" zoom-min="6">
+        <line stroke="#0A141E" stroke-width="7.0"/>
+        <line stroke="#D5A968" stroke-width="3.4"/>
+    </rule>
+    <rule e="way" k="highway" v="primary|primary_link|secondary|secondary_link" zoom-min="8">
+        <line stroke="#0A141E" stroke-width="5.2"/>
+        <line stroke="#A9C0CF" stroke-width="2.3"/>
+    </rule>
+    <rule e="way" k="highway" v="tertiary|tertiary_link|unclassified" zoom-min="10">
+        <line stroke="#0A141E" stroke-width="3.7"/>
+        <line stroke="#718FA2" stroke-width="1.45"/>
+    </rule>
+    <rule e="way" k="highway" v="residential|living_street|service" zoom-min="12">
+        <line stroke="#0A141E" stroke-width="2.8"/>
+        <line stroke="#536E80" stroke-width="1.0"/>
+    </rule>
+    <rule e="way" k="highway" v="footway|path|pedestrian|cycleway" zoom-min="14">
+        <line stroke="#66818F" stroke-width="0.65"/>
+    </rule>
+    <rule e="node" k="place" v="city|town" zoom-min="7">
+        <caption k="name" font-size="13" fill="#E7F0F5" stroke="#172B39" stroke-width="2.3"/>
+    </rule>
+    <rule e="node" k="place" v="village|suburb|neighbourhood" zoom-min="11">
+        <caption k="name" font-size="10" fill="#C4D4DD" stroke="#172B39" stroke-width="2.0"/>
+    </rule>
+    <rule e="way" k="highway" v="primary|secondary|tertiary|residential" zoom-min="14">
+        <caption k="name" font-size="9" fill="#D7E2E9" stroke="#132633" stroke-width="1.8"/>
+    </rule>
+</rendertheme>

@@ -15,7 +15,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 385" in GRADLE and "versionName '3.8.5'" in GRADLE,"ALI CAR version 3.8.5")
+require("versionCode 390" in GRADLE and "versionName '3.9.0'" in GRADLE,"ALI CAR version 3.9.0")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -232,4 +232,24 @@ for name in ("TripHistoryStore.java","CarBackupManager.java"):
  require((SRC/"java/com/ali/carsystem"/name).is_file(),"new storage helper "+name)
 for name in ("TripHistoryStoreSmokeTest.java","CarBackupManagerSmokeTest.java"):
  require((APP/"src/androidTest/java/com/ali/carsystem"/name).is_file(),"new instrumentation test "+name)
-print("PASS: ALI CAR 3.8.5 API21 offline maps, cockpit HUD, music management, backup, night mode and trip history contracts")
+MAP_THEME_PATH=SRC/"assets"/"mapsforge"/"ali-car-dark.xml"
+require(MAP_THEME_PATH.is_file(),"flat dark MapsForge cockpit theme is bundled")
+MAP_THEME=MAP_THEME_PATH.read_text(encoding="utf-8")
+require('map-background="#14212D"' in MAP_THEME and 'k="highway"' in MAP_THEME
+        and "hillshading" not in MAP_THEME.lower(),
+        "map style is flat dark street rendering without hill shading")
+require("AssetsRenderTheme" in NAV and "ali-car-dark.xml" in NAV
+        and "ALI-CAR-COCKPIT-FLAT" in NAV,
+        "offline navigation activates custom flat cockpit theme")
+require("navigationHud=new NavigationBannerView(this)" in MAIN,
+        "dashboard keeps its HUD reference without local variable shadowing")
+require("dashboard_secondary_page" in MAIN and "dashboard_secondary_shortcuts" in MAIN
+        and "dashboard_bottom_dock" in MAIN,
+        "main cockpit and secondary swipe page are present")
+require("welcome_voice_rate" in MAIN and "setSpeechRate" in MAIN and "setPitch" in MAIN
+        and "getVoices()" in MAIN and "WELCOME, ALI" in DASH,
+        "slower welcome voice and best-available installed female voice")
+require("Math.min(Visualizer.getMaxCaptureRate(),10000)" in music
+        and "postInvalidateDelayed(66)" in music,
+        "music visualizer and disc animation are throttled for low-memory devices")
+print("PASS: ALI CAR 3.9.0 reference cockpit, flat map, music performance and welcome voice contracts")

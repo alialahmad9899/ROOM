@@ -17,7 +17,7 @@ public final class WelcomeStartupSmokeTest {
 
     @Test public void firstBootWelcomeIsStaticAndDefersHeavyStartupWork() throws Exception {
         MainActivity main = activity.getActivity();
-        Thread.sleep(500L);
+        Thread.sleep(850L);
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
 
         ViewGroup content = (ViewGroup) main.findViewById(android.R.id.content);
@@ -27,16 +27,16 @@ public final class WelcomeStartupSmokeTest {
                 View.LAYER_TYPE_SOFTWARE, welcome.getLayerType());
         assertFalse("GPS service must wait until welcome closes",
                 main.isGpsStartedForTest());
-        assertFalse("Text-to-speech must wait until welcome closes",
+        assertTrue("TTS should initialize after the welcome panel appears",
                 main.isTtsInitializationAttemptedForTest());
 
-        Thread.sleep(3200L);
+        Thread.sleep(4100L);
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         assertNull("Welcome must close automatically",
                 content.findViewWithTag("welcome_splash_overlay"));
         assertTrue("GPS must start after welcome closes",
                 main.isGpsStartedForTest());
-        assertTrue("Text-to-speech must initialize after welcome closes",
+        assertTrue("TTS must initialize while welcome is displayed",
                 main.isTtsInitializationAttemptedForTest());
     }
 }

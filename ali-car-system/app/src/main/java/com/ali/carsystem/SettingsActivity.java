@@ -48,6 +48,24 @@ public final class SettingsActivity extends BaseActivity {
         smartNight.setOnCheckedChangeListener((button,checked)->
                 appPrefs.edit().putBoolean("smart_night_mode",checked).apply());
         box.addView(smartNight);
+        button("اختيار ثيم لوحة القيادة",()->showDashboardThemePicker(appPrefs));
+        add("صوت الترحيب Welcome Ali");
+        add("يبحث التطبيق عن صوت أنثوي إن كان محرك Android TTS المثبت يوفّره. يمكن ضبط سرعة الترحيب هنا.");
+        float welcomeRate=appPrefs.getFloat("welcome_voice_rate",0.78f);
+        TextView welcomeRateLabel=label("سرعة الترحيب: "+Math.round(welcomeRate*100)+"%",14);
+        box.addView(welcomeRateLabel);
+        SeekBar welcomeRateBar=new SeekBar(this);welcomeRateBar.setMax(35);
+        welcomeRateBar.setProgress(Math.max(0,Math.min(35,Math.round((welcomeRate-0.60f)*100f))));
+        welcomeRateBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            @Override public void onProgressChanged(SeekBar seek,int value,boolean fromUser){
+                float rate=0.60f+value/100f;
+                welcomeRateLabel.setText("سرعة الترحيب: "+Math.round(rate*100)+"%");
+                if(fromUser)appPrefs.edit().putFloat("welcome_voice_rate",rate).apply();
+            }
+            @Override public void onStartTrackingTouch(SeekBar seek){}
+            @Override public void onStopTrackingTouch(SeekBar seek){}
+        });
+        box.addView(welcomeRateBar,new LinearLayout.LayoutParams(-1,dp(42)));
 
         add("النسخ الاحتياطي المحلي");
         add("يحفظ الإعدادات والمفضلة وقوائم الموسيقى والوجهات والمسار المحفوظ. لا ينسخ ملفات الخرائط الكبيرة أو ملفات الأغاني نفسها.");
@@ -76,6 +94,21 @@ public final class SettingsActivity extends BaseActivity {
         new AlertDialog.Builder(this).setTitle("إخفاء تطبيقات اختيارية").setMultiChoiceItems(names,checked,(d,w,v)->{
             try{dpm.setApplicationHidden(admin,pkgs[w],v);}catch(Exception e){Toast.makeText(this,"تعذر تغيير التطبيق: "+pkgs[w],Toast.LENGTH_SHORT).show();}
         }).setPositiveButton("تم",null).show();
+    }
+
+    private void showDashboardThemePicker(SharedPreferences appPrefs){
+        String current=appPrefs.getString("dashboard_theme","ocean");
+        String[] labels={"Ocean Blue  •  أزرق هادئ","Graphite  •  رمادي راقٍ","Sport  •  رياضي"};
+        String[] values={"ocean","graphite","sport"};
+        int selected=0;
+        for(int i=0;i<values.length;i++)if(values[i].equals(current))selected=i;
+        new AlertDialog.Builder(this).setTitle("ثيم لوحة القيادة")
+                .setSingleChoiceItems(labels,selected,(dialog,which)->{
+                    appPrefs.edit().putString("dashboard_theme",values[which]).apply();
+                    setResult(RESULT_OK);
+                    dialog.dismiss();
+                    Toast.makeText(this,"تم حفظ الثيم. سيُطبّق عند العودة إلى لوحة القيادة.",Toast.LENGTH_LONG).show();
+                }).setNegativeButton("إغلاق",null).show();
     }
 
     private static final int REQUEST_BACKUP_EXPORT=9341,REQUEST_BACKUP_IMPORT=9342;

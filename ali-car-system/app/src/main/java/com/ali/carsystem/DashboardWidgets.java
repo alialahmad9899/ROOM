@@ -73,6 +73,16 @@ final class NeonIconView extends View {
                 for(int i=0;i<3;i++){RectF arc=new RectF(cx-r*(.74f-i*.22f),cy-r*(.72f-i*.18f),cx+r*(.74f-i*.22f),cy+r*(.72f-i*.18f));canvas.drawArc(arc,225,90,false,p);}
                 p.setStyle(Paint.Style.FILL);canvas.drawCircle(cx,cy+r*.42f,r*.12f,p);break;
             }
+            case 6:{
+                RectF radio=new RectF(cx-r*.70f,cy-r*.45f,cx+r*.70f,cy+r*.48f);
+                p.setStyle(Paint.Style.FILL);p.setColor(0xFFF3FAFF);
+                canvas.drawRoundRect(radio,r*.12f,r*.12f,p);
+                p.setColor(color);canvas.drawRoundRect(cx-r*.52f,cy-r*.26f,cx+r*.27f,cy+r*.13f,r*.05f,r*.05f,p);
+                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(r*.09f);
+                canvas.drawCircle(cx+r*.45f,cy+r*.02f,r*.12f,p);
+                canvas.drawLine(cx-r*.30f,cy-r*.45f,cx+r*.35f,cy-r*.78f,p);
+                break;
+            }
             default:{
                 p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(r*.105f);
                 canvas.drawCircle(cx,cy,r*.34f,p);
@@ -268,11 +278,11 @@ final class NeonSplashView extends View {
         p.setStyle(Paint.Style.FILL);p.setColor(0xFF66E7FF);
         c.drawCircle(cx,logoY+5f*s,3.5f*s,p);
 
-        centeredText(c,"WELCOME BACK",cx,logoY-radius-22f*s,12f*s,0xFF9EC5D8,medium);
+        centeredText(c,"WELCOME, ALI",cx,logoY-radius-22f*s,13f*s,0xFF9EC5D8,medium);
         centeredText(c,"ALI CAR",cx,centerY+105f*s,47f*s,0xFFF4FBFF,display);
-        centeredText(c,"SMART  •  CONNECTED  •  READY TO DRIVE",
+        centeredText(c,"YOUR DRIVE  •  YOUR WORLD",
                 cx,centerY+132f*s,11.5f*s,0xFF9DCCDE,medium);
-        centeredText(c,"أهلاً بك في تجربة قيادة أذكى",
+        centeredText(c,"أهلاً بك، رحلتك أصبحت جاهزة",
                 cx,centerY+166f*s,17f*s,0xFFE3F5FA,regular);
     }
 }

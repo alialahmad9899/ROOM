@@ -674,11 +674,15 @@ public final class MusicActivity extends BaseActivity {
         if(service==null||!service.isPlaying()||visualizer!=null)return;
         int session=service.getAudioSessionId();if(session<=0)return;
         try{
-            visualizer=new Visualizer(session);visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
+            visualizer=new Visualizer(session);
+            int[] supported=Visualizer.getCaptureSizeRange();
+            int capture=Math.min(512,supported[1]);
+            if(capture<supported[0])capture=supported[0];
+            visualizer.setCaptureSize(capture);
             visualizer.setDataCaptureListener(new Visualizer.OnDataCaptureListener(){
                 public void onWaveFormDataCapture(Visualizer v,byte[] d,int rate){if(wave!=null)wave.setWave(d);}
                 public void onFftDataCapture(Visualizer v,byte[] d,int rate){}
-            },Visualizer.getMaxCaptureRate(),true,false);visualizer.setEnabled(true);
+            },Math.min(Visualizer.getMaxCaptureRate(),10000),true,false);visualizer.setEnabled(true);
         }catch(Exception ignored){stopVisualizer();wave.setUnavailable();}
     }
     private void stopVisualizer(){
@@ -782,7 +786,7 @@ public final class MusicActivity extends BaseActivity {
             p.setColor(0xFF9BEFFF);canvas.drawCircle(cx,cy,r*.035f,p);
             p.setColor(0xFFD6E9F2);canvas.drawCircle(cx-r*.80f,cy-r*.31f,r*.025f,p);
             canvas.restore();
-            if(spinning){angle=(angle+1.35f)%360f;postInvalidateDelayed(40);}
+            if(spinning){angle=(angle+1.05f)%360f;postInvalidateDelayed(66);}
         }
     }
     private final class WaveView extends View {

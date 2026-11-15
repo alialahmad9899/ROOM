@@ -32,6 +32,14 @@ public final class LaunchSmokeTest {
         assertTrue("Dashboard content must contain its ViewPager",
                 ((ViewGroup) content).getChildCount() > 0);
         View hud = content.findViewWithTag("dashboard_navigation_hud");
+        assertNotNull(content.findViewWithTag("dashboard_cockpit_body"));
+        assertNotNull(content.findViewWithTag("dashboard_bottom_dock"));
+        assertNotNull(content.findViewWithTag("dashboard_secondary_hint"));
+        assertNotNull(content.findViewWithTag("dashboard_digital_clock"));
+        androidx.viewpager.widget.ViewPager pager=
+                (androidx.viewpager.widget.ViewPager)content.findViewWithTag("dashboard_view_pager");
+        assertNotNull("Dashboard page container is installed",pager);
+        assertEquals("Dashboard has a second swipe page",2,pager.getAdapter().getCount());
         assertNotNull("Floating guidance HUD must be layered over the dashboard wallpaper", hud);
         assertNotNull("HUD must render a vector turn arrow",
                 content.findViewWithTag("navigation_hud_arrow"));
