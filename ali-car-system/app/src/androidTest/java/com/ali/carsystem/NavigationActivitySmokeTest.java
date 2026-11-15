@@ -61,6 +61,8 @@ public final class NavigationActivitySmokeTest {
                 status[0].contains("الأماكن: جاهزة"));
         assertTrue("The visible map status must show offline routing as ready. Status: "+status[0],
                 status[0].contains("توجيه دون إنترنت: جاهز"));
+        assertTrue("The visible map status must confirm that MapsForge is rendering. Status: "+status[0],
+                status[0].contains("عرض الخريطة: جاهز"));
     }
 
     @Test public void canSwitchBetweenFreeMapAndGuidedDrivingWithoutGps(){
