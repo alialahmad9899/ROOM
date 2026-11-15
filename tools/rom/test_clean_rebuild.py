@@ -22,6 +22,12 @@ require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true
 require('android:name=".CarApplication"' in MAN and "onTrimMemory" in (SRC/"java/com/ali/carsystem/CarApplication.java").read_text(),"memory manager")
 require('android:name=".CarAdminReceiver"' in MAN and "extends DeviceAdminReceiver" in (SRC/"java/com/ali/carsystem/CarAdminReceiver.java").read_text(),"device admin receiver")
 require("setApplicationHidden" in SETTINGS and "isDeviceOwnerApp" in SETTINGS,"Device Owner guard")
+require("DeviceDiagnosticsActivity.class" in SETTINGS
+        and "DeviceDiagnosticsActivity" in MAN
+        and (SRC/"java/com/ali/carsystem/DeviceDiagnosticsActivity.java").is_file()
+        and (APP/"src/androidTest/java/com/ali/carsystem/DeviceDiagnosticsActivitySmokeTest.java").is_file(),
+        "device diagnostics screen is registered, linked from settings and instrumented")
+
 require("setLayoutDirection(View.LAYOUT_DIRECTION_RTL)" in MAIN,"RTL dashboard")
 require("new NeonIconView(this,types[i],colors[i])" in MAIN,"custom dashboard icons and typed dock functions")
 require('getIdentifier("bg_dashboard","drawable"' in MAIN,"embedded drawable wallpaper")
