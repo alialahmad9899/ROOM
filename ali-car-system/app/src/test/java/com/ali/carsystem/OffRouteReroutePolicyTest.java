@@ -38,7 +38,9 @@ public final class OffRouteReroutePolicyTest {
         for(long t:new long[]{8000L,9500L,11000L,12500L,14000L}) {
             assertFalse(policy.shouldReroute(false,8f,t,false));
         }
-        for(long t:new long[]{38000L,39500L,41000L,42500L})policy.shouldReroute(false,8f,t,false);
-        assertTrue(policy.shouldReroute(false,8f,44000L,false));
+        assertFalse(policy.shouldReroute(false,8f,38000L,false));
+        assertFalse(policy.shouldReroute(false,8f,39500L,false));
+        assertFalse(policy.shouldReroute(false,8f,41000L,false));
+        assertTrue(policy.shouldReroute(false,8f,42500L,false));
     }
 }
