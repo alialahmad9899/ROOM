@@ -1,0 +1,259 @@
+name: ALI CAR 3.10.0 Full Cockpit GPS Recovery API21 x86
+
+on:
+  push:
+    branches: ["ali-car-system/3.10.0-full-cockpit-gps-restore-2026-11-15"]
+    paths: ["ali-car-system/**","tools/rom/**","tools/maps/**",".github/workflows/build-car-app-3-10-0.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: ali-car-system-api21-x86-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  android-api21-x86:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Upload user-provided visual references for inspection
+        uses: actions/upload-artifact@v7
+        with:
+          name: ALI-CAR-USER-REFERENCES
+          path: |
+            111.jfif
+            222.jpg
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Android build and archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip git ffmpeg
+          python -m pip install --disable-pip-version-check Pillow
+
+      - name: Build BRouter offline car-routing engine
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/offline-map-build"
+          git clone --depth 1 --branch v1.7.10 https://github.com/abrensch/brouter.git "$GITHUB_WORKSPACE/offline-map-build/brouter"
+          cd "$GITHUB_WORKSPACE/offline-map-build/brouter"
+          ./gradlew --no-daemon :brouter-server:smallJar
+          JAR="$(find brouter-server/build/libs -maxdepth 1 -type f -name 'brouter-*-ro.jar' | head -n 1)"
+          test -s "$JAR"
+          mkdir -p "$GITHUB_WORKSPACE/ali-car-system/app/libs"
+          cp "$JAR" "$GITHUB_WORKSPACE/ali-car-system/app/libs/brouter-1.7.10-ro.jar"
+          test -s "$GITHUB_WORKSPACE/ali-car-system/app/libs/brouter-1.7.10-ro.jar"
+
+      # Reuse the separately verified Syria package; do not rebuild 180 MB of OSM data
+      # during every Android code change.
+      - name: Download durable Syria offline map package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p offline-map-artifact
+          if gh release view ali-car-offline-maps-v1 >/dev/null 2>&1; then
+            gh release download ali-car-offline-maps-v1 --pattern 'ALI-CAR-SYRIA-OFFLINE-MAPS.zip' --dir offline-map-artifact
+          else
+            gh run download 43502967636 --name ALI-CAR-SYRIA-OFFLINE-MAPS --dir offline-map-artifact
+          fi
+          test -s offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip
+
+      - name: Publish permanent offline map source if this is the first build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! gh release view ali-car-offline-maps-v1 >/dev/null 2>&1; then
+            gh release create ali-car-offline-maps-v1 offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip --title "ALI CAR - Verified Syria Offline Maps v1" --notes "Immutable source bundle for ALI CAR API21 builds. Includes Syria vector map, local POI database and BRouter tiles. SHA-256: 0231cc2bfe35b68f1fb71b98e84a6e79de3878f54a521598ab8992f303b949f7"
+          fi
+
+      - name: Install Syria map, POI database and offline routing assets in APK
+        run: |
+          set -euo pipefail
+          PACKAGE="offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip"
+          test -s "$PACKAGE"
+          mkdir -p ali-car-system/app/src/main/assets/offline
+          unzip -q "$PACKAGE" -d ali-car-system/app/src/main/assets/offline
+          for path in \
+            "syria.map" \
+            "syria-places.sqlite" \
+            "brouter/segments4/E35_N30.rd5" \
+            "brouter/segments4/E35_N35.rd5" \
+            "brouter/segments4/E40_N30.rd5" \
+            "brouter/segments4/E40_N35.rd5" \
+            "brouter/profiles2/car-fast.brf" \
+            "brouter/profiles2/lookups.dat"; do
+              test -s "ali-car-system/app/src/main/assets/offline/$path"
+          done
+          du -sh ali-car-system/app/src/main/assets/offline
+
+      - name: Remove obsolete historical tracks and enforce local music policy
+        run: python tools/rom/install_open_music.py
+
+      - name: Resize and verify dashboard photo
+        run: python tools/rom/materialize_dashboard_asset.py
+
+      - name: Verify static contracts
+        run: python tools/rom/test_clean_rebuild.py
+
+      - uses: android-actions/setup-android@v4.0.4
+        with:
+          packages: platform-tools
+
+      - name: Install Android platform and emulator
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'emulator' 'system-images;android-21;default;x86'
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.7"
+
+      - name: Run unit tests and assemble
+        working-directory: ali-car-system
+        run: gradle --no-daemon clean testDebugUnitTest assembleDebug assembleAndroidTest
+
+      - name: Verify APK package, API levels, signature and offline payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="ali-car-system/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          "$AAPT" dump badging "$APK" | tee apk-badging.txt
+          grep -F "package: name='com.ali.carsystem'" apk-badging.txt
+          grep -F "sdkVersion:'21'" apk-badging.txt
+          grep -F "targetSdkVersion:'22'" apk-badging.txt
+          grep -F "versionName='3.10.0'" apk-badging.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria.map"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria-places.sqlite"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/brouter/segments4/E40_N35.rd5"
+          mkdir -p output
+          cp "$APK" output/ALI-Car-System-3.10.0-api21-x86-debug.apk
+          sha256sum output/ALI-Car-System-3.10.0-api21-x86-debug.apk > output/SHA256SUMS.txt
+          {
+            echo "Project: ALI CAR"
+            echo "Package: com.ali.carsystem"
+            echo "Version: 3.10.0"
+            echo "Device baseline: ASUS Z170CG / P01Y, Intel SoFIA 3GR, x86 32-bit"
+            echo "Minimum Android: 5.0 / API 21"
+            echo "Target SDK: 22"
+            echo "Offline coverage: Syria OSM vector map, local POIs and BRouter driving segments"
+            echo "Build type: Debug-signed testing APK"
+            echo "Commit: $GITHUB_SHA"
+            stat --printf='APK bytes: %s\\n' output/ALI-Car-System-3.10.0-api21-x86-debug.apk
+            cat output/SHA256SUMS.txt
+          } > output/BUILD-INFO.txt
+
+      - name: Upload APK and metadata
+        uses: actions/upload-artifact@v7
+        with:
+          name: ALI-CAR-3.10.0-API21-X86-APK
+          path: |
+            output/ALI-Car-System-3.10.0-api21-x86-debug.apk
+            output/SHA256SUMS.txt
+            output/BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+      - name: Create writable API21 emulator SD card
+        run: |
+          "$ANDROID_HOME/emulator/mksdcard" 2G /tmp/ali-car-sdcard.img
+
+      - name: Run API21 x86 UI smoke test
+        id: api21-ui-test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 21
+          target: default
+          arch: x86
+          profile: Nexus 7
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-metrics -partition-size 4096 -sdcard /tmp/ali-car-sdcard.img
+          disable-animations: true
+          working-directory: ali-car-system
+          script: |
+            set +e
+            mkdir -p emulator-diagnostics/screenshots
+            adb shell dumpsys battery > emulator-diagnostics/battery-before-tests.txt 2>&1
+            adb install -r app/build/outputs/apk/debug/app-debug.apk || exit 1
+            adb shell am force-stop com.ali.carsystem
+            adb shell am start -n com.ali.carsystem/.MainActivity
+            sleep 6
+            adb shell screencap -p /sdcard/ali-car-main.png
+            adb pull /sdcard/ali-car-main.png emulator-diagnostics/screenshots/main-dashboard.png
+            adb shell am start -n com.ali.carsystem/.NavigationActivity
+            sleep 3
+            adb emu geo fix 36.2765 33.5138
+            sleep 3
+            adb emu geo fix 36.2770 33.5142
+            sleep 3
+            adb shell screencap -p /sdcard/ali-car-navigation.png
+            adb pull /sdcard/ali-car-navigation.png emulator-diagnostics/screenshots/navigation-gps-simulation.png
+            gradle --no-daemon connectedDebugAndroidTest
+            test_rc=$?
+            echo "$test_rc" > emulator-diagnostics/exit-code.txt
+            adb devices -l > emulator-diagnostics/adb-devices.txt 2>&1
+            adb logcat -d -v time > emulator-diagnostics/logcat.txt 2>&1
+            adb shell dumpsys activity activities > emulator-diagnostics/activities.txt 2>&1
+            adb shell dumpsys mount > emulator-diagnostics/storage-mounts.txt 2>&1
+            if [ -d app/build/reports/androidTests/connected/debug ]; then cp -R app/build/reports/androidTests/connected/debug emulator-diagnostics/android-test-report; fi
+            if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -R app/build/outputs/androidTest-results/connected/debug emulator-diagnostics/android-test-results; fi
+            exit "$test_rc"
+
+      - name: Upload emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ALI-CAR-3.10.0-API21-X86-DIAGNOSTICS
+          path: ali-car-system/emulator-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Publish verified ALI CAR 3.10.0 release
+        if: success() && github.ref == 'refs/heads/ali-car-system/3.10.0-full-cockpit-gps-restore-2026-11-15'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ali-car-v3.10.0-api21-x86
+          target_commitish: ${{ github.sha }}
+          name: ALI CAR 3.10.0 — Android 5 / x86
+          draft: false
+          prerelease: true
+          make_latest: false
+          generate_release_notes: false
+          body: |
+            ALI CAR 3.10.0 for ASUS ZenPad C 7.0 / P01Y (Intel SoFIA 3GR, x86 32-bit).
+
+            - Minimum Android: 5.0 / API 21
+            - Target SDK: 22
+            - Package: com.ali.carsystem
+            - Syria offline vector map, local POI database and BRouter offline driving data are embedded in the APK. Rendered map tiles use a bounded persistent disk cache; map center, zoom and selected route are restored between openings.
+            - Map tile networking, web geocoding and online route fallback are disabled in the navigation screen. The bundled flat dark street theme omits topographic hill shading.
+            - Bundled music/audio: none in any supported format; the player scans only the user's local library. Added SHA-256 duplicate prevention on imports, searchable and sortable tracks, duplicate review, playlist removal and confirmation-gated permanent deletion.
+            - Main dashboard: live GPS speedometer and analog/digital clock without surrounding cards; trip summary and route guidance are at the top, with a compact local music strip above the main cockpit.
+            - The horizontal swipe pages retain the drive-centre and trip history; the central gesture surface supports left/right paging and up/down shortcuts to navigation and music.
+            - The bottom dock replaces Radio with YouTube Lite-style mobile browsing. It opens https://m.youtube.com in an installed browser; no unofficial or discontinued YouTube APK is bundled.
+            - GPS fixes are age/accuracy/coordinate checked and out-of-order Fused cached fixes are rejected so they cannot move the current-position marker backwards.
+            - Build type: Debug-signed testing APK; not a production signing-key build.
+            - Welcome voice is slower and selects an installed female English TTS voice when the local engine exposes one; the actual voice remains engine-dependent.
+            - CI captures main-dashboard and navigation screenshots and injects two simulated GPS coordinates on the Android 5.0.2 API21 x86 emulator. Physical-device GPS/audio/Bluetooth validation is still required.
+          files: |
+            output/ALI-Car-System-3.10.0-api21-x86-debug.apk
+            output/SHA256SUMS.txt
+            output/BUILD-INFO.txt
+          fail_on_unmatched_files: true
