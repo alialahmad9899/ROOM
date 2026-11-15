@@ -43,10 +43,12 @@ public final class DashboardSleepSmokeTest {
         androidx.viewpager.widget.ViewPager pager=
                 (androidx.viewpager.widget.ViewPager)content.findViewWithTag("dashboard_view_pager");
         assertNotNull(pager);
-        pager.setCurrentItem(1,false);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(
+                () -> pager.setCurrentItem(1,false));
         assertNotNull("Speedometer is retained on the secondary drive-centre page",
                 content.findViewWithTag("dashboard_speed_gauge"));
-        pager.setCurrentItem(0,false);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(
+                () -> pager.setCurrentItem(0,false));
     }
 
     @Test public void sleepPolicySeparatesManualAndAutomaticSleep() {
