@@ -23,11 +23,13 @@ require('android:name=".CarApplication"' in MAN and "onTrimMemory" in (SRC/"java
 require('android:name=".CarAdminReceiver"' in MAN and "extends DeviceAdminReceiver" in (SRC/"java/com/ali/carsystem/CarAdminReceiver.java").read_text(),"device admin receiver")
 require("setApplicationHidden" in SETTINGS and "isDeviceOwnerApp" in SETTINGS,"Device Owner guard")
 require("setLayoutDirection(View.LAYOUT_DIRECTION_RTL)" in MAIN,"RTL dashboard")
-require("new NeonIconView(this,i,colors[i])" in MAIN,"custom dashboard icons")
+require("new NeonIconView(this,types[i],colors[i])" in MAIN,"custom dashboard icons and typed dock functions")
 require('getIdentifier("bg_dashboard","drawable"' in MAIN,"embedded drawable wallpaper")
 require("Bitmap.Config.RGB_565" in MAIN,"RGB565 decode")
 require("new AnalogClockView(this)" in MAIN and "new SpeedometerView(this)" in MAIN,"clock and speed gauge")
-require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN and "dp(220)" in MAIN,"equal large speed and analog clock dials")
+require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN
+        and "dp(174)" in MAIN and "dp(160)" in MAIN and "dp(224)" in MAIN,
+        "compact live speed/clock panels and secondary gauge fit the cockpit screen")
 require(DASH.count("InstrumentDialStyle.drawFace(c,p,cx,cy,r)") == 2,"shared speedometer and analog clock face")
 require("import android.graphics.Path;" in NAV,"navigation dot heading Path import")
 require('digitalClock=label("00:00"' not in MAIN,"digital dashboard clock removed")
@@ -36,14 +38,17 @@ require("ambient_wake_button" in MAIN and "REST  •  RESET  •  DRIVE SAFE" in
 require("screenBrightness=0.045f" in MAIN and "restoreWindowBrightness" in MAIN,"sleep dim brightness restore")
 require("90000" in MAIN and "ACTION_SCREEN_ON" not in MAIN,
         "ambient clock remains without replaying welcome on every screen wake")
-require("final class NeonSplashView" in DASH and "أهلاً بك في تجربة قيادة أذكى" in DASH and "SMART  •  CONNECTED  •  READY TO DRIVE" in DASH,"professional branded welcome screen")
+require("final class NeonSplashView" in DASH and "أهلاً بك، رحلتك أصبحت جاهزة" in DASH
+        and "WELCOME, ALI" in DASH and "YOUR DRIVE  •  YOUR WORLD" in DASH,
+        "professional personalized welcome screen")
 require("setLayerType(View.LAYER_TYPE_SOFTWARE,null)" in DASH
         and "welcome_splash_overlay" in DASH and "drawArc" in DASH
         and "postInvalidateDelayed(33)" not in DASH,
         "first-boot welcome is static software-rendered without continuous GPU redraw")
-require("handler.postDelayed(this::dismissWelcome,3000)" in MAIN
+require("handler.postDelayed(this::dismissWelcome,4600L)" in MAIN
+        and "handler.postDelayed(this::initializeTts,350L)" in MAIN
         and "v.animate()" not in MAIN,
-        "welcome has a short fixed display and no animated layer transitions")
+        "welcome holds long enough for the spoken greeting without animated layer transitions")
 MAIN_CREATE = MAIN.split("@Override protected void onCreate(Bundle state) {",1)[1].split("private android.content.SharedPreferences prefs()",1)[0]
 require("new TextToSpeech(this,this)" not in MAIN_CREATE
         and "startGps()" not in MAIN_CREATE and "handler.post(clockTick)" not in MAIN_CREATE
