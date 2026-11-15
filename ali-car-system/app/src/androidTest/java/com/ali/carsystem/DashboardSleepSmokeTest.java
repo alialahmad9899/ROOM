@@ -23,29 +23,29 @@ public final class DashboardSleepSmokeTest {
         View analog=content.findViewWithTag("dashboard_analog_clock");
         View hud=content.findViewWithTag("dashboard_navigation_hud");
         View dock=content.findViewWithTag("dashboard_bottom_dock");
-        assertNotNull("Left radio/media panel must be present",media);
+        assertNotNull("Top music strip must be present",media);
         assertNotNull("Right digital clock must be present",digital);
         assertNotNull("Right analog clock must be present",analog);
-        assertNotNull("Compact navigation HUD must be present",hud);
+        assertNotNull("Top route HUD must be present",hud);
         assertNotNull("Five-button bottom dock must be present",dock);
         assertEquals(5,((ViewGroup)dock).getChildCount());
         int[] mediaPosition=new int[2],clockPosition=new int[2];
         media.getLocationOnScreen(mediaPosition);
         analog.getLocationOnScreen(clockPosition);
-        assertTrue("Media panel must be left of the clock panel",
-                mediaPosition[0]<clockPosition[0]);
+        assertTrue("Music strip must be above the clock",
+                mediaPosition[1]<clockPosition[1]);
         assertEquals("Analog clock keeps the reference-sized dial",
-                (int)(174*main.getResources().getDisplayMetrics().density+.5f),
+                (int)(166*main.getResources().getDisplayMetrics().density+.5f),
                 analog.getLayoutParams().width);
         assertEquals("HUD stays hidden until an active route is received",View.GONE,hud.getVisibility());
-        assertTrue("HUD is a compact row beneath the media panel",
+        assertTrue("Route HUD is placed in the top information area",
                 hud.getParent() instanceof android.widget.LinearLayout);
         androidx.viewpager.widget.ViewPager pager=
                 (androidx.viewpager.widget.ViewPager)content.findViewWithTag("dashboard_view_pager");
         assertNotNull(pager);
         InstrumentationRegistry.getInstrumentation().runOnMainSync(
                 () -> pager.setCurrentItem(1,false));
-        assertNotNull("Speedometer is retained on the secondary drive-centre page",
+        assertNotNull("Main speedometer remains available after page changes",
                 content.findViewWithTag("dashboard_speed_gauge"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(
                 () -> pager.setCurrentItem(0,false));
