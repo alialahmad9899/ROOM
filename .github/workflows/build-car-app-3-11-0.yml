@@ -74,7 +74,7 @@ jobs:
             gh run download 43502967636 --name ALI-CAR-SYRIA-OFFLINE-MAPS --dir offline-map-artifact
           fi
           test -s offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip
-          echo "0231cc2bfe35b68f1fb71b98e84a6e79de3878f54a521598ab8992f303b949f7  offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip" | sha256sum --check -
+          echo "92c9eb0552beafb639915e489ea250fd6a44e359f714616445f4c2355e9373c8  offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip" | sha256sum --check -
 
       - name: Publish permanent offline map source if this is the first build
         env:
@@ -82,7 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! gh release view ali-car-offline-maps-v1 >/dev/null 2>&1; then
-            gh release create ali-car-offline-maps-v1 offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip --title "ALI CAR - Verified Syria Offline Maps v1" --notes "Immutable source bundle for ALI CAR API21 builds. Includes Syria vector map, local POI database and BRouter tiles. SHA-256: 0231cc2bfe35b68f1fb71b98e84a6e79de3878f54a521598ab8992f303b949f7"
+            gh release create ali-car-offline-maps-v1 offline-map-artifact/ALI-CAR-SYRIA-OFFLINE-MAPS.zip --title "ALI CAR - Verified Syria Offline Maps v1" --notes "Immutable source bundle for ALI CAR API21 builds. Includes Syria vector map, local POI database and BRouter tiles. SHA-256: 92c9eb0552beafb639915e489ea250fd6a44e359f714616445f4c2355e9373c8"
           fi
 
       - name: Install Syria map, POI database and offline routing assets in APK
