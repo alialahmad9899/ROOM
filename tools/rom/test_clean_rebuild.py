@@ -273,8 +273,10 @@ require("dashboard_four_way_swipe_surface" in MAIN
         and (APP/"src/test/java/com/ali/carsystem/DashboardGesturePolicyTest.java").is_file(),
         "left/right dashboard paging and up/down navigation/music gestures have four-direction unit tests")
 require("shouldAcceptIncomingFix" in NAV and "isNewerFix" in NAV
-        and "isFreshLocation(candidate,180000L)" in NAV,
-        "stale and out-of-order GPS fixes cannot replace the live marker")
+        and "isFreshLocation(candidate,180000L)" in NAV
+        and 'getSharedPreferences("ali_car_v3"' not in NAV
+        and "ali-car-saved-location" not in NAV,
+        "stale/out-of-order GPS fixes are rejected and saved preferences are never shown as live location")
 require((APP/"src/androidTest/java/com/ali/carsystem/NavigationLocationRegressionTest.java").is_file(),
         "instrumented live/stale GPS regression test exists")
 require("offRouteReroutePolicy.shouldReroute" in NAV
