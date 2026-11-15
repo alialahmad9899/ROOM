@@ -66,6 +66,7 @@ public final class MusicPlaybackService extends Service
     private int index = -1;
     private int pendingIndex = -1;
     private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending, resumePlaybackAfterLoad;
+    private boolean resumeAfterTransientFocusLoss;
     private int restoredPositionMs;
     private String pendingAction;
     private Listener listener;
@@ -305,6 +306,7 @@ public final class MusicPlaybackService extends Service
     }
 
     public void playAt(int requestedIndex) {
+        resumeAfterTransientFocusLoss = false;
         if (!libraryLoaded) {
             pendingIndex = requestedIndex;
             loadLibraryAsync();
@@ -377,6 +379,8 @@ public final class MusicPlaybackService extends Service
     }
 
     public void toggle() {
+        // A deliberate user action overrides any pending automatic focus resume.
+        resumeAfterTransientFocusLoss = false;
         if (player == null || index < 0) {
             if (!songs.isEmpty()) playAt(index < 0 ? 0 : index);
             else loadLibraryAsync();
@@ -391,8 +395,11 @@ public final class MusicPlaybackService extends Service
                             .putBoolean("resume_enabled", false).apply();
                     mainHandler.removeCallbacks(positionSaver);
                 } else {
-                    if (audioManager != null) audioManager.requestAudioFocus(this,
-                            AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+                    if (audioManager != null) {
+                        int focus = audioManager.requestAudioFocus(this,
+                                AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+                        if (focus != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return;
+                    }
                     player.start();
                     getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
                             .putBoolean("resume_enabled", true).apply();
@@ -729,17 +736,34 @@ public final class MusicPlaybackService extends Service
     @Override public void onAudioFocusChange(int focusChange) {
         if (player == null || !prepared) return;
         try {
-            if (focusChange == AudioManager.AUDIOFOCUS_LOSS
-                    || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+            SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
+            if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                // Permanent focus loss must never trigger an automatic restart.
+                resumeAfterTransientFocusLoss = false;
                 if (player.isPlaying()) player.pause();
                 savePlaybackPosition();
-                getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
-                        .putBoolean("resume_enabled", false).apply();
+                prefs.edit().putBoolean("resume_enabled", false).apply();
+                mainHandler.removeCallbacks(positionSaver);
+            } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                // Remember only playback that was active before the interruption.
+                resumeAfterTransientFocusLoss = player.isPlaying()
+                        && prefs.getBoolean("resume_enabled", false);
+                if (player.isPlaying()) player.pause();
+                savePlaybackPosition();
                 mainHandler.removeCallbacks(positionSaver);
             } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
-                player.setVolume(0.25f, 0.25f);
+                if (player.isPlaying()) player.setVolume(0.25f, 0.25f);
             } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
                 player.setVolume(1f, 1f);
+                boolean mayResume = AudioFocusPolicy.shouldResumeAfterTransientLoss(
+                        resumeAfterTransientFocusLoss, prefs.getBoolean("resume_enabled", false));
+                resumeAfterTransientFocusLoss = false;
+                if (mayResume && !player.isPlaying()) {
+                    player.start();
+                    prefs.edit().putBoolean("resume_enabled", true).apply();
+                    mainHandler.removeCallbacks(positionSaver);
+                    mainHandler.postDelayed(positionSaver, 5000L);
+                }
             }
         } catch (Exception ignored) { }
         notifyChanged();
