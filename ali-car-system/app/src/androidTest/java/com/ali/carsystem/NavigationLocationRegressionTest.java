@@ -33,6 +33,8 @@ public final class NavigationLocationRegressionTest {
             assertTrue("A fresh accurate GPS fix must be accepted",
                     screen.acceptsLocationForTest(live));
             screen.onLocationChanged(live);
+            assertTrue("A valid live GPS fix must create the blue current-position marker",
+                    screen.hasCurrentLocationMarkerForTest());
 
             Location stale=fix("fused",5*60*1000L,5f,33.5200,36.2800);
             assertFalse("A cached five-minute-old Fused fix must be rejected",
