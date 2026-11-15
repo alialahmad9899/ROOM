@@ -45,6 +45,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private View nightOverlay;
     private Button nightModeButton;
     private TextView offlineStatus;
+    private boolean offlineMapRenderFailed;
     private static final int REQUEST_IMPORT_OFFLINE_MAPS=8401;
     private FusedLocationProviderClient fusedClient;private LocationCallback fusedCallback;
     private boolean fusedRegistered,fusedRequestPending,offlinePreparationRunning;private int gmsAvailabilityCode=-1;
@@ -548,10 +549,12 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(offlineStatus==null)return;
         String packageState=OfflineMapsManager.status(this);
         boolean ready=OfflineMapsManager.isInstalled(this)&&OfflineMapsManager.hasOfflineRouting(this);
-        offlineStatus.setText(offlinePreparationRunning&&!ready
-                ?"جارٍ نسخ وتثبيت بيانات الخرائط المحلية... • "+packageState
-                :packageState);
-        offlineStatus.setTextColor(ready?0xFF9BD9D5:0xFFFFD28A);
+        String renderState=offlineMapRenderFailed?"عرض الخريطة: تعذرت التهيئة"
+                :(offlineTileSource!=null?"عرض الخريطة: جاهز":"عرض الخريطة: بانتظار التهيئة");
+        offlineStatus.setText((offlinePreparationRunning&&!ready
+                ?"جارٍ نسخ وتثبيت بيانات الخرائط المحلية... • ":"")+packageState+" • "+renderState);
+        offlineStatus.setTextColor(ready&&!offlineMapRenderFailed&&offlineTileSource!=null
+                ?0xFF9BD9D5:0xFFFFD28A);
     }
 
     private void configureMapTiles(){
@@ -559,12 +562,16 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(map==null)return;
         File[] maps=OfflineMapsManager.getMapFiles(this);
         if(maps.length==0){
+            offlineTileSource=null;
+            offlineMapRenderFailed=false;
+            refreshOfflineStatus();
             if(status!=null)status.setText(offlinePreparationRunning
                     ?"جارٍ تجهيز ملفات خريطة سوريا داخل التخزين الداخلي..."
                     :"الخريطة المحلية غير مثبتة — لا يتم تحميل خرائط من الإنترنت");
             return;
         }
         try{
+            offlineMapRenderFailed=false;
             if(sharedOfflineTileSource==null){
                 synchronized(NavigationActivity.class){
                     if(sharedOfflineTileSource==null){
@@ -582,6 +589,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             if(status!=null)status.setText("خريطة سوريا المحلية جاهزة • "+OfflineMapsManager.status(this));
         }catch(Exception error){
             offlineTileSource=null;
+            offlineMapRenderFailed=true;
             map.setUseDataConnection(false);
             refreshOfflineStatus();
             if(status!=null)status.setText("تعذر فتح الخريطة المحلية: "+error.getClass().getSimpleName()+" — "+error.getMessage()+" • تم إيقاف اتصال الخرائط بالإنترنت");
