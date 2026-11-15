@@ -1036,6 +1036,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(maneuver==null||!guidedMode||location==null||routeProgressEngine==null)return;
         float accuracy=location.hasAccuracy()?location.getAccuracy():999f;
         if(accuracy>60f){
+            offRouteReroutePolicy.shouldReroute(false,accuracy,SystemClock.elapsedRealtime(),routeTask!=null);
             maneuver.setText("ننتظر GPS أدق لحساب مسافة الانعطاف بأمان");
             return;
         }
