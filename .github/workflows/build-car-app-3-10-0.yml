@@ -193,20 +193,26 @@ jobs:
             mkdir -p emulator-diagnostics/screenshots
             adb shell dumpsys battery > emulator-diagnostics/battery-before-tests.txt 2>&1
             adb install -r app/build/outputs/apk/debug/app-debug.apk || exit 1
-            adb shell am force-stop com.ali.carsystem
-            adb shell am start -n com.ali.carsystem/.MainActivity
+            echo "UI smoke: launching main dashboard"
+            timeout 20s adb shell am force-stop com.ali.carsystem || true
+            timeout 30s adb shell am start -n com.ali.carsystem/.MainActivity || true
             sleep 6
-            adb shell screencap -p /sdcard/ali-car-main.png
-            adb pull /sdcard/ali-car-main.png emulator-diagnostics/screenshots/main-dashboard.png
-            adb shell am start -n com.ali.carsystem/.NavigationActivity
+            echo "UI smoke: capturing main dashboard"
+            timeout 20s adb shell screencap -p /sdcard/ali-car-main.png || true
+            timeout 20s adb pull /sdcard/ali-car-main.png emulator-diagnostics/screenshots/main-dashboard.png || true
+            echo "UI smoke: launching navigation"
+            timeout 30s adb shell am start -n com.ali.carsystem/.NavigationActivity || true
             sleep 3
-            adb emu geo fix 36.2765 33.5138
+            echo "UI smoke: injecting simulated GPS coordinates"
+            timeout 15s adb emu geo fix 36.2765 33.5138 || true
             sleep 3
-            adb emu geo fix 36.2770 33.5142
+            timeout 15s adb emu geo fix 36.2770 33.5142 || true
             sleep 3
-            adb shell screencap -p /sdcard/ali-car-navigation.png
-            adb pull /sdcard/ali-car-navigation.png emulator-diagnostics/screenshots/navigation-gps-simulation.png
-            gradle --no-daemon connectedDebugAndroidTest
+            echo "UI smoke: capturing navigation"
+            timeout 20s adb shell screencap -p /sdcard/ali-car-navigation.png || true
+            timeout 20s adb pull /sdcard/ali-car-navigation.png emulator-diagnostics/screenshots/navigation-gps-simulation.png || true
+            echo "UI smoke: running API21 instrumentation suite"
+            timeout 1200s gradle --no-daemon connectedDebugAndroidTest
             test_rc=$?
             echo "$test_rc" > emulator-diagnostics/exit-code.txt
             adb devices -l > emulator-diagnostics/adb-devices.txt 2>&1
