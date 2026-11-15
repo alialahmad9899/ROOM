@@ -41,6 +41,7 @@ public final class OffRouteReroutePolicyTest {
         assertFalse(policy.shouldReroute(false,8f,38000L,false));
         assertFalse(policy.shouldReroute(false,8f,39500L,false));
         assertFalse(policy.shouldReroute(false,8f,41000L,false));
-        assertTrue(policy.shouldReroute(false,8f,42500L,false));
+        assertFalse(policy.shouldReroute(false,8f,42500L,false));
+        assertTrue(policy.shouldReroute(false,8f,44000L,false));
     }
 }
