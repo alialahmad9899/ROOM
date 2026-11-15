@@ -22,9 +22,17 @@ public final class DashboardDesignSmokeTest {
             assertTrue(content instanceof ViewGroup);
             assertNotNull(content.findViewWithTag("dashboard_cockpit_body"));
             assertNotNull(content.findViewWithTag("dashboard_media_bar"));
-            assertNotNull(content.findViewWithTag("dashboard_trip_top"));
+            View trip=content.findViewWithTag("dashboard_trip_top");
+            View route=content.findViewWithTag("dashboard_navigation_hud");
+            View music=content.findViewWithTag("dashboard_media_bar");
+            assertNotNull(trip);
             assertNotNull(content.findViewWithTag("dashboard_speed_gauge"));
             assertNotNull(content.findViewWithTag("dashboard_four_way_swipe_surface"));
+            assertSame("Trip, route and music must share the top information column",trip.getParent(),route.getParent());
+            assertSame(trip.getParent(),music.getParent());
+            android.widget.LinearLayout top=(android.widget.LinearLayout)trip.getParent();
+            assertTrue("Trip summary must be above route guidance",top.indexOfChild(trip)<top.indexOfChild(route));
+            assertTrue("Route guidance must be above the music strip",top.indexOfChild(route)<top.indexOfChild(music));
             assertNotNull(content.findViewWithTag("dashboard_analog_clock"));
             assertNotNull(content.findViewWithTag("dashboard_digital_clock"));
             View dock=content.findViewWithTag("dashboard_bottom_dock");
