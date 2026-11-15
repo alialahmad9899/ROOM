@@ -14,10 +14,10 @@ public final class OffRouteReroutePolicy {
         if(onRoute){offRouteFixes=0;offRouteSinceMs=0L;return false;}
         if(routeRequestInFlight||Float.isNaN(accuracyMeters)||Float.isInfinite(accuracyMeters)
                 ||accuracyMeters<=0f||accuracyMeters>60f)return false;
+        if(lastRerouteAtMs!=Long.MIN_VALUE&&nowMs-lastRerouteAtMs<COOLDOWN_MS)return false;
         if(offRouteSinceMs==0L)offRouteSinceMs=nowMs;
         offRouteFixes++;
         if(offRouteFixes<REQUIRED_FIXES||nowMs-offRouteSinceMs<REQUIRED_DURATION_MS)return false;
-        if(lastRerouteAtMs!=Long.MIN_VALUE&&nowMs-lastRerouteAtMs<COOLDOWN_MS)return false;
         lastRerouteAtMs=nowMs;
         offRouteFixes=0;offRouteSinceMs=0L;
         return true;
