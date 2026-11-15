@@ -219,8 +219,11 @@ jobs:
             - Syria offline vector map, local POI database and BRouter offline driving data are embedded in the APK. Rendered map tiles use a bounded persistent disk cache; map center, zoom and selected route are restored between openings.
             - Map tile networking, web geocoding and online route fallback are disabled in the navigation screen. The bundled flat dark street theme omits topographic hill shading.
             - Bundled music/audio: none in any supported format; the player scans only the user's local library. Added SHA-256 duplicate prevention on imports, searchable and sortable tracks, duplicate review, playlist removal and confirmation-gated permanent deletion.
-            - Dashboard guidance uses a cockpit HUD anchored directly below the media strip with vector turn arrows and live distance, remaining route, ETA and speed when GPS data is available.\n            - Build type: Debug-signed testing APK; not a production signing-key build.
-            - Welcome voice is slower and selects an installed female English TTS voice when the local engine exposes one; the actual voice remains engine-dependent.\n            - Emulator validation is performed by this workflow; physical-device GPS/audio/Bluetooth validation is still required.
+            - Main dashboard follows the supplied reference image: original night-road/car wallpaper, radio and media panel on the left, open road/car view in the center, digital and analog clock on the right, and a five-button bottom dock.
+            - The secondary swipe page contains the live speedometer, trip/odometer statistics, trip history and quick shortcuts. The compact navigation HUD appears beneath the left media panel while a route is active.
+            - Build type: Debug-signed testing APK; not a production signing-key build.
+            - Welcome voice is slower and selects an installed female English TTS voice when the local engine exposes one; the actual voice remains engine-dependent.
+            - Emulator validation is performed by this workflow; physical-device GPS/audio/Bluetooth validation is still required.
           files: |
             output/ALI-Car-System-3.9.0-api21-x86-debug.apk
             output/SHA256SUMS.txt
