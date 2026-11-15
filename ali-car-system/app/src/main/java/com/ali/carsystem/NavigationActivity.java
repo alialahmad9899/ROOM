@@ -46,6 +46,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private Button nightModeButton;
     private TextView offlineStatus;
     private boolean offlineMapRenderFailed;
+    private volatile boolean offlineTileGenerated;
+    private boolean offlineTileVerificationRunning;
     private static final int REQUEST_IMPORT_OFFLINE_MAPS=8401;
     private FusedLocationProviderClient fusedClient;private LocationCallback fusedCallback;
     private boolean fusedRegistered,fusedRequestPending,offlinePreparationRunning;private int gmsAvailabilityCode=-1;
@@ -124,7 +126,16 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(status!=null&&destination!=null)status.setText(enabled?"وضع القيادة الموجّهة":"وضع الخريطة الحرة — حرّك الخريطة وقرّبها بحرية");
         if(enabled&&current!=null&&followCar)centerOnCar(current);updateManeuver(current,activeManeuvers);map.invalidate();}
     private void updateFollowButton(){if(followButton!=null)styleButton(followButton,followCar?"تتبّع السيارة ✓":"تتبّع السيارة",followCar?0xFF087FA4:0xF20A1B2A);}
-    private void centerOnCar(Location l){if(map==null||l==null)return;GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());map.getController().animateTo(p);lastFollowPoint=p;lastFollowAt=SystemClock.elapsedRealtime();}
+    private void centerOnCar(Location l){
+        if(map==null||l==null)return;
+        if(!isCoordinateInsideOfflineCoverage(l.getLatitude(),l.getLongitude())){
+            if(status!=null&&destination==null)
+                status.setText("موقعك خارج حدود حزمة خريطة سوريا المحلية؛ لن ننقل الخريطة إلى منطقة لا تحتوي بيانات");
+            return;
+        }
+        GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());
+        map.getController().animateTo(p);lastFollowPoint=p;lastFollowAt=SystemClock.elapsedRealtime();
+    }
     private BitmapDrawable createLocationDot(){
         int size=dp(36);Bitmap bitmap=Bitmap.createBitmap(size,size,Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -180,7 +191,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xFF07111C);
         map=new MapView(this);map.setTag("navigation_offline_map");map.setUseDataConnection(false);map.setMultiTouchControls(true);
-        // MapsForge renders vector tiles at display resolution; avoid upscaling a low-density tile.
+        // The first frame must open inside the bundled Syria map, not osmdroid's default (0,0).
+        map.setInitCenter(new GeoPoint(33.5138d,36.2765d));
         map.setTilesScaledToDpi(false);
         configureMapTiles();
         centerMapOnOfflineCoverage();
@@ -328,7 +340,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(map==null)return;
         try{
             org.osmdroid.api.IGeoPoint center=map.getMapCenter();
-            if(center==null)return;
+            if(center==null||!isCoordinateInsideOfflineCoverage(center.getLatitude(),center.getLongitude()))return;
             getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE).edit()
                     .putFloat("map_center_lat",(float)center.getLatitude())
                     .putFloat("map_center_lon",(float)center.getLongitude())
@@ -570,12 +582,13 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         boolean ready=OfflineMapsManager.isInstalled(this)&&OfflineMapsManager.hasOfflineRouting(this);
         boolean providerInstalled=map!=null&&offlineTileSource!=null
                 &&map.getTileProvider() instanceof MapsForgeTileProvider;
-        String renderState=offlineMapRenderFailed?"عرض الخريطة: تعذرت التهيئة"
-                :(providerInstalled?"مزود الرسم مركّب؛ يلزم التحقق من البلاطة":"عرض الخريطة: بانتظار التهيئة");
+        String renderState=offlineMapRenderFailed?"عرض الخريطة: فشل توليد البلاطة"
+                :(providerInstalled&&offlineTileGenerated?"عرض الخريطة: جاهز • تم توليد بلاطة فعلية"
+                :providerInstalled?"عرض الخريطة: جارٍ اختبار توليد البلاطة":"عرض الخريطة: بانتظار التهيئة");
         offlineStatus.setText((offlinePreparationRunning&&!ready
                 ?"جارٍ نسخ وتثبيت بيانات الخرائط المحلية... • ":"")+packageState+" • "+renderState);
-        offlineStatus.setTextColor(ready&&!offlineMapRenderFailed&&providerInstalled
-                ?0xFFFFD28A:0xFFFFD28A);
+        offlineStatus.setTextColor(ready&&!offlineMapRenderFailed&&providerInstalled&&offlineTileGenerated
+                ?0xFF9BD9D5:0xFFFFD28A);
     }
 
     private void configureMapTiles(){
@@ -605,11 +618,12 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 }
             }
             offlineTileSource=sharedOfflineTileSource;
+            offlineTileGenerated=false;
             map.setTileProvider(new MapsForgeTileProvider(new SimpleRegisterReceiver(this),offlineTileSource,null));
-            refreshOfflineStatus();
             centerMapOnOfflineCoverage();
+            refreshOfflineStatus();
             map.invalidate();
-            if(status!=null)status.setText("خريطة سوريا المحلية جاهزة • "+OfflineMapsManager.status(this));
+            verifyOfflineTileRenderingAsync();
         }catch(Exception error){
             offlineTileSource=null;
             offlineMapRenderFailed=true;
@@ -662,6 +676,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             return center!=null&&isCoordinateInsideOfflineCoverage(center.getLatitude(),center.getLongitude());
         }catch(Exception error){return false;}
     }
+    boolean isOfflineTileGeneratedForTest(){return offlineTileGenerated;}
     String offlineStatusForTest(){
         return offlineStatus==null?"":String.valueOf(offlineStatus.getText());
     }
@@ -675,13 +690,43 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 latitude=(bounds.getLatNorth()+bounds.getLatSouth())/2d;
                 longitude=(bounds.getLonEast()+bounds.getLonWest())/2d;
             }
-            map.getController().setCenter(new GeoPoint(latitude,longitude));
+            GeoPoint center=new GeoPoint(latitude,longitude);
+            if(!map.isLayoutOccurred())map.setInitCenter(center);
+            map.getController().setCenter(center);
             map.getController().setZoom(9.5d);
         }catch(Exception error){
             AppDiagnostics.record(this,"Center map in Syria offline coverage",error);
-            map.getController().setCenter(new GeoPoint(33.5138d,36.2765d));
+            GeoPoint damascus=new GeoPoint(33.5138d,36.2765d);
+            if(!map.isLayoutOccurred())map.setInitCenter(damascus);
+            map.getController().setCenter(damascus);
             map.getController().setZoom(9.5d);
         }
+    }
+
+    private void verifyOfflineTileRenderingAsync(){
+        if(offlineTileVerificationRunning||offlineTileGenerated||offlineTileSource==null)return;
+        offlineTileVerificationRunning=true;
+        new AsyncTask<Void,Void,Boolean>(){
+            protected Boolean doInBackground(Void...ignored){
+                for(int attempt=0;attempt<16;attempt++){
+                    if(renderOfflineTileForTest(33.5138d,36.2765d,10))return true;
+                    try{Thread.sleep(500L);}catch(InterruptedException error){Thread.currentThread().interrupt();return false;}
+                }
+                return false;
+            }
+            protected void onPostExecute(Boolean rendered){
+                offlineTileVerificationRunning=false;
+                offlineTileGenerated=Boolean.TRUE.equals(rendered);
+                offlineMapRenderFailed=!offlineTileGenerated;
+                refreshOfflineStatus();
+                if(status!=null&&destination==null){
+                    status.setText(offlineTileGenerated
+                            ?"تم توليد بلاطة خريطة سوريا فعلياً • الخريطة دون إنترنت جاهزة"
+                            :"ملفات الخريطة موجودة لكن تعذر توليد بلاطة فعلية • راجع تقرير التشخيص");
+                }
+                if(map!=null)map.invalidate();
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
     private void ensureBundledOfflineData(){

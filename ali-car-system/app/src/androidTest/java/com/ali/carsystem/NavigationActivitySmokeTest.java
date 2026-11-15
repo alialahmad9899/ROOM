@@ -39,16 +39,18 @@ public final class NavigationActivitySmokeTest {
     public void bundledOfflineMapsFinishInstallingAndActivateTheTileProvider() {
         NavigationActivity screen=activity.getActivity();
         long deadline=SystemClock.elapsedRealtime()+180000L;
-        boolean[] state=new boolean[3];
+        boolean[] state=new boolean[4];
         String[] status={""};
         while(SystemClock.elapsedRealtime()<deadline){
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
                 state[0]=screen.areOfflineAssetsReadyForTest();
                 state[1]=screen.isOfflineTileProviderReadyForTest();
+                state[2]=screen.isOfflineTileGeneratedForTest();
+                state[3]=screen.mapCameraInsideOfflineCoverageForTest();
                 status[0]=screen.offlineStatusForTest();
             });
-            if(state[0]&&state[1])break;
+            if(state[0]&&state[1]&&state[2]&&state[3])break;
             SystemClock.sleep(500L);
         }
         assertTrue("Syria map, POI database and BRouter files must be installed within 180 seconds. Status: "+status[0],
@@ -61,21 +63,17 @@ public final class NavigationActivitySmokeTest {
                 status[0].contains("الأماكن: جاهزة"));
         assertTrue("The visible map status must show offline routing as ready. Status: "+status[0],
                 status[0].contains("توجيه دون إنترنت: جاهز"));
-        assertTrue("The UI must not claim that tiles rendered merely because a source object exists. Status: "+status[0],
-                status[0].contains("مزود الرسم مركّب؛ يلزم التحقق من البلاطة"));
         assertTrue("Damascus must lie inside the installed Syria vector map bounds: "+screen.offlineCoverageForTest(),
                 screen.isCoordinateInsideOfflineCoverage(33.5138d,36.2765d));
         assertTrue("The actual MapsForge provider must be installed on the visible MapView",
                 screen.isOfflineTileProviderReadyForTest());
+        assertTrue("MapsForge must generate a real vector tile around Damascus. Status: "+status[0]
+                +" Bounds: "+screen.offlineCoverageForTest(),
+                screen.isOfflineTileGeneratedForTest());
         assertTrue("The default map camera must open inside available offline map coverage",
                 screen.mapCameraInsideOfflineCoverageForTest());
-        boolean[] tile={false};
-        for(int attempt=0;attempt<8&&!tile[0];attempt++){
-            tile[0]=screen.renderOfflineTileForTest(33.5138d,36.2765d,10);
-            if(!tile[0])SystemClock.sleep(500L);
-        }
-        assertTrue("MapsForge must generate a real vector tile around Damascus. Bounds: "+screen.offlineCoverageForTest(),
-                tile[0]);
+        assertTrue("The visible status must only say ready after MapsForge generated an actual tile",
+                status[0].contains("عرض الخريطة: جاهز • تم توليد بلاطة فعلية"));
     }
 
     @Test public void canSwitchBetweenFreeMapAndGuidedDrivingWithoutGps(){
