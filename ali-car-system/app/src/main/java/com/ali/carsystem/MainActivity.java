@@ -486,14 +486,13 @@ public final class MainActivity extends BaseActivity implements LocationListener
             }
             if(event.getAction()==MotionEvent.ACTION_UP){
                 float dx=event.getX()-touchStart[0],dy=event.getY()-touchStart[1];
-                if(Math.max(Math.abs(dx),Math.abs(dy))<dp(54))return true;
-                if(Math.abs(dx)>Math.abs(dy)){
-                    if(dx<0)pager.setCurrentItem(1,true);
-                    else pager.setCurrentItem(0,true);
-                }else if(dy<0){
-                    startActivity(new Intent(MainActivity.this,NavigationActivity.class));
-                }else{
-                    startActivity(new Intent(MainActivity.this,MusicActivity.class));
+                int direction=DashboardGesturePolicy.direction(dx,dy,dp(54));
+                switch(direction){
+                    case DashboardGesturePolicy.LEFT:pager.setCurrentItem(1,true);break;
+                    case DashboardGesturePolicy.RIGHT:pager.setCurrentItem(0,true);break;
+                    case DashboardGesturePolicy.UP:startActivity(new Intent(MainActivity.this,NavigationActivity.class));break;
+                    case DashboardGesturePolicy.DOWN:startActivity(new Intent(MainActivity.this,MusicActivity.class));break;
+                    default:break;
                 }
                 return true;
             }
