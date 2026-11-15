@@ -277,4 +277,10 @@ require("shouldAcceptIncomingFix" in NAV and "isNewerFix" in NAV
         "stale and out-of-order GPS fixes cannot replace the live marker")
 require((APP/"src/androidTest/java/com/ali/carsystem/NavigationLocationRegressionTest.java").is_file(),
         "instrumented live/stale GPS regression test exists")
+require("offRouteReroutePolicy.shouldReroute" in NAV
+        and "requestRoute(location,destination,destinationName)" in NAV
+        and (SRC/"java/com/ali/carsystem/OffRouteReroutePolicy.java").is_file()
+        and (APP/"src/test/java/com/ali/carsystem/OffRouteReroutePolicyTest.java").is_file(),
+        "automatic offline rerouting is debounced, accuracy-gated and unit-tested")
+
 print("PASS: ALI CAR 3.10.0 cockpit, YouTube Lite shortcut, four-way gestures, GPS fix policy, offline maps and music contracts")
