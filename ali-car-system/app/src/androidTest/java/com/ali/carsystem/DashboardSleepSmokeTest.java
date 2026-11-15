@@ -15,27 +15,38 @@ public final class DashboardSleepSmokeTest {
     @Rule public ActivityTestRule<MainActivity> activity =
             new ActivityTestRule<>(MainActivity.class);
 
-    @Test public void dashboardHasEqualLargeAnalogClockAndSpeedDial() {
-        ViewGroup content = (ViewGroup) activity.getActivity().findViewById(android.R.id.content);
-        View speed = content.findViewWithTag("dashboard_speed_gauge");
-        View clock = content.findViewWithTag("dashboard_analog_clock");
-        assertNotNull(speed);
-        assertNotNull(clock);
-        assertEquals(speed.getLayoutParams().width, clock.getLayoutParams().width);
-        assertEquals(speed.getLayoutParams().height, clock.getLayoutParams().height);
-        int[] clockPosition=new int[2],speedPosition=new int[2];
-        clock.getLocationOnScreen(clockPosition);speed.getLocationOnScreen(speedPosition);
-        assertTrue("Speedometer must be physically left of analog clock to match the reference dashboard",
-                speedPosition[0] < clockPosition[0]);
-        View hud = content.findViewWithTag("dashboard_navigation_hud");
-        assertNotNull("Dashboard must host the centered floating navigation HUD", hud);
-        assertNotNull("Navigation HUD must include a vector turn arrow",
-                content.findViewWithTag("navigation_hud_arrow"));
-        assertNotNull("Navigation HUD must expose turn distance",
-                content.findViewWithTag("navigation_hud_distance"));
-        assertNotNull("Navigation HUD must expose maneuver text",
-                content.findViewWithTag("navigation_hud_instruction"));
-        assertEquals("HUD is hidden until a route is active", View.GONE, hud.getVisibility());
+    @Test public void dashboardMatchesReferenceMediaRoadClockAndDockLayout() {
+        MainActivity main=activity.getActivity();
+        ViewGroup content=(ViewGroup)main.findViewById(android.R.id.content);
+        View media=content.findViewWithTag("dashboard_media_bar");
+        View digital=content.findViewWithTag("dashboard_digital_clock");
+        View analog=content.findViewWithTag("dashboard_analog_clock");
+        View hud=content.findViewWithTag("dashboard_navigation_hud");
+        View dock=content.findViewWithTag("dashboard_bottom_dock");
+        assertNotNull("Left radio/media panel must be present",media);
+        assertNotNull("Right digital clock must be present",digital);
+        assertNotNull("Right analog clock must be present",analog);
+        assertNotNull("Compact navigation HUD must be present",hud);
+        assertNotNull("Five-button bottom dock must be present",dock);
+        assertEquals(5,((ViewGroup)dock).getChildCount());
+        int[] mediaPosition=new int[2],clockPosition=new int[2];
+        media.getLocationOnScreen(mediaPosition);
+        analog.getLocationOnScreen(clockPosition);
+        assertTrue("Media panel must be left of the clock panel",
+                mediaPosition[0]<clockPosition[0]);
+        assertEquals("Analog clock keeps the reference-sized dial",
+                (int)(174*main.getResources().getDisplayMetrics().density+.5f),
+                analog.getLayoutParams().width);
+        assertEquals("HUD stays hidden until an active route is received",View.GONE,hud.getVisibility());
+        assertTrue("HUD is a compact row beneath the media panel",
+                hud.getParent() instanceof android.widget.LinearLayout);
+        androidx.viewpager.widget.ViewPager pager=
+                (androidx.viewpager.widget.ViewPager)content.findViewWithTag("dashboard_view_pager");
+        assertNotNull(pager);
+        pager.setCurrentItem(1,false);
+        assertNotNull("Speedometer is retained on the secondary drive-centre page",
+                content.findViewWithTag("dashboard_speed_gauge"));
+        pager.setCurrentItem(0,false);
     }
 
     @Test public void sleepPolicySeparatesManualAndAutomaticSleep() {

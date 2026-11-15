@@ -28,8 +28,8 @@ require('getIdentifier("bg_dashboard","drawable"' in MAIN,"embedded drawable wal
 require("Bitmap.Config.RGB_565" in MAIN,"RGB565 decode")
 require("new AnalogClockView(this)" in MAIN and "new SpeedometerView(this)" in MAIN,"clock and speed gauge")
 require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN
-        and MAIN.count("dp(174)") >= 2 and "dp(224)" in MAIN,
-        "main speed/clock dials are equal and secondary gauge fits the cockpit screen")
+        and "dashboard_media_bar" in MAIN and "dp(174)" in MAIN and "dp(224)" in MAIN,
+        "left media panel, right reference clock and secondary speedometer are installed")
 require(DASH.count("InstrumentDialStyle.drawFace(c,p,cx,cy,r)") == 2,"shared speedometer and analog clock face")
 require("import android.graphics.Path;" in NAV,"navigation dot heading Path import")
 require('digitalClock=label("00:00"' not in MAIN,"digital dashboard clock removed")
@@ -93,9 +93,10 @@ HUD=(SRC/"java/com/ali/carsystem/NavigationBannerView.java").read_text(encoding=
 require("NavigationBannerView" in MAIN and
         (SRC/"java/com/ali/carsystem/NavigationBannerView.java").is_file()
         and "dashboard_navigation_hud" in HUD and "navigation_hud_distance" in HUD
-        and "all.addView(navigationHud,navigationHudParams)" in MAIN
+        and "left.addView(navigationHud,navigationHudParams)" in MAIN
+        and "left.addView(mediaBar" in MAIN
         and "setCompactMode(true)" in MAIN and "setCompactMode(boolean compact)" in HUD,
-        "compact collapsible navigation HUD is a real row directly below the music strip")
+        "compact collapsible navigation HUD is directly below the left media panel")
 require((APP/"src/androidTest/java/com/ali/carsystem/PowerReceiverSmokeTest.java").is_file(),
         "charger focus regression test exists")
 require((APP/"src/androidTest/java/com/ali/carsystem/BackgroundNavigationServiceSmokeTest.java").is_file(),
@@ -225,7 +226,10 @@ require(not (SRC/"java/com/ali/carsystem/GeocodingClient.java").exists(),"obsole
 require(not (APP/"src/test/java/com/ali/carsystem/RouteNetworkClientTest.java").exists(),"obsolete online routing tests removed")
 require("showImportAlbumPicker(selected)" in music and "addImportedSongsToAlbum" in music and "متنوعة" in music,"multi-select import chooses and persists an album")
 require("music_variety_album" in music and "music_archive_album" in music and "الأرشيف" in music and 'TextView label=text("",16,Color.WHITE,true)' in music,"variety album and larger track font")
-require("dashboard_media_bar" in MAIN and "all.addView(navigationHud,navigationHudParams)" in MAIN and "setCompactMode(true)" in MAIN,"navigation HUD is a compact collapsible row directly below music controls")
+require("dashboard_media_bar" in MAIN and "left.addView(navigationHud,navigationHudParams)" in MAIN
+        and "dashboard_analog_clock" in MAIN and "dashboard_bottom_dock" in MAIN
+        and "setCompactMode(true)" in MAIN,
+        "reference-aligned media-left, clock-right, bottom dock and navigation HUD layout")
 require("connectionStatus" in MAIN and "dashboard_night_overlay" in MAIN and "smart_night_mode" in MAIN,"live Wi-Fi/Bluetooth/GPS indicators and smart dashboard night mode")
 require("TripHistoryStore.record" in TRACK and "trip_started_at" in TRACK and "showTripHistory" in MAIN,"completed trip history is stored and visible")
 require("96L*1024*1024" in NAV and "64L*1024*1024" in NAV and "setTilesScaledToDpi(false)" in NAV and "sharedOfflineTileSource" in NAV,"bounded warm offline vector map cache and native-resolution rendering")

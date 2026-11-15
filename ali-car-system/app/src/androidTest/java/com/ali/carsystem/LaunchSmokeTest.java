@@ -48,7 +48,7 @@ public final class LaunchSmokeTest {
         assertNotNull("HUD must expose the next maneuver instruction",
                 content.findViewWithTag("navigation_hud_instruction"));
         View mediaBar=content.findViewWithTag("dashboard_media_bar");
-        assertNotNull("Dashboard music strip must be a stable HUD anchor",mediaBar);
+        assertNotNull("Left media panel must be the stable HUD anchor",mediaBar);
         assertTrue("HUD is a collapsible dashboard row",hud.getParent() instanceof android.widget.LinearLayout);
         assertTrue("HUD uses compact row dimensions",hud.getLayoutParams() instanceof android.widget.LinearLayout.LayoutParams);
         assertEquals("HUD remains hidden when no route is active", View.GONE, hud.getVisibility());
@@ -73,8 +73,11 @@ public final class LaunchSmokeTest {
         clock.getLocationOnScreen(clockPosition);
         assertTrue("Active navigation HUD must appear immediately below the music strip",
                 hudPosition[1]>=mediaPosition[1]+mediaBar.getHeight());
-        assertTrue("Navigation HUD must not cover the dashboard clock",
-                clockPosition[1]>=hudPosition[1]+hud.getHeight());
+        boolean hudCoversClock=hudPosition[0]<clockPosition[0]+clock.getWidth()
+                &&hudPosition[0]+hud.getWidth()>clockPosition[0]
+                &&hudPosition[1]<clockPosition[1]+clock.getHeight()
+                &&hudPosition[1]+hud.getHeight()>clockPosition[1];
+        assertFalse("Navigation HUD must not overlap the clock panel",hudCoversClock);
         assertTrue("Compact HUD must fit in its reserved row",hud.getHeight()<=dp(main,90));
         TextView distance = (TextView) content.findViewWithTag("navigation_hud_distance");
         assertEquals("100 م", distance.getText().toString());

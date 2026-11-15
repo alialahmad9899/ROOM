@@ -394,94 +394,111 @@ public final class MainActivity extends BaseActivity implements LocationListener
          phone.setOnClickListener(v->startActivity(new Intent(this,PhoneActivity.class)));
         all.addView(top,new LinearLayout.LayoutParams(-1,dp(50)));
 
-        // Repository-reference cockpit with open center photo, live speed, clock, music and dock.
-         LinearLayout mediaBar=horizontal();mediaBar.setTag("dashboard_media_bar");
-         mediaBar.setGravity(Gravity.CENTER_VERTICAL);mediaBar.setPadding(dp(12),dp(3),dp(12),dp(3));
-         mediaBar.setBackground(glass(0xB5101F2C,accentColor(),18));
-         LinearLayout mediaInfo=vertical();mediaInfo.setGravity(Gravity.CENTER_VERTICAL);
-         TextView mediaKicker=label("NOW PLAYING  •  LOCAL AUDIO",9,accentColor(),true);
-         mediaInfo.addView(mediaKicker,new LinearLayout.LayoutParams(-1,dp(15)));
-         songTitle=label(prefs().getString("last_song","لا توجد أغنية قيد التشغيل"),14,Color.WHITE,true);
-         songTitle.setTag("dashboard_song_title");songTitle.setSingleLine(true);
-         songTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
-         mediaInfo.addView(songTitle,new LinearLayout.LayoutParams(-1,dp(26)));
-         mediaBar.addView(mediaInfo,new LinearLayout.LayoutParams(0,dp(44),1f));
-         LinearLayout media=horizontal();media.setGravity(Gravity.CENTER);
-         media.addView(mediaButton("⏮","previous"),new LinearLayout.LayoutParams(dp(48),dp(44)));
-         media.addView(mediaButton("▶","play"),new LinearLayout.LayoutParams(dp(52),dp(44)));
-         media.addView(mediaButton("⏭","next"),new LinearLayout.LayoutParams(dp(48),dp(44)));
-         LinearLayout.LayoutParams mediaLp=new LinearLayout.LayoutParams(-2,dp(44));
-         mediaLp.leftMargin=dp(6);mediaBar.addView(media,mediaLp);
-         SeekBar vol=new SeekBar(this);AudioManager am=(AudioManager)getSystemService(AUDIO_SERVICE);
-         vol.setMax(am.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
-         vol.setProgress(am.getStreamVolume(AudioManager.STREAM_MUSIC));
-         vol.setContentDescription("مستوى صوت الموسيقى");
-         vol.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-             public void onProgressChanged(SeekBar b,int p,boolean u){if(u)am.setStreamVolume(AudioManager.STREAM_MUSIC,p,0);}
-             public void onStartTrackingTouch(SeekBar b){}
-             public void onStopTrackingTouch(SeekBar b){}
-         });
-         LinearLayout.LayoutParams volumeLp=new LinearLayout.LayoutParams(dp(112),dp(36));
-         volumeLp.leftMargin=dp(7);mediaBar.addView(vol,volumeLp);
-         LinearLayout.LayoutParams barLp=new LinearLayout.LayoutParams(-1,dp(52));
-         barLp.topMargin=dp(5);all.addView(mediaBar,barLp);
-
-         navigationHud=new NavigationBannerView(this);
-         navigationHud.setCompactMode(true);
-         navigationHud.setTag("dashboard_navigation_hud");
-         LinearLayout.LayoutParams navigationHudParams=new LinearLayout.LayoutParams(
-                 Math.min(dp(360),getResources().getDisplayMetrics().widthPixels-dp(36)),dp(72));
-         navigationHudParams.gravity=Gravity.CENTER_HORIZONTAL;
-         navigationHudParams.topMargin=dp(4);navigationHudParams.bottomMargin=dp(2);
-         all.addView(navigationHud,navigationHudParams);
-         navigationHud.setVisibility(navigationRouteActive?View.VISIBLE:View.GONE);
-
+        // Reference-matched cockpit: media panel on the left, original road/car visible in the center, clock on the right.
          LinearLayout main=horizontal();main.setTag("dashboard_cockpit_body");
          main.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
          LinearLayout.LayoutParams mainLp=new LinearLayout.LayoutParams(-1,0,1f);
          mainLp.topMargin=dp(5);mainLp.bottomMargin=dp(3);all.addView(main,mainLp);
 
-         LinearLayout left=vertical();left.setGravity(Gravity.CENTER);
-         left.setPadding(dp(8),dp(5),dp(8),dp(5));
+         LinearLayout left=vertical();
+         left.setGravity(Gravity.CENTER_VERTICAL);
+         left.setPadding(dp(8),dp(6),dp(8),dp(6));
          left.setBackground(glass(0x88304457,accentColor(),20));
-         TextView speedTitle=label("LIVE SPEED  •  KM/H",12,accentColor(),true);
-         speedTitle.setGravity(Gravity.CENTER);
-         left.addView(speedTitle,new LinearLayout.LayoutParams(-1,dp(22)));
-         speedometer=new SpeedometerView(this);speedometer.setTag("dashboard_speed_gauge");
-         left.addView(speedometer,new LinearLayout.LayoutParams(dp(174),dp(174)));
-         gpsStatus=label("بانتظار إشارة GPS",11,0xFFD7E9F1,false);
-         gpsStatus.setTag("dashboard_gps_status");gpsStatus.setGravity(Gravity.CENTER);
-         gpsStatus.setMaxLines(2);gpsStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
-         left.addView(gpsStatus,new LinearLayout.LayoutParams(-1,dp(30)));
-         LinearLayout.LayoutParams leftLp=new LinearLayout.LayoutParams(0,-1,1.05f);
-         leftLp.rightMargin=dp(6);main.addView(left,leftLp);
 
-         LinearLayout center=vertical();center.setGravity(Gravity.CENTER);
-         TextView roadTitle=label("DRIVE  •  CONNECT  •  ENJOY",10,0xFFEAF5FA,true);
-         roadTitle.setGravity(Gravity.CENTER);roadTitle.setShadowLayer(dp(4),0,dp(1),0xCC06111B);
-         center.addView(roadTitle,new LinearLayout.LayoutParams(-1,dp(34)));
+         LinearLayout mediaBar=vertical();
+         mediaBar.setTag("dashboard_media_bar");
+         mediaBar.setGravity(Gravity.CENTER);
+         mediaBar.setPadding(dp(12),dp(10),dp(12),dp(8));
+         mediaBar.setBackground(glass(0xB5101F2C,accentColor(),18));
+         TextView mediaKicker=label("RADIO  •  MEDIA",11,accentColor(),true);
+         mediaKicker.setGravity(Gravity.CENTER);
+         mediaBar.addView(mediaKicker,new LinearLayout.LayoutParams(-1,dp(20)));
+         songTitle=label(prefs().getString("last_song","لا توجد أغنية قيد التشغيل"),16,Color.WHITE,true);
+         songTitle.setTag("dashboard_song_title");
+         songTitle.setGravity(Gravity.CENTER);
+         songTitle.setMaxLines(2);
+         songTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+         LinearLayout.LayoutParams songLp=new LinearLayout.LayoutParams(-1,dp(40));
+         songLp.topMargin=dp(4);mediaBar.addView(songTitle,songLp);
+         TextView mediaHint=label("شغّل موسيقى الجهاز أو افتح تطبيق الراديو",9,0xFFBBD0DB,false);
+         mediaHint.setGravity(Gravity.CENTER);
+         mediaBar.addView(mediaHint,new LinearLayout.LayoutParams(-1,dp(22)));
+
+         LinearLayout mediaButtons=horizontal();mediaButtons.setGravity(Gravity.CENTER);
+         mediaButtons.addView(mediaButton("⏮","previous"),new LinearLayout.LayoutParams(dp(50),dp(44)));
+         mediaButtons.addView(mediaButton("▶","play"),new LinearLayout.LayoutParams(dp(54),dp(44)));
+         mediaButtons.addView(mediaButton("⏭","next"),new LinearLayout.LayoutParams(dp(50),dp(44)));
+         LinearLayout.LayoutParams buttonsLp=new LinearLayout.LayoutParams(-1,dp(46));
+         buttonsLp.topMargin=dp(5);mediaBar.addView(mediaButtons,buttonsLp);
+
+         AudioManager am=(AudioManager)getSystemService(AUDIO_SERVICE);
+         SeekBar vol=new SeekBar(this);
+         vol.setMax(am.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+         vol.setProgress(am.getStreamVolume(AudioManager.STREAM_MUSIC));
+         vol.setContentDescription("مستوى صوت الموسيقى");
+         vol.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+             public void onProgressChanged(SeekBar b,int p,boolean u){
+                 if(u)am.setStreamVolume(AudioManager.STREAM_MUSIC,p,0);
+             }
+             public void onStartTrackingTouch(SeekBar b){}
+             public void onStopTrackingTouch(SeekBar b){}
+         });
+         TextView volumeLabel=label("مستوى الصوت",9,0xFFBBD0DB,false);
+         volumeLabel.setGravity(Gravity.CENTER);
+         mediaBar.addView(volumeLabel,new LinearLayout.LayoutParams(-1,dp(16)));
+         mediaBar.addView(vol,new LinearLayout.LayoutParams(-1,dp(34)));
+
+         gpsStatus=label("بانتظار إشارة GPS",10,0xFFD7E9F1,false);
+         gpsStatus.setTag("dashboard_gps_status");
+         gpsStatus.setGravity(Gravity.CENTER);
+         gpsStatus.setMaxLines(2);
+         gpsStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+         mediaBar.addView(gpsStatus,new LinearLayout.LayoutParams(-1,dp(24)));
+         left.addView(mediaBar,new LinearLayout.LayoutParams(-1,-2));
+
+         navigationHud=new NavigationBannerView(this);
+         navigationHud.setCompactMode(true);
+         navigationHud.setTag("dashboard_navigation_hud");
+         LinearLayout.LayoutParams navigationHudParams=new LinearLayout.LayoutParams(-1,dp(74));
+         navigationHudParams.topMargin=dp(6);
+         left.addView(navigationHud,navigationHudParams);
+         navigationHud.setVisibility(navigationRouteActive?View.VISIBLE:View.GONE);
+
+         LinearLayout.LayoutParams leftLp=new LinearLayout.LayoutParams(0,-1,.96f);
+         leftLp.rightMargin=dp(8);main.addView(left,leftLp);
+
+         LinearLayout center=vertical();
+         center.setGravity(Gravity.CENTER_HORIZONTAL|Gravity.BOTTOM);
          TextView swipe=label("اسحب لليسار لفتح لوحة القيادة",10,0xFFEAF5FA,true);
-         swipe.setTag("dashboard_secondary_hint");swipe.setGravity(Gravity.CENTER);
+         swipe.setTag("dashboard_secondary_hint");
+         swipe.setGravity(Gravity.CENTER);
+         swipe.setPadding(dp(12),dp(5),dp(12),dp(5));
+         swipe.setBackground(glass(0x66304457,0x5579C7D9,18));
          swipe.setShadowLayer(dp(4),0,dp(1),0xCC06111B);
-         LinearLayout.LayoutParams swipeLp=new LinearLayout.LayoutParams(-1,dp(30));
-         swipeLp.topMargin=dp(6);center.addView(swipe,swipeLp);
-         LinearLayout.LayoutParams centerLp=new LinearLayout.LayoutParams(0,-1,.66f);
-         centerLp.leftMargin=dp(4);centerLp.rightMargin=dp(4);main.addView(center,centerLp);
+         LinearLayout.LayoutParams swipeLp=new LinearLayout.LayoutParams(-2,dp(30));
+         swipeLp.bottomMargin=dp(10);center.addView(swipe,swipeLp);
+         LinearLayout.LayoutParams centerLp=new LinearLayout.LayoutParams(0,-1,1.48f);
+         centerLp.leftMargin=dp(2);centerLp.rightMargin=dp(2);main.addView(center,centerLp);
 
-         LinearLayout right=vertical();right.setGravity(Gravity.CENTER);
-         right.setPadding(dp(8),dp(5),dp(8),dp(5));
+         LinearLayout right=vertical();
+         right.setGravity(Gravity.CENTER);
+         right.setPadding(dp(8),dp(8),dp(8),dp(8));
          right.setBackground(glass(0x88304457,accentColor(),20));
-         TextView timeTitle=label("LOCAL TIME",12,accentColor(),true);timeTitle.setGravity(Gravity.CENTER);
+         TextView timeTitle=label("LOCAL TIME",11,accentColor(),true);
+         timeTitle.setGravity(Gravity.CENTER);
          right.addView(timeTitle,new LinearLayout.LayoutParams(-1,dp(22)));
-         digitalClock=label("",24,Color.WHITE,true);digitalClock.setTag("dashboard_digital_clock");
+         digitalClock=label("",29,Color.WHITE,true);
+         digitalClock.setTag("dashboard_digital_clock");
          digitalClock.setGravity(Gravity.CENTER);
-         right.addView(digitalClock,new LinearLayout.LayoutParams(-1,dp(30)));
-         AnalogClockView analog=new AnalogClockView(this);analog.setTag("dashboard_analog_clock");
+         right.addView(digitalClock,new LinearLayout.LayoutParams(-1,dp(42)));
+         AnalogClockView analog=new AnalogClockView(this);
+         analog.setTag("dashboard_analog_clock");
          right.addView(analog,new LinearLayout.LayoutParams(dp(174),dp(174)));
-         dateLabel=label("",11,0xFFE5F4FF,true);dateLabel.setGravity(Gravity.CENTER);
+         dateLabel=label("",11,0xFFE5F4FF,true);
+         dateLabel.setGravity(Gravity.CENTER);
          right.addView(dateLabel,new LinearLayout.LayoutParams(-1,dp(24)));
-         LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,-1,1.05f);
-         rightLp.leftMargin=dp(6);main.addView(right,rightLp);
+         LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,-1,.96f);
+         rightLp.leftMargin=dp(8);main.addView(right,rightLp);
 
          LinearLayout dock=horizontal();dock.setTag("dashboard_bottom_dock");
          dock.setGravity(Gravity.CENTER);dock.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
@@ -594,7 +611,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         TextView swipeBack=label("اسحب لليمين للعودة إلى الشاشة الرئيسية",10,0xFFB9D3DF,false);
         swipeBack.setTag("dashboard_secondary_swipe_hint");swipeBack.setGravity(Gravity.CENTER);
         all.addView(swipeBack,new LinearLayout.LayoutParams(-1,dp(20)));
-        clusterGauge=new SpeedometerView(this);clusterGauge.setSpeed(lastDisplayedSpeed);
+        clusterGauge=new SpeedometerView(this);clusterGauge.setTag("dashboard_speed_gauge");clusterGauge.setSpeed(lastDisplayedSpeed);
         LinearLayout.LayoutParams gl=new LinearLayout.LayoutParams(dp(224),dp(224));
         gl.gravity=Gravity.CENTER;all.addView(clusterGauge,gl);
         LinearLayout stats=horizontal();stats.setGravity(Gravity.CENTER);

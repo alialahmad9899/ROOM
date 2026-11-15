@@ -22,8 +22,9 @@ public final class DashboardDesignSmokeTest {
             assertTrue(content instanceof ViewGroup);
             assertNotNull(content.findViewWithTag("dashboard_cockpit_body"));
             assertNotNull(content.findViewWithTag("dashboard_media_bar"));
-            assertNotNull(content.findViewWithTag("dashboard_speed_gauge"));
+            assertNotNull(content.findViewWithTag("dashboard_media_bar"));
             assertNotNull(content.findViewWithTag("dashboard_analog_clock"));
+            assertNotNull(content.findViewWithTag("dashboard_digital_clock"));
             View dock=content.findViewWithTag("dashboard_bottom_dock");
             assertNotNull(dock);
             assertEquals(5,((ViewGroup)dock).getChildCount());
@@ -34,6 +35,8 @@ public final class DashboardDesignSmokeTest {
             pager.setCurrentItem(1,false);
             assertNotNull(content.findViewWithTag("dashboard_secondary_page"));
             assertNotNull(content.findViewWithTag("dashboard_secondary_shortcuts"));
+            assertNotNull("Live speed gauge belongs to the secondary drive-centre page",
+                    content.findViewWithTag("dashboard_speed_gauge"));
             pager.setCurrentItem(0,false);
         });
     }
