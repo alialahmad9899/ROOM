@@ -267,9 +267,11 @@ require("openYouTubeLite" in MAIN and "https://m.youtube.com" in MAIN
         and "YouTube Lite" in MAIN and "openRadioApp" not in MAIN,
         "radio is removed and the dock opens the lightweight YouTube mobile site")
 require("dashboard_four_way_swipe_surface" in MAIN
-        and "pager.setCurrentItem(1,true)" in MAIN
-        and "NavigationActivity.class" in MAIN and "MusicActivity.class" in MAIN,
-        "left/right dashboard paging and up/down navigation/music gestures")
+        and "DashboardGesturePolicy.LEFT" in MAIN and "DashboardGesturePolicy.RIGHT" in MAIN
+        and "DashboardGesturePolicy.UP" in MAIN and "DashboardGesturePolicy.DOWN" in MAIN
+        and (SRC/"java/com/ali/carsystem/DashboardGesturePolicy.java").is_file()
+        and (APP/"src/test/java/com/ali/carsystem/DashboardGesturePolicyTest.java").is_file(),
+        "left/right dashboard paging and up/down navigation/music gestures have four-direction unit tests")
 require("shouldAcceptIncomingFix" in NAV and "isNewerFix" in NAV
         and "isFreshLocation(candidate,180000L)" in NAV,
         "stale and out-of-order GPS fixes cannot replace the live marker")
