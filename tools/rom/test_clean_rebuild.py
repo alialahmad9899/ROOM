@@ -305,6 +305,9 @@ require("GpsStatus" in (SRC/"java/com/ali/carsystem/DeviceDiagnosticsActivity.ja
 require("dashboard_settings_button" in MAIN and "dashboard_media_previous" in MAIN
         and "dashboard_media_next" in MAIN and "R.drawable.ic_cockpit_settings" in MAIN,
         "dashboard control symbols use real vector resources")
+require("offlineTileGenerated" in NAV and "renderOfflineTileForTest" in NAV
+        and "getTileProvider() instanceof MapsForgeTileProvider" in NAV,
+        "offline navigation verifies a real rendered MapsForge tile before declaring the map ready")
 require("shouldAcceptIncomingFix" in NAV and "isNewerFix" in NAV
         and "isFreshLocation(candidate,180000L)" in NAV
         and "onProviderEnabled(String p)" in NAV
