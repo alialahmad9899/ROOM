@@ -67,12 +67,26 @@ public final class LaunchSmokeTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
 
         assertEquals("Active route must reveal the floating HUD", View.VISIBLE, hud.getVisibility());
-        int[] hudPosition=new int[2],mediaPosition=new int[2],clockPosition=new int[2];
-        hud.getLocationOnScreen(hudPosition);mediaBar.getLocationOnScreen(mediaPosition);
+        View trip=content.findViewWithTag("dashboard_trip_top");
+        assertNotNull("Trip summary must remain above navigation guidance",trip);
+        assertSame("Trip, navigation and music share the top information column",
+                trip.getParent(),hud.getParent());
+        assertSame(trip.getParent(),mediaBar.getParent());
+        android.widget.LinearLayout top=(android.widget.LinearLayout)trip.getParent();
+        assertTrue("Trip summary must precede navigation guidance",
+                top.indexOfChild(trip)<top.indexOfChild(hud));
+        assertTrue("Navigation guidance must precede the compact music strip",
+                top.indexOfChild(hud)<top.indexOfChild(mediaBar));
+
+        int[] hudPosition=new int[2],tripPosition=new int[2],mediaPosition=new int[2],clockPosition=new int[2];
+        hud.getLocationOnScreen(hudPosition);trip.getLocationOnScreen(tripPosition);
+        mediaBar.getLocationOnScreen(mediaPosition);
         View clock=content.findViewWithTag("dashboard_analog_clock");
         clock.getLocationOnScreen(clockPosition);
-        assertTrue("Active navigation HUD must appear immediately below the music strip",
-                hudPosition[1]>=mediaPosition[1]+mediaBar.getHeight());
+        assertTrue("Active navigation HUD must appear below the trip summary",
+                hudPosition[1]>=tripPosition[1]+trip.getHeight());
+        assertTrue("Compact music strip must appear below navigation guidance",
+                mediaPosition[1]>=hudPosition[1]+hud.getHeight());
         boolean hudCoversClock=hudPosition[0]<clockPosition[0]+clock.getWidth()
                 &&hudPosition[0]+hud.getWidth()>clockPosition[0]
                 &&hudPosition[1]<clockPosition[1]+clock.getHeight()
