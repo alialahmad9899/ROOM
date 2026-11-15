@@ -100,7 +100,9 @@ final class OfflineMapsManager {
         try {
             List<ManifestEntry> entries = readManifest(context.getAssets().open("offline/" + MANIFEST));
             long total = 0L;
-            for (ManifestEntry entry : entries) total = Math.addExact(total, entry.size);
+            for (ManifestEntry entry : entries) total += entry.size;
+            if (total < 0L || total > MAX_UNPACKED_BYTES)
+                throw new IllegalStateException("بيانات الخرائط تتجاوز الحد المدعوم للتثبيت");
             return total;
         } catch (Exception ignored) {
             return 0L;

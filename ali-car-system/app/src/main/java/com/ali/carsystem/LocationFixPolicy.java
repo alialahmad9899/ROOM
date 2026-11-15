@@ -9,10 +9,11 @@ final class LocationFixPolicy {
             long fixElapsedNanos, long nowElapsedNanos,
             long fixWallTimeMs, long nowWallTimeMs,
             long maxAgeMs, float maxAccuracyMeters) {
-        if (!Double.isFinite(latitude) || !Double.isFinite(longitude)
+        if (Double.isNaN(latitude) || Double.isInfinite(latitude)
+                || Double.isNaN(longitude) || Double.isInfinite(longitude)
                 || latitude < -90d || latitude > 90d
                 || longitude < -180d || longitude > 180d) return false;
-        if (!hasAccuracy || !Float.isFinite(accuracyMeters)
+        if (!hasAccuracy || (Float.isNaN(accuracyMeters) || Float.isInfinite(accuracyMeters))
                 || accuracyMeters <= 0f || accuracyMeters > maxAccuracyMeters) return false;
         return isFresh(fixElapsedNanos, fixWallTimeMs,
                 nowElapsedNanos, nowWallTimeMs, maxAgeMs);
@@ -38,7 +39,7 @@ final class LocationFixPolicy {
     }
 
     static float speedKmh(float metersPerSecond) {
-        if (!Float.isFinite(metersPerSecond) || metersPerSecond < 0f
+        if ((Float.isNaN(metersPerSecond) || Float.isInfinite(metersPerSecond)) || metersPerSecond < 0f
                 || metersPerSecond > 70f) return 0f;
         return metersPerSecond * 3.6f;
     }
