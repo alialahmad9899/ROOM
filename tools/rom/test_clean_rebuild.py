@@ -28,8 +28,8 @@ require('getIdentifier("bg_dashboard","drawable"' in MAIN,"embedded drawable wal
 require("Bitmap.Config.RGB_565" in MAIN,"RGB565 decode")
 require("new AnalogClockView(this)" in MAIN and "new SpeedometerView(this)" in MAIN,"clock and speed gauge")
 require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN
-        and "dp(174)" in MAIN and "dp(160)" in MAIN and "dp(224)" in MAIN,
-        "compact live speed/clock panels and secondary gauge fit the cockpit screen")
+        and MAIN.count("dp(174)") >= 2 and "dp(224)" in MAIN,
+        "main speed/clock dials are equal and secondary gauge fits the cockpit screen")
 require(DASH.count("InstrumentDialStyle.drawFace(c,p,cx,cy,r)") == 2,"shared speedometer and analog clock face")
 require("import android.graphics.Path;" in NAV,"navigation dot heading Path import")
 require('digitalClock=label("00:00"' not in MAIN,"digital dashboard clock removed")

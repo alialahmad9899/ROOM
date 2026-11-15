@@ -25,8 +25,8 @@ public final class DashboardSleepSmokeTest {
         assertEquals(speed.getLayoutParams().height, clock.getLayoutParams().height);
         int[] clockPosition=new int[2],speedPosition=new int[2];
         clock.getLocationOnScreen(clockPosition);speed.getLocationOnScreen(speedPosition);
-        assertTrue("Analog clock must be physically left of the speedometer",
-                clockPosition[0] < speedPosition[0]);
+        assertTrue("Speedometer must be physically left of analog clock to match the reference dashboard",
+                speedPosition[0] < clockPosition[0]);
         View hud = content.findViewWithTag("dashboard_navigation_hud");
         assertNotNull("Dashboard must host the centered floating navigation HUD", hud);
         assertNotNull("Navigation HUD must include a vector turn arrow",

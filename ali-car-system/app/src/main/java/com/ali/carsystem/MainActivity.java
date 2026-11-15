@@ -477,7 +477,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
          digitalClock.setGravity(Gravity.CENTER);
          right.addView(digitalClock,new LinearLayout.LayoutParams(-1,dp(30)));
          AnalogClockView analog=new AnalogClockView(this);analog.setTag("dashboard_analog_clock");
-         right.addView(analog,new LinearLayout.LayoutParams(dp(160),dp(160)));
+         right.addView(analog,new LinearLayout.LayoutParams(dp(174),dp(174)));
          dateLabel=label("",11,0xFFE5F4FF,true);dateLabel.setGravity(Gravity.CENTER);
          right.addView(dateLabel,new LinearLayout.LayoutParams(-1,dp(24)));
          LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,-1,1.05f);
