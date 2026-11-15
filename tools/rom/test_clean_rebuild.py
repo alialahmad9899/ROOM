@@ -211,8 +211,9 @@ require((APP/"src/androidTest/java/com/ali/carsystem/MusicActivitySmokeTest.java
 require((APP/"src/androidTest/java/com/ali/carsystem/MusicPlaybackLifecycleTest.java").is_file(),"local audio playback lifecycle instrumentation test")
 require((APP/"src/androidTest/java/com/ali/carsystem/PhoneActivitySmokeTest.java").is_file(),"phone and Bluetooth UI instrumentation test")
 require((SRC/"java/com/ali/carsystem/PhoneActivity.java").is_file()
-        and 'android:name=".PhoneActivity"' in MAN and "dashboard_phone_button" in MAIN,
-        "dashboard phone/contact/Bluetooth integration is registered")
+        and 'android:name=".PhoneActivity"' in MAN and "PhoneActivity.class" in MAIN
+        and "dashboard_secondary_shortcuts" in MAIN,
+        "secondary cockpit shortcuts retain phone, contacts and Bluetooth access")
 require((APP/"src/androidTest/java/com/ali/carsystem/OpenMusicInstallerSmokeTest.java").is_file(),"legacy bundled music removal instrumentation test")
 require((APP/"src/androidTest/java/com/ali/carsystem/NavigationActivitySmokeTest.java").is_file(),"navigation screen UI smoke test")
 java="\n".join(p.read_text(encoding="utf-8") for p in (SRC/"java").rglob("*.java"))
