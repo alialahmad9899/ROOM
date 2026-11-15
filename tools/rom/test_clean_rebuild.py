@@ -284,6 +284,8 @@ require("dashboard_four_way_swipe_surface" in MAIN
         "left/right dashboard paging and up/down navigation/music gestures have four-direction unit tests")
 require("shouldAcceptIncomingFix" in NAV and "isNewerFix" in NAV
         and "isFreshLocation(candidate,180000L)" in NAV
+        and "onProviderEnabled(String p)" in NAV
+        and "requestLocationSources();}" not in NAV
         and 'getSharedPreferences("ali_car_v3"' not in NAV
         and "ali-car-saved-location" not in NAV
         and "return isFreshLocation(l,180000L)&&l.hasAccuracy()" in NAV,
