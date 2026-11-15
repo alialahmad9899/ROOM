@@ -37,8 +37,10 @@ public final class DashboardDesignSmokeTest {
             View speed=content.findViewWithTag("dashboard_speed_gauge");
             View clock=content.findViewWithTag("dashboard_analog_clock");
             assertNotNull(speed);assertNotNull(clock);
-            assertNull("Speedometer must not be wrapped in a card",speed.getParent() instanceof android.widget.LinearLayout
-                    ? ((android.widget.LinearLayout)speed.getParent()).getBackground() : null);
+            assertNull("Speedometer must not be wrapped in a card",
+                    ((android.widget.LinearLayout)speed.getParent()).getBackground());
+            assertNull("Clock must not be wrapped in a card",
+                    ((android.widget.LinearLayout)clock.getParent()).getBackground());
             assertNotNull("YouTube Lite dock entry is present",content.findViewWithTag("dashboard_bottom_dock"));
             pager.setCurrentItem(1,false);
             assertNotNull(content.findViewWithTag("dashboard_secondary_page"));
