@@ -147,11 +147,29 @@ public final class MainActivity extends BaseActivity implements LocationListener
     }
     private void updateConnectionIndicators(){
         if(connectionStatus==null)return;
-        boolean wifi=false,bluetooth=false,gps=false;
-        try{WifiManager manager=(WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);wifi=manager!=null&&manager.isWifiEnabled();}catch(Exception ignored){}
-        try{BluetoothAdapter adapter=BluetoothAdapter.getDefaultAdapter();bluetooth=adapter!=null&&adapter.isEnabled();}catch(Exception ignored){}
-        try{gps=locationManager!=null&&locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);}catch(Exception ignored){}
-        connectionStatus.setText("Wi-Fi "+(wifi?"✓":"×")+"  •  BT "+(bluetooth?"✓":"×")+"  •  GPS "+(gps?"✓":"×"));
+        boolean wifiEnabled=false,wifiConnected=false,btEnabled=false,btConnected=false,gpsEnabled=false,fixFresh=false;
+        try{
+            WifiManager manager=(WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);
+            wifiEnabled=manager!=null&&manager.isWifiEnabled();
+            android.net.ConnectivityManager cm=(android.net.ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
+            android.net.NetworkInfo active=cm==null?null:cm.getActiveNetworkInfo();
+            wifiConnected=active!=null&&active.isConnected()&&active.getType()==android.net.ConnectivityManager.TYPE_WIFI;
+        }catch(Exception ignored){}
+        try{
+            BluetoothAdapter adapter=BluetoothAdapter.getDefaultAdapter();
+            btEnabled=adapter!=null&&adapter.isEnabled();
+            btConnected=btEnabled&&adapter.getProfileConnectionState(android.bluetooth.BluetoothProfile.A2DP)
+                    ==android.bluetooth.BluetoothProfile.STATE_CONNECTED;
+        }catch(Exception ignored){}
+        try{gpsEnabled=locationManager!=null&&locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);}
+        catch(Exception ignored){}
+        long lastFix=prefs().getLong("last_location_time",0L);
+        long age=lastFix>0L?System.currentTimeMillis()-lastFix:Long.MAX_VALUE;
+        fixFresh=age>=0L&&age<=15000L;
+        String wifi=wifiConnected?"LINK":wifiEnabled?"ON":"OFF";
+        String bt=btConnected?"LINK":btEnabled?"ON":"OFF";
+        String gps=gpsEnabled?(fixFresh?"FIX":"WAIT"):"OFF";
+        connectionStatus.setText("WiFi:"+wifi+" • BT:"+bt+" • GPS:"+gps);
     }
     static boolean shouldBlockSleep(boolean isCharging,boolean isMusicPlaying){return isCharging||isMusicPlaying;}
     static boolean shouldAllowManualSleep(){return true;}
@@ -390,16 +408,12 @@ public final class MainActivity extends BaseActivity implements LocationListener
         connectionStatus=label("Wi-Fi ×  •  BT ×  •  GPS ×",10,0xFFE1EFF7,true);
         connectionStatus.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         header.addView(connectionStatus,new LinearLayout.LayoutParams(-2,dp(42)));
-        TextView settings=label("⚙",24,0xFFEAFBFF,true);
-        settings.setGravity(Gravity.CENTER);
-        settings.setBackground(glass(0x443A7D99,0x886CDFFF,24));
+        ImageView settings=iconButton(R.drawable.ic_cockpit_settings,"dashboard_settings_button","الإعدادات");
         LinearLayout.LayoutParams settingsLp=new LinearLayout.LayoutParams(dp(42),dp(40));
         settingsLp.leftMargin=dp(10);header.addView(settings,settingsLp);
         settings.setOnClickListener(v->startActivityForResult(
                 new Intent(this,SettingsActivity.class),REQUEST_DASHBOARD_SETTINGS));
-        TextView sleep=label("☾",21,0xFFEAFBFF,true);
-        sleep.setTag("dashboard_sleep_toggle");sleep.setContentDescription("تفعيل وضع السكون");
-        sleep.setGravity(Gravity.CENTER);sleep.setBackground(glass(0x443A7D99,0x886CDFFF,24));
+        ImageView sleep=iconButton(R.drawable.ic_cockpit_sleep,"dashboard_sleep_toggle","تفعيل وضع السكون");
         LinearLayout.LayoutParams sleepLp=new LinearLayout.LayoutParams(dp(40),dp(40));
         sleepLp.leftMargin=dp(7);header.addView(sleep,sleepLp);
         sleep.setOnClickListener(v->showAmbientClock(true));
@@ -439,9 +453,11 @@ public final class MainActivity extends BaseActivity implements LocationListener
         songTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
         trackInfo.addView(songTitle,new LinearLayout.LayoutParams(-1,dp(25)));
         mediaBar.addView(trackInfo,new LinearLayout.LayoutParams(0,dp(42),1f));
-        mediaBar.addView(mediaButton("⏮","previous"),new LinearLayout.LayoutParams(dp(42),dp(40)));
+        mediaBar.addView(mediaIconButton(R.drawable.ic_media_previous,"previous","dashboard_media_previous"),
+                new LinearLayout.LayoutParams(dp(42),dp(40)));
         mediaBar.addView(mediaButton("▶","play"),new LinearLayout.LayoutParams(dp(46),dp(40)));
-        mediaBar.addView(mediaButton("⏭","next"),new LinearLayout.LayoutParams(dp(42),dp(40)));
+        mediaBar.addView(mediaIconButton(R.drawable.ic_media_next,"next","dashboard_media_next"),
+                new LinearLayout.LayoutParams(dp(42),dp(40)));
         LinearLayout.LayoutParams mediaLp=new LinearLayout.LayoutParams(-1,dp(48));
         mediaLp.bottomMargin=dp(2);all.addView(mediaBar,mediaLp);
 
@@ -547,8 +563,29 @@ public final class MainActivity extends BaseActivity implements LocationListener
         updateClock();
         return root;
     }
+    private ImageView iconButton(int drawable,String tag,String description){
+        ImageView image=new ImageView(this);
+        image.setTag(tag);image.setContentDescription(description);
+        image.setImageResource(drawable);image.setColorFilter(Color.WHITE);
+        image.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        image.setPadding(dp(10),dp(10),dp(10),dp(10));
+        image.setBackground(glass(0x443A7D99,0x886CDFFF,24));
+        return image;
+    }
+    private ImageView mediaIconButton(int drawable,String action,String tag){
+        ImageView image=new ImageView(this);
+        image.setTag(tag);image.setContentDescription(action.equals("previous")?"السابق":"التالي");
+        image.setImageResource(drawable);image.setColorFilter(Color.WHITE);
+        image.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        image.setPadding(dp(10),dp(10),dp(10),dp(10));
+        image.setBackground(glass(0x444B91B0,0x556EEBFF,24));
+        image.setOnClickListener(v->MusicPlaybackService.dispatch(MainActivity.this,action));
+        return image;
+    }
     private TextView mediaButton(String symbol,String action){
         TextView b=label(symbol,28,Color.WHITE,true);b.setGravity(Gravity.CENTER);b.setBackground(glass(0x444B91B0,0x556EEBFF,24));
+        b.setTag("dashboard_media_play");
+        b.setContentDescription("تشغيل أو إيقاف الموسيقى");
         b.setOnClickListener(v->MusicPlaybackService.dispatch(MainActivity.this,action));return b;
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
@@ -570,7 +607,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
         }
     }
     private void showAppsDialog(){
-        String[] labels={"YouTube Lite","الهاتف","إعدادات الجهاز","إعدادات Wi-Fi","ضبط السطوع"};
+        String[] labels={"YouTube للموبايل","الهاتف","إعدادات الجهاز","إعدادات Wi-Fi","ضبط السطوع",
+                "بحث فيديو داخل ALI CAR (تجريبي)"};
         new AlertDialog.Builder(this).setTitle("تطبيقات السيارة")
                 .setItems(labels,(dialog,which)->{
                     switch(which){
@@ -579,11 +617,13 @@ public final class MainActivity extends BaseActivity implements LocationListener
                         case 2:startActivity(new Intent(this,SettingsActivity.class));break;
                         case 3:toggleWifi();break;
                         case 4:showBrightness();break;
+                        case 5:startActivity(new Intent(this,YouTubeSearchActivity.class));break;
                     }
                 }).setNegativeButton("إغلاق",null).show();
     }
     private void openYouTubeLite(){
-        // Google no longer publishes a standalone YouTube Lite app; use the lightweight mobile site.
+        // This dashboard shortcut intentionally opens YouTube's lightweight mobile website.
+        // The separate experimental in-app search/player is available from the Apps list.
         android.net.Uri uri=android.net.Uri.parse("https://m.youtube.com");
         Intent view=new Intent(Intent.ACTION_VIEW,uri);
         String[] browserPackages={"com.android.chrome","com.android.browser","org.mozilla.firefox"};

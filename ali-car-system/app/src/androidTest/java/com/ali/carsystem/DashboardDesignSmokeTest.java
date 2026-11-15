@@ -49,7 +49,15 @@ public final class DashboardDesignSmokeTest {
                     ((android.widget.LinearLayout)speed.getParent()).getBackground());
             assertNull("Clock must not be wrapped in a card",
                     ((android.widget.LinearLayout)clock.getParent()).getBackground());
-            assertNotNull("YouTube Lite dock entry is present",content.findViewWithTag("dashboard_bottom_dock"));
+            assertNotNull("YouTube mobile dock entry is present",content.findViewWithTag("dashboard_bottom_dock"));
+            assertTrue("Settings icon is a real image resource",
+                    content.findViewWithTag("dashboard_settings_button") instanceof android.widget.ImageView);
+            assertTrue("Sleep icon is a real image resource",
+                    content.findViewWithTag("dashboard_sleep_toggle") instanceof android.widget.ImageView);
+            assertTrue("Previous media control uses a vector image",
+                    content.findViewWithTag("dashboard_media_previous") instanceof android.widget.ImageView);
+            assertTrue("Next media control uses a vector image",
+                    content.findViewWithTag("dashboard_media_next") instanceof android.widget.ImageView);
             pager.setCurrentItem(1,false);
             assertNotNull(content.findViewWithTag("dashboard_secondary_page"));
             assertNotNull(content.findViewWithTag("dashboard_secondary_shortcuts"));

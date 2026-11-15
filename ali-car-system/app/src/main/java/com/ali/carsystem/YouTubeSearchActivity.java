@@ -18,13 +18,13 @@ public final class YouTubeSearchActivity extends BaseActivity {
     private int dp(float x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     @Override protected void onCreate(Bundle b){super.onCreate(b);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(10),dp(16),dp(10));root.setBackgroundColor(0xFF060D16);
-        TextView title=new TextView(this);title.setText("يوتيوب لايت");title.setTextColor(Color.WHITE);title.setTextSize(22);title.setTypeface(null,Typeface.BOLD);title.setGravity(Gravity.CENTER);root.addView(title,new LinearLayout.LayoutParams(-1,dp(44)));
+        TextView title=new TextView(this);title.setTag("youtube_search_title");title.setText("بحث فيديو داخل ALI CAR • تجريبي");title.setTextColor(Color.WHITE);title.setTextSize(22);title.setTypeface(null,Typeface.BOLD);title.setGravity(Gravity.CENTER);root.addView(title,new LinearLayout.LayoutParams(-1,dp(44)));
         LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);
-        query=new EditText(this);query.setSingleLine(true);query.setTextColor(0xFF111111);query.setHintTextColor(0xFF666666);query.setHint("ابحث عن فيديو");query.setTextSize(17);query.setPadding(dp(14),0,dp(14),0);
+        query=new EditText(this);query.setTag("youtube_search_query");query.setSingleLine(true);query.setTextColor(0xFF111111);query.setHintTextColor(0xFF666666);query.setHint("ابحث عن فيديو");query.setTextSize(17);query.setPadding(dp(14),0,dp(14),0);
         GradientDrawable white=new GradientDrawable();white.setColor(Color.WHITE);white.setCornerRadius(dp(12));query.setBackground(white);row.addView(query,new LinearLayout.LayoutParams(0,dp(50),1));
-        Button search=new Button(this);search.setText("بحث");row.addView(search,new LinearLayout.LayoutParams(dp(90),dp(50)));root.addView(row);
-        status=new TextView(this);status.setText("اكتب عبارة البحث بالعربية أو الإنجليزية");status.setTextColor(0xFFB8D1E3);status.setGravity(Gravity.CENTER);root.addView(status,new LinearLayout.LayoutParams(-1,dp(36)));
-        list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new SearchAdapter();list.setAdapter(adapter);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+        Button search=new Button(this);search.setTag("youtube_search_button");search.setText("بحث");row.addView(search,new LinearLayout.LayoutParams(dp(90),dp(50)));root.addView(row);
+        status=new TextView(this);status.setTag("youtube_search_status");status.setText("ابحث عبر مزوّدات فيديو عامة؛ قد لا تتوفر بعض الخوادم دائماً");status.setTextColor(0xFFB8D1E3);status.setGravity(Gravity.CENTER);root.addView(status,new LinearLayout.LayoutParams(-1,dp(36)));
+        list=new RecyclerView(this);list.setTag("youtube_search_results");list.setLayoutManager(new LinearLayoutManager(this));adapter=new SearchAdapter();list.setAdapter(adapter);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         search.setOnClickListener(v->doSearch());query.setOnEditorActionListener((v,a,e)->{doSearch();return true;});setContentView(root);
     }
     private void doSearch(){
