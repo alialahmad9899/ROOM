@@ -1045,6 +1045,26 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 +" متر، "+steps.get(next).text+" • متبقٍ "
                 +String.format(Locale.US,"%.1f كم",latestRouteProgress.remainingRouteMeters/1000d));
     }
+    private boolean isNewerFix(Location candidate,Location reference){
+        if(candidate==null||reference==null)return candidate!=null;
+        long candidateElapsed=candidate.getElapsedRealtimeNanos();
+        long referenceElapsed=reference.getElapsedRealtimeNanos();
+        if(candidateElapsed>0&&referenceElapsed>0)return candidateElapsed>=referenceElapsed;
+        return candidate.getTime()>=reference.getTime();
+    }
+    private boolean shouldAcceptIncomingFix(Location candidate){
+        if(candidate==null)return false;
+        double lat=candidate.getLatitude(),lon=candidate.getLongitude();
+        if(Double.isNaN(lat)||Double.isNaN(lon)||Math.abs(lat)>90d||Math.abs(lon)>180d)return false;
+        if(!isFreshLocation(candidate,180000L))return false;
+        float accuracy=candidate.hasAccuracy()?candidate.getAccuracy():999f;
+        if(!GeoMath.isAccuracyUsable(accuracy,1000f))return false;
+        if(current!=null&&isFreshLocation(current,180000L)&&!isNewerFix(candidate,current))return false;
+        return true;
+    }
+    boolean acceptsLocationForTest(Location candidate){return shouldAcceptIncomingFix(candidate);}
+    boolean hasCurrentLocationMarkerForTest(){return map!=null&&carMarker!=null&&map.getOverlays().contains(carMarker);}
+
     @Override public void onLocationChanged(Location l){
         // Fused getLastLocation may return an old cached fix asynchronously; do not let it
         // overwrite a newer GPS reading or move the car marker backwards.
