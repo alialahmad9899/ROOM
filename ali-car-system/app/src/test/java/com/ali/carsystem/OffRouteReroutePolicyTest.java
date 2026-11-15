@@ -16,6 +16,7 @@ public final class OffRouteReroutePolicyTest {
     @Test public void ignoresPoorAccuracyAndInFlightRequests() {
         OffRouteReroutePolicy policy=new OffRouteReroutePolicy();
         assertFalse(policy.shouldReroute(false,90f,1000L,false));
+        assertFalse(policy.shouldReroute(false,50f,1500L,false));
         assertFalse(policy.shouldReroute(false,8f,2000L,true));
     }
 
