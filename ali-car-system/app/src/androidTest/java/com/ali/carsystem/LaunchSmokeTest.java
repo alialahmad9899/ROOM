@@ -86,11 +86,17 @@ public final class LaunchSmokeTest {
         assertTrue("Route details include live speed",
                 details.getText().toString().contains("سرعة 62 كم/س"));
 
-        Intent stopped = new Intent(NavigationGuidanceService.ACTION_STATE);
-        stopped.setPackage(main.getPackageName());
-        stopped.putExtra("active", false);
-        main.sendBroadcast(stopped);
+        // Stop the real foreground service rather than injecting a synthetic inactive
+        // broadcast. A still-running service may legitimately republish its active state.
+        Intent stopService = new Intent(main, NavigationGuidanceService.class);
+        stopService.setAction(NavigationGuidanceService.ACTION_STOP);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(
+                () -> main.startService(stopService));
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        android.os.SystemClock.sleep(250L);
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        assertFalse("Stopped service must clear its persisted active route",
+                NavigationGuidanceService.isActive(main));
         assertEquals("Stopping guidance must hide the HUD", View.GONE, hud.getVisibility());
     }
 }
