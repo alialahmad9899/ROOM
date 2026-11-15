@@ -183,7 +183,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         // MapsForge renders vector tiles at display resolution; avoid upscaling a low-density tile.
         map.setTilesScaledToDpi(false);
         configureMapTiles();
-        map.getController().setZoom(12.5);root.addView(map,new FrameLayout.LayoutParams(-1,-1));
+        centerMapOnOfflineCoverage();
+        root.addView(map,new FrameLayout.LayoutParams(-1,-1));
         nightOverlay=new View(this);nightOverlay.setTag("navigation_night_overlay");
         nightOverlay.setBackgroundColor(0x58030A18);nightOverlay.setVisibility(View.GONE);
         root.addView(nightOverlay,new FrameLayout.LayoutParams(-1,-1));
@@ -337,15 +338,26 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private boolean restoreMapCamera(){
         if(map==null)return false;
         android.content.SharedPreferences saved=getSharedPreferences("ali_car_navigation_ui",MODE_PRIVATE);
-        if(!saved.contains("map_center_lat")||!saved.contains("map_center_lon"))return false;
+        if(!saved.contains("map_center_lat")||!saved.contains("map_center_lon")){
+            centerMapOnOfflineCoverage();
+            return false;
+        }
         try{
             double lat=saved.getFloat("map_center_lat",0f),lon=saved.getFloat("map_center_lon",0f);
-            float zoom=saved.getFloat("map_zoom",12.5f);
-            if(Math.abs(lat)>90d||Math.abs(lon)>180d||zoom<2f||zoom>20f)return false;
+            float zoom=saved.getFloat("map_zoom",9.5f);
+            if(Math.abs(lat)>90d||Math.abs(lon)>180d||zoom<2f||zoom>20f
+                    ||!isCoordinateInsideOfflineCoverage(lat,lon)){
+                centerMapOnOfflineCoverage();
+                return false;
+            }
             map.getController().setCenter(new GeoPoint(lat,lon));
             map.getController().setZoom(zoom);
             return true;
-        }catch(Exception error){AppDiagnostics.record(this,"Restore offline map camera",error);return false;}
+        }catch(Exception error){
+            AppDiagnostics.record(this,"Restore offline map camera",error);
+            centerMapOnOfflineCoverage();
+            return false;
+        }
     }
     private boolean isNightHour(){
         Calendar calendar=Calendar.getInstance();int hour=calendar.get(Calendar.HOUR_OF_DAY);
@@ -556,12 +568,14 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(offlineStatus==null)return;
         String packageState=OfflineMapsManager.status(this);
         boolean ready=OfflineMapsManager.isInstalled(this)&&OfflineMapsManager.hasOfflineRouting(this);
+        boolean providerInstalled=map!=null&&offlineTileSource!=null
+                &&map.getTileProvider() instanceof MapsForgeTileProvider;
         String renderState=offlineMapRenderFailed?"عرض الخريطة: تعذرت التهيئة"
-                :(offlineTileSource!=null?"عرض الخريطة: جاهز":"عرض الخريطة: بانتظار التهيئة");
+                :(providerInstalled?"مزود الرسم مركّب؛ يلزم التحقق من البلاطة":"عرض الخريطة: بانتظار التهيئة");
         offlineStatus.setText((offlinePreparationRunning&&!ready
                 ?"جارٍ نسخ وتثبيت بيانات الخرائط المحلية... • ":"")+packageState+" • "+renderState);
-        offlineStatus.setTextColor(ready&&!offlineMapRenderFailed&&offlineTileSource!=null
-                ?0xFF9BD9D5:0xFFFFD28A);
+        offlineStatus.setTextColor(ready&&!offlineMapRenderFailed&&providerInstalled
+                ?0xFFFFD28A:0xFFFFD28A);
     }
 
     private void configureMapTiles(){
@@ -593,6 +607,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             offlineTileSource=sharedOfflineTileSource;
             map.setTileProvider(new MapsForgeTileProvider(new SimpleRegisterReceiver(this),offlineTileSource,null));
             refreshOfflineStatus();
+            centerMapOnOfflineCoverage();
+            map.invalidate();
             if(status!=null)status.setText("خريطة سوريا المحلية جاهزة • "+OfflineMapsManager.status(this));
         }catch(Exception error){
             offlineTileSource=null;
@@ -607,10 +623,65 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         return OfflineMapsManager.isInstalled(this)&&OfflineMapsManager.hasOfflineRouting(this);
     }
     boolean isOfflineTileProviderReadyForTest(){
-        return map!=null&&offlineTileSource!=null;
+        return map!=null&&offlineTileSource!=null
+                &&map.getTileProvider() instanceof MapsForgeTileProvider;
+    }
+    boolean isCoordinateInsideOfflineCoverage(double latitude,double longitude){
+        if(offlineTileSource==null)return false;
+        try{
+            org.osmdroid.util.BoundingBox bounds=offlineTileSource.getBoundsOsmdroid();
+            return latitude<=bounds.getLatNorth()&&latitude>=bounds.getLatSouth()
+                    &&longitude<=bounds.getLonEast()&&longitude>=bounds.getLonWest();
+        }catch(Exception error){return false;}
+    }
+    String offlineCoverageForTest(){
+        if(offlineTileSource==null)return "مزود الخريطة غير جاهز";
+        try{
+            org.osmdroid.util.BoundingBox bounds=offlineTileSource.getBoundsOsmdroid();
+            return String.format(Locale.US,"N %.4f / S %.4f / E %.4f / W %.4f",
+                    bounds.getLatNorth(),bounds.getLatSouth(),bounds.getLonEast(),bounds.getLonWest());
+        }catch(Exception error){return error.getClass().getSimpleName()+": "+error.getMessage();}
+    }
+    boolean renderOfflineTileForTest(double latitude,double longitude,int zoom){
+        if(offlineTileSource==null||!isCoordinateInsideOfflineCoverage(latitude,longitude))return false;
+        try{
+            int x=MapView.getTileSystem().getTileXFromLongitude(longitude,zoom);
+            int y=MapView.getTileSystem().getTileYFromLatitude(latitude,zoom);
+            long tileIndex=MapTileIndex.getTileIndex(zoom,x,y);
+            android.graphics.drawable.Drawable tile=offlineTileSource.renderTile(tileIndex);
+            return tile!=null;
+        }catch(Exception error){
+            AppDiagnostics.record(this,"Render offline MapsForge tile test",error);
+            return false;
+        }
+    }
+    boolean mapCameraInsideOfflineCoverageForTest(){
+        if(map==null||offlineTileSource==null)return false;
+        try{
+            org.osmdroid.api.IGeoPoint center=map.getMapCenter();
+            return center!=null&&isCoordinateInsideOfflineCoverage(center.getLatitude(),center.getLongitude());
+        }catch(Exception error){return false;}
     }
     String offlineStatusForTest(){
         return offlineStatus==null?"":String.valueOf(offlineStatus.getText());
+    }
+
+    private void centerMapOnOfflineCoverage(){
+        if(map==null)return;
+        try{
+            double latitude=33.5138d,longitude=36.2765d;
+            if(offlineTileSource!=null&&!isCoordinateInsideOfflineCoverage(latitude,longitude)){
+                org.osmdroid.util.BoundingBox bounds=offlineTileSource.getBoundsOsmdroid();
+                latitude=(bounds.getLatNorth()+bounds.getLatSouth())/2d;
+                longitude=(bounds.getLonEast()+bounds.getLonWest())/2d;
+            }
+            map.getController().setCenter(new GeoPoint(latitude,longitude));
+            map.getController().setZoom(9.5d);
+        }catch(Exception error){
+            AppDiagnostics.record(this,"Center map in Syria offline coverage",error);
+            map.getController().setCenter(new GeoPoint(33.5138d,36.2765d));
+            map.getController().setZoom(9.5d);
+        }
     }
 
     private void ensureBundledOfflineData(){
@@ -1130,8 +1201,12 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             return;
         }
         current=new Location(l);showCar(l);updateManeuver(current,activeManeuvers);
-        if(guidedMode&&followCar&&map!=null){long now=SystemClock.elapsedRealtime();GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());
-            if(now-lastFollowAt>1800&&(lastFollowPoint==null||GeoMath.distanceMeters(lastFollowPoint.getLatitude(),lastFollowPoint.getLongitude(),p.getLatitude(),p.getLongitude())>18)){map.getController().animateTo(p);lastFollowPoint=p;lastFollowAt=now;}}
+        if(guidedMode&&followCar&&map!=null&&isCoordinateInsideOfflineCoverage(l.getLatitude(),l.getLongitude())){
+            long now=SystemClock.elapsedRealtime();GeoPoint p=new GeoPoint(l.getLatitude(),l.getLongitude());
+            if(now-lastFollowAt>1800&&(lastFollowPoint==null||GeoMath.distanceMeters(lastFollowPoint.getLatitude(),lastFollowPoint.getLongitude(),p.getLatitude(),p.getLongitude())>18)){
+                map.getController().animateTo(p);lastFollowPoint=p;lastFollowAt=now;
+            }
+        }
         float accuracy=l.hasAccuracy()?l.getAccuracy():999;
         if(destination!=null&&waitingForFix&&!routeAttemptedForDestination
                 &&SystemClock.elapsedRealtime()>=routeRetryAfterMs&&isRouteStartUsable(l)){
@@ -1145,7 +1220,12 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         }
         lastFixProvider=l.getProvider()==null?"غير معروف":l.getProvider();
         lastFixAccuracy=accuracy;lastFixElapsedNanos=l.getElapsedRealtimeNanos();
-        if(status!=null&&destination==null)status.setText("تم استقبال موقع "+lastFixProvider+" — الدقة ±"+Math.round(accuracy)+" متر");
+        if(status!=null&&destination==null){
+            if(isCoordinateInsideOfflineCoverage(l.getLatitude(),l.getLongitude()))
+                status.setText("تم استقبال موقع "+lastFixProvider+" — الدقة ±"+Math.round(accuracy)+" متر");
+            else
+                status.setText("تم تحديد موقعك، لكنه خارج نطاق خريطة سوريا المتاحة دون إنترنت؛ اعرض الخريطة السورية أو أضف حزمة المنطقة المطلوبة");
+        }
     }
     @Override protected void onResume(){
         super.onResume();if(map!=null)map.onResume();
