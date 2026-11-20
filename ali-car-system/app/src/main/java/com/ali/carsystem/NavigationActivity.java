@@ -922,7 +922,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private boolean isRouteStartUsable(Location l){
         return isFreshLocation(l,LocationFixPolicy.ROUTE_START_MAX_FIX_AGE_MS)&&l.hasAccuracy()
                 &&GeoMath.isAccuracyUsable(l.getAccuracy(),LocationFixPolicy.ROUTE_START_MAX_ACCURACY_METERS)
-                &&Double.isFinite(l.getLatitude())&&Double.isFinite(l.getLongitude())
+                &&!Double.isNaN(l.getLatitude())&&!Double.isInfinite(l.getLatitude())
+                &&!Double.isNaN(l.getLongitude())&&!Double.isInfinite(l.getLongitude())
                 &&Math.abs(l.getLatitude())<=90d&&Math.abs(l.getLongitude())<=180d;
     }
     private void loadLastKnown(){
