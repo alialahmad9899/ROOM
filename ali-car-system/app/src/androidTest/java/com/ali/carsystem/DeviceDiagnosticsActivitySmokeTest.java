@@ -15,7 +15,7 @@ public final class DeviceDiagnosticsActivitySmokeTest {
     @Rule public ActivityTestRule<DeviceDiagnosticsActivity> activity=
             new ActivityTestRule<>(DeviceDiagnosticsActivity.class);
 
-    @Test public void reportsCoreDeviceServicesAndCanRefreshAndCopy() {
+    @Test public void reportsCoreDeviceServicesAndCanRefreshAndCopy() throws Exception {
         DeviceDiagnosticsActivity screen=activity.getActivity();
         assertNotNull(screen.findViewById(android.R.id.content).findViewWithTag("device_diagnostics_title"));
         for(String tag:new String[]{"device_diagnostics_android","device_diagnostics_gps",
