@@ -2,7 +2,17 @@ package com.ali.carsystem;
 
 /** Shared, clock-safe validation for GNSS/network location fixes. */
 final class LocationFixPolicy {
+    static final long NAVIGATION_MAX_FIX_AGE_MS = 30_000L;
+    static final long ROUTE_START_MAX_FIX_AGE_MS = 45_000L;
+    static final float NAVIGATION_MAX_ACCURACY_METERS = 150f;
+    static final float ROUTE_START_MAX_ACCURACY_METERS = 250f;
+
     private LocationFixPolicy() { }
+
+    /** Only satellite GNSS fixes may contribute to vehicle speed and odometer totals. */
+    static boolean isGnssProvider(String provider) {
+        return "gps".equalsIgnoreCase(provider == null ? "" : provider.trim());
+    }
 
     static boolean isUsable(double latitude, double longitude,
             boolean hasAccuracy, float accuracyMeters,
