@@ -16,7 +16,8 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 3111" in GRADLE and "versionName '3.11.1'" in GRADLE,"ALI CAR version 3.11.1")
+require("versionCode 3120" in GRADLE and "versionName '3.12.0'" in GRADLE,"ALI CAR version 3.12.0")
+require("signingConfigs.ciTest" in GRADLE and (APP/"ci/ali-car-ci-test.jks").is_file(),"fixed test-only signing identity is configured and present")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -306,16 +307,29 @@ require("dashboard_settings_button" in MAIN and "dashboard_media_previous" in MA
         and "dashboard_media_next" in MAIN and "R.drawable.ic_cockpit_settings" in MAIN,
         "dashboard control symbols use real vector resources")
 require("offlineTileGenerated" in NAV and "renderOfflineTileForTest" in NAV
-        and "getTileProvider() instanceof MapsForgeTileProvider" in NAV,
-        "offline navigation verifies a real rendered MapsForge tile before declaring the map ready")
+        and "getTileProvider() instanceof MapsForgeTileProvider" in NAV
+        and "verifyOfflineCityTileMatrix" in NAV
+        and "offlineCityTileMatrixCount>=4" in NAV,
+        "offline navigation verifies non-empty rendered MapsForge detail in at least four city tiles before declaring the map ready")
+require("offlineTileSourcePreparing" in NAV and "doInBackground(Void... ignored)" in NAV
+        and "MapsForgeTileSource.createFromFiles" in NAV,
+        "offline MapsForge source parsing is performed by background work, not UI startup") 
+require("navigation_tools_toggle" in NAV and "navigation_guidance_toggle" in NAV
+        and "panel.setVisibility(View.GONE)" in NAV
+        and "bottom.setVisibility(View.GONE)" in NAV,
+        "navigation starts map-first with collapsible tools and guidance overlays")
 require("shouldAcceptIncomingFix" in NAV and "isNewerFix" in NAV
-        and "isFreshLocation(candidate,180000L)" in NAV
+        and "LocationFixPolicy.NAVIGATION_MAX_FIX_AGE_MS" in NAV
+        and "LocationFixPolicy.ROUTE_START_MAX_FIX_AGE_MS" in NAV
+        and "LocationFixPolicy.NAVIGATION_MAX_ACCURACY_METERS" in NAV
         and "onProviderEnabled(String p)" in NAV
         and "requestLocationSources();}" not in NAV
         and 'getSharedPreferences("ali_car_v3"' not in NAV
-        and "ali-car-saved-location" not in NAV
-        and "return isFreshLocation(l,180000L)&&l.hasAccuracy()" in NAV,
-        "stale/out-of-order GPS fixes are rejected and saved preferences are never shown as live location")
+        and "ali-car-saved-location" not in NAV,
+        "stale/out-of-order GPS fixes are rejected with strict live age/accuracy limits; saved preferences are never live position")
+require("LocationFixPolicy.isGnssProvider" in TRACKING
+        and "موقع الشبكة متاح بشكل تقريبي" in TRACKING,
+        "network estimates are never used for vehicle speed or odometer")
 require((APP/"src/androidTest/java/com/ali/carsystem/NavigationLocationRegressionTest.java").is_file(),
         "instrumented live/stale GPS regression test exists")
 require("offRouteReroutePolicy.shouldReroute" in NAV
