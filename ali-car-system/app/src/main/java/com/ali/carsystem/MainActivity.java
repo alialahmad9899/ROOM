@@ -786,7 +786,12 @@ public final class MainActivity extends BaseActivity implements LocationListener
         }
         applySleepPolicy();
     }
-    @Override protected void onPause(){activityResumed=false;handler.removeCallbacks(idleTick);super.onPause();}
+    @Override protected void onPause(){
+        activityResumed=false;
+        handler.removeCallbacks(clockTick);
+        handler.removeCallbacks(idleTick);
+        super.onPause();
+    }
     @Override protected void onDestroy(){
         handler.removeCallbacksAndMessages(null);
         if(musicReceiver!=null)try{unregisterReceiver(musicReceiver);}catch(Exception ignored){}
