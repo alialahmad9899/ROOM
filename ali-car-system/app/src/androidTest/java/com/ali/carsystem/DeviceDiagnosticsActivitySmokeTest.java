@@ -28,9 +28,11 @@ public final class DeviceDiagnosticsActivitySmokeTest {
         View refresh=screen.findViewById(android.R.id.content).findViewWithTag("device_diagnostics_refresh");
         View copy=screen.findViewById(android.R.id.content).findViewWithTag("device_diagnostics_copy");
         assertNotNull(refresh);assertNotNull(copy);
-        View sha=screen.findViewById(android.R.id.content).findViewWithTag("device_diagnostics_offline_sha256");
-        assertNotNull("Full offline bundle SHA-256 status row",sha);
+        View shaBeforeRefresh=screen.findViewById(android.R.id.content).findViewWithTag("device_diagnostics_offline_sha256");
+        assertNotNull("Full offline bundle SHA-256 status row",shaBeforeRefresh);
         InstrumentationRegistry.getInstrumentation().runOnMainSync(refresh::performClick);
+        View sha=screen.findViewById(android.R.id.content).findViewWithTag("device_diagnostics_offline_sha256");
+        assertNotNull("Refreshed SHA-256 status row",sha);
         long deadline=System.currentTimeMillis()+30000L;
         while(System.currentTimeMillis()<deadline
                 &&((android.widget.TextView)sha).getText().toString().contains("جارٍ"))Thread.sleep(100L);
