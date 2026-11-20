@@ -1,8 +1,8 @@
-name: ALI CAR 3.11.1 Comprehensive Repair API21 x86
+name: ALI CAR 3.12.0 Comprehensive Repair API21 x86
 
 on:
   push:
-    branches: ["ali-car-system/3.11.0-comprehensive-repair-2026-11-15"]
+    branches: ["ali-car-system/3.12.0-full-repair-2026-11-20"]
     paths: ["ali-car-system/**","tools/rom/**","tools/maps/**",".github/workflows/build-car-app-3-11-0.yml"]
   workflow_dispatch:
 
@@ -161,37 +161,43 @@ jobs:
           grep -F "package: name='com.ali.carsystem'" apk-badging.txt
           grep -F "sdkVersion:'21'" apk-badging.txt
           grep -F "targetSdkVersion:'22'" apk-badging.txt
-          grep -F "versionName='3.11.1'" apk-badging.txt
+          grep -F "versionName='3.12.0'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | tee apk-signature.txt
+          EXPECTED_CERT="d87a5c149b9cbe6507672cdba137281f78d35941c527b88d925b0a0d4b1842f4"
+          grep -i -F "$EXPECTED_CERT" apk-signature.txt
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria.map"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/syria-places.sqlite"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/offline/brouter/segments4/E40_N35.rd5"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" list "$APK" | grep -F "assets/mapsforge/ali-car-dark.xml"
           mkdir -p output
-          cp "$APK" output/ALI-Car-System-3.11.1-api21-x86-debug.apk
-          sha256sum output/ALI-Car-System-3.11.1-api21-x86-debug.apk > output/SHA256SUMS.txt
+          cp "$APK" output/ALI-Car-System-3.12.0-api21-x86-debug.apk
+          (cd output && sha256sum ALI-Car-System-3.12.0-api21-x86-debug.apk > SHA256SUMS.txt)
+          cp ali-car-system/INSTALL-MIGRATION-3.12.0.md output/INSTALL-MIGRATION-3.12.0.md
           {
             echo "Project: ALI CAR"
             echo "Package: com.ali.carsystem"
-            echo "Version: 3.11.1"
+            echo "Version: 3.12.0"
             echo "Device baseline: ASUS Z170CG / P01Y, Intel SoFIA 3GR, x86 32-bit"
             echo "Minimum Android: 5.0 / API 21"
             echo "Target SDK: 22"
             echo "Offline coverage: Syria OSM vector map, local POIs and BRouter driving segments"
-            echo "Build type: Debug-signed testing APK"
+            echo "Build type: Debug-signed testing APK using fixed public test-only certificate"
+            echo "Signing certificate SHA-256: D87A5C149B9CBE6507672CDBA137281F78D35941C527B88D925B0A0D4B1842F4"
             echo "Commit: $GITHUB_SHA"
-            stat --printf='APK bytes: %s\\n' output/ALI-Car-System-3.11.1-api21-x86-debug.apk
+            stat --printf='APK bytes: %s\n' output/ALI-Car-System-3.12.0-api21-x86-debug.apk
             cat output/SHA256SUMS.txt
           } > output/BUILD-INFO.txt
 
       - name: Upload APK and metadata
         uses: actions/upload-artifact@v7
         with:
-          name: ALI-CAR-3.11.1-API21-X86-APK
+          name: ALI-CAR-3.12.0-API21-X86-APK
           path: |
-            output/ALI-Car-System-3.11.1-api21-x86-debug.apk
+            output/ALI-Car-System-3.12.0-api21-x86-debug.apk
             output/SHA256SUMS.txt
             output/BUILD-INFO.txt
+            output/INSTALL-MIGRATION-3.12.0.md
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
@@ -215,101 +221,141 @@ jobs:
             set +e
             mkdir -p emulator-diagnostics/screenshots
             adb shell dumpsys battery > emulator-diagnostics/battery-before-tests.txt 2>&1
-            adb shell wm size 1024x600 || true
-            adb shell wm density 170 || true
-            adb shell settings put system font_scale 1.0 || true
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
+            adb shell wm size 1024x600 > emulator-diagnostics/display-size.txt 2>&1
+            adb shell wm density 170 > emulator-diagnostics/display-density.txt 2>&1
+            adb shell wm size >> emulator-diagnostics/display-size.txt 2>&1
+            adb shell wm density >> emulator-diagnostics/display-density.txt 2>&1
+            grep -q "1024x600" emulator-diagnostics/display-size.txt || echo 1 > emulator-diagnostics/exit-code.txt
+            grep -q "170" emulator-diagnostics/display-density.txt || echo 1 > emulator-diagnostics/exit-code.txt
+            adb shell settings put system font_scale 1.0
             adb install -r app/build/outputs/apk/debug/app-debug.apk || exit 1
-            echo "UI smoke: launching main dashboard"
+
+            echo "Capture dashboard at 1024x600 / 170 dpi"
             timeout 20s adb shell am force-stop com.ali.carsystem || true
-            timeout 30s adb shell am start -n com.ali.carsystem/.MainActivity || true
-            # Wait past the first-boot welcome overlay before saving the dashboard reference.
-            sleep 9
-            echo "UI smoke: capturing main dashboard"
-            timeout 20s adb shell screencap -p /sdcard/ali-car-main.png || true
-            timeout 20s adb pull /sdcard/ali-car-main.png emulator-diagnostics/screenshots/main-dashboard.png || true
-            echo "UI smoke: checking cockpit at 115% font scale"
-            adb shell settings put system font_scale 1.15 || true
+            timeout 30s adb shell am start -W -n com.ali.carsystem/.MainActivity || true
+            sleep 8
+            adb shell screencap -p /sdcard/ali-car-dashboard.png
+            adb pull /sdcard/ali-car-dashboard.png emulator-diagnostics/screenshots/main-dashboard.png
+
+            echo "Capture dashboard at 115 percent system font scale"
+            adb shell settings put system font_scale 1.15
             timeout 20s adb shell am force-stop com.ali.carsystem || true
-            timeout 30s adb shell am start -n com.ali.carsystem/.MainActivity || true
-            sleep 7
-            timeout 20s adb shell screencap -p /sdcard/ali-car-main-large-font.png || true
-            timeout 20s adb pull /sdcard/ali-car-main-large-font.png emulator-diagnostics/screenshots/main-dashboard-font-scale.png || true
-            adb shell settings put system font_scale 1.0 || true
-            echo "UI smoke: launching navigation"
-            timeout 30s adb shell am start -n com.ali.carsystem/.NavigationActivity || true
+            timeout 30s adb shell am start -W -n com.ali.carsystem/.MainActivity || true
+            sleep 6
+            adb shell screencap -p /sdcard/ali-car-dashboard-large-font.png
+            adb pull /sdcard/ali-car-dashboard-large-font.png emulator-diagnostics/screenshots/main-dashboard-font-scale.png
+            adb shell settings put system font_scale 1.0
+
+            echo "Capture local music screen"
+            timeout 30s adb shell am start -W -n com.ali.carsystem/.MusicActivity || true
             sleep 3
-            echo "UI smoke: injecting simulated GPS coordinates"
-            timeout 15s adb emu geo fix 36.2765 33.5138 || true
+            adb shell screencap -p /sdcard/ali-car-music.png
+            adb pull /sdcard/ali-car-music.png emulator-diagnostics/screenshots/music-screen.png
+
+            echo "Capture settings screen"
+            timeout 30s adb shell am start -W -n com.ali.carsystem/.SettingsActivity || true
             sleep 3
-            timeout 15s adb emu geo fix 36.2770 33.5142 || true
+            adb shell screencap -p /sdcard/ali-car-settings.png
+            adb pull /sdcard/ali-car-settings.png emulator-diagnostics/screenshots/settings-screen.png
+
+            echo "Capture phone and Bluetooth screen"
+            timeout 30s adb shell am start -W -n com.ali.carsystem/.PhoneActivity || true
             sleep 3
-            echo "UI smoke: running API21 instrumentation suite including offline-map installation wait"
-            # The emulator runner executes each script line in its own shell.
-            # Keep Gradle failure in a file so later diagnostic commands still run.
-            timeout 1200s gradle --no-daemon connectedDebugAndroidTest || echo $? > emulator-diagnostics/exit-code.txt
-            test -f emulator-diagnostics/exit-code.txt || echo 0 > emulator-diagnostics/exit-code.txt
-            echo "UI smoke: reinstalling application after instrumentation cleanup"
-            adb install -r app/build/outputs/apk/debug/app-debug.apk || echo 1 > emulator-diagnostics/exit-code.txt
-            adb shell wm size 1024x600 || true
-            adb shell wm density 170 || true
-            adb shell settings put system font_scale 1.0 || true
-            echo "UI smoke: relaunching navigation after offline-map verification"
-            timeout 20s adb shell am force-stop com.ali.carsystem || true
+            adb shell screencap -p /sdcard/ali-car-phone.png
+            adb pull /sdcard/ali-car-phone.png emulator-diagnostics/screenshots/phone-bluetooth-screen.png
+
+            echo "Capture device diagnostics screen"
+            timeout 30s adb shell am start -W -n com.ali.carsystem/.DeviceDiagnosticsActivity || true
+            sleep 3
+            adb shell screencap -p /sdcard/ali-car-diagnostics.png
+            adb pull /sdcard/ali-car-diagnostics.png emulator-diagnostics/screenshots/device-diagnostics-screen.png
+
+            echo "Capture navigation and inject simulated GPS"
             timeout 30s adb shell am start -W -n com.ali.carsystem/.NavigationActivity || true
-            sleep 10
-            adb shell dumpsys activity activities > emulator-diagnostics/navigation-activity-state.txt 2>&1
-            grep -q "com.ali.carsystem/.NavigationActivity" emulator-diagnostics/navigation-activity-state.txt || echo 1 > emulator-diagnostics/exit-code.txt
+            sleep 3
             timeout 15s adb emu geo fix 36.2765 33.5138 || true
             sleep 2
             timeout 15s adb emu geo fix 36.2770 33.5142 || true
-            sleep 3
-            timeout 20s adb shell screencap -p /sdcard/ali-car-navigation.png || true
-            timeout 20s adb pull /sdcard/ali-car-navigation.png emulator-diagnostics/screenshots/navigation-gps-simulation.png || true
-            adb devices -l > emulator-diagnostics/adb-devices.txt 2>&1
-            adb logcat -d -v time > emulator-diagnostics/logcat.txt 2>&1
+            sleep 10
+            adb shell screencap -p /sdcard/ali-car-navigation.png
+            adb pull /sdcard/ali-car-navigation.png emulator-diagnostics/screenshots/navigation-gps-simulation.png
+
+            echo "Run full API21 instrumentation suite"
+            timeout 1500s gradle --no-daemon connectedDebugAndroidTest || echo $? > emulator-diagnostics/exit-code.txt
+            test -f emulator-diagnostics/exit-code.txt || echo 0 > emulator-diagnostics/exit-code.txt
+
+            echo "Reinstall and capture final navigation state after instrumentation cleanup"
+            adb install -r app/build/outputs/apk/debug/app-debug.apk || echo 1 > emulator-diagnostics/exit-code.txt
+            adb shell wm size 1024x600 > emulator-diagnostics/display-size-after-tests.txt 2>&1
+            adb shell wm density 170 > emulator-diagnostics/display-density-after-tests.txt 2>&1
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
+            adb shell settings put system font_scale 1.0
+            timeout 20s adb shell am force-stop com.ali.carsystem || true
+            timeout 30s adb shell am start -W -n com.ali.carsystem/.NavigationActivity || true
+            sleep 12
+            timeout 15s adb emu geo fix 36.2765 33.5138 || true
+            sleep 2
+            adb shell screencap -p /sdcard/ali-car-navigation-final.png
+            adb pull /sdcard/ali-car-navigation-final.png emulator-diagnostics/screenshots/navigation-final.png
+            adb shell dumpsys gfxinfo com.ali.carsystem > emulator-diagnostics/gfxinfo.txt 2>&1
+            adb shell dumpsys meminfo com.ali.carsystem > emulator-diagnostics/meminfo.txt 2>&1
             adb shell dumpsys activity activities > emulator-diagnostics/activities.txt 2>&1
             adb shell dumpsys mount > emulator-diagnostics/storage-mounts.txt 2>&1
-            if [ -d app/build/reports/androidTests/connected/debug ]; then cp -R app/build/reports/androidTests/connected/debug emulator-diagnostics/android-test-report; fi
-            if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -R app/build/outputs/androidTest-results/connected/debug emulator-diagnostics/android-test-results; fi
-            exit "$(cat emulator-diagnostics/exit-code.txt)"
+            adb devices -l > emulator-diagnostics/adb-devices.txt 2>&1
+            adb logcat -d -v time > emulator-diagnostics/logcat.txt 2>&1
+
+            python3 - <<'PY'
+            from pathlib import Path
+            from PIL import Image
+            root = Path("emulator-diagnostics/screenshots")
+            required = [
+                "main-dashboard.png", "main-dashboard-font-scale.png",
+                "music-screen.png", "settings-screen.png",
+                "phone-bluetooth-screen.png", "device-diagnostics-screen.png",
+                "navigation-gps-simulation.png", "navigation-final.png",
+            ]
+            for name in required:
+                path = root / name
+                if not path.is_file():
+                    raise SystemExit(f"Missing screenshot: {name}")
+                image = Image.open(path)
+                print(f"{name}: {image.size[0]}x{image.size[1]}")
+                if image.size != (1024, 600):
+                    raise SystemExit(f"{name} is not 1024x600 landscape: {image.size}")
+            PY
+            if grep -E "FATAL EXCEPTION.*com\\.ali\\.carsystem|ANR in com\\.ali\\.carsystem" emulator-diagnostics/logcat.txt; then
+              echo 1 > emulator-diagnostics/exit-code.txt
+            fi
+            if [ -f emulator-diagnostics/exit-code.txt ] && [ "$(cat emulator-diagnostics/exit-code.txt)" != "0" ]; then exit 1; fi
+            exit 0
 
       - name: Upload emulator diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ALI-CAR-3.11.1-API21-X86-DIAGNOSTICS
+          name: ALI-CAR-3.12.0-API21-X86-DIAGNOSTICS
           path: ali-car-system/emulator-diagnostics/
           if-no-files-found: ignore
           retention-days: 30
-      - name: Publish verified ALI CAR 3.11.1 release
-        if: success() && github.ref == 'refs/heads/ali-car-system/3.11.0-comprehensive-repair-2026-11-15'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ali-car-v3.11.1-api21-x86
-          target_commitish: ${{ github.sha }}
-          name: ALI CAR 3.11.1 — Android 5 / x86
-          draft: false
-          prerelease: true
-          make_latest: false
-          generate_release_notes: false
-          body: |
-            ALI CAR 3.11.1 for ASUS ZenPad C 7.0 / P01Y (Intel SoFIA 3GR, x86 32-bit).
-
-            - Minimum Android: 5.0 / API 21
-            - Target SDK: 22
-            - Package: com.ali.carsystem
-            - Syria offline vector map, local POI database and BRouter offline driving data are embedded in the APK. Rendered map tiles use a bounded persistent disk cache; map center, zoom and selected route are restored between openings.
-            - Map tile networking, web geocoding and online route fallback are disabled in the navigation screen. The bundled flat dark street theme omits topographic hill shading.
-            - Bundled music/audio: none in any supported format; the player scans only the user's local library. Added SHA-256 duplicate prevention on imports, searchable and sortable tracks, duplicate review, playlist removal and confirmation-gated permanent deletion.
-            - Main dashboard: live GPS speedometer and analog/digital clock without surrounding cards; trip summary and route guidance are at the top, with a compact local music strip above the main cockpit.
-            - The horizontal swipe pages retain the drive-centre and trip history; the central gesture surface supports left/right paging and up/down shortcuts to navigation and music.
-            - The bottom dock replaces Radio with YouTube Lite-style mobile browsing. It opens https://m.youtube.com in an installed browser; no unofficial or discontinued YouTube APK is bundled.
-            - GPS fixes are age/accuracy/coordinate checked; stale/out-of-order Fused fixes and saved preference coordinates are never presented as the live position. Sustained off-route drift triggers a debounced offline BRouter reroute.
-            - Build type: Debug-signed testing APK; not a production signing-key build.
-            - Welcome voice is slower and selects an installed female English TTS voice when the local engine exposes one; the actual voice remains engine-dependent.
-            - CI captures main-dashboard and navigation screenshots and injects two simulated GPS coordinates on the Android 5.0.2 API21 x86 emulator. Physical-device GPS/audio/Bluetooth validation is still required.
-          files: |
-            output/ALI-Car-System-3.11.1-api21-x86-debug.apk
+      - name: Publish verified ALI CAR 3.12.0 release
+        if: success() && github.ref == 'refs/heads/ali-car-system/3.12.0-full-repair-2026-11-20'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="ali-car-v3.12.0-api21-x86"
+          ASSETS=(
+            output/ALI-Car-System-3.12.0-api21-x86-debug.apk
             output/SHA256SUMS.txt
             output/BUILD-INFO.txt
-          fail_on_unmatched_files: true
+            output/INSTALL-MIGRATION-3.12.0.md
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            gh release edit "$TAG" --title "ALI CAR 3.12.0 — Android 5 / x86" --notes-file ali-car-system/RELEASE-NOTES-3.12.0.md --prerelease
+          else
+            gh release create "$TAG" "${ASSETS[@]}" --title "ALI CAR 3.12.0 — Android 5 / x86" --notes-file ali-car-system/RELEASE-NOTES-3.12.0.md --prerelease --target "$GITHUB_SHA"
+          fi
