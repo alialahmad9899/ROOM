@@ -33,13 +33,17 @@ public final class NavigationActivitySmokeTest {
         assertNotNull("Save/reopen parking position",content.findViewWithTag("navigation_parking"));
         assertNotNull("Automatic day/night map control",content.findViewWithTag("navigation_night_mode"));
         assertNotNull("Map night overlay",content.findViewWithTag("navigation_night_overlay"));
+        assertNotNull("Map-first tools toggle",content.findViewWithTag("navigation_tools_toggle"));
+        assertNotNull("Map-first guidance toggle",content.findViewWithTag("navigation_guidance_toggle"));
+        assertEquals(View.GONE,content.findViewWithTag("navigation_tools_panel").getVisibility());
+        assertEquals(View.GONE,content.findViewWithTag("navigation_guidance_panel").getVisibility());
     }
 
     @Test(timeout = 240000)
     public void bundledOfflineMapsFinishInstallingAndActivateTheTileProvider() {
         NavigationActivity screen=activity.getActivity();
         long deadline=SystemClock.elapsedRealtime()+180000L;
-        boolean[] state=new boolean[4];
+        boolean[] state=new boolean[5];
         String[] status={""};
         while(SystemClock.elapsedRealtime()<deadline){
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
@@ -48,9 +52,10 @@ public final class NavigationActivitySmokeTest {
                 state[1]=screen.isOfflineTileProviderReadyForTest();
                 state[2]=screen.isOfflineTileGeneratedForTest();
                 state[3]=screen.mapCameraInsideOfflineCoverageForTest();
+                state[4]=screen.offlineCityTileMatrixCountForTest()>=4;
                 status[0]=screen.offlineStatusForTest();
             });
-            if(state[0]&&state[1]&&state[2]&&state[3])break;
+            if(state[0]&&state[1]&&state[2]&&state[3]&&state[4])break;
             SystemClock.sleep(500L);
         }
         assertTrue("Syria map, POI database and BRouter files must be installed within 180 seconds. Status: "+status[0],
@@ -72,8 +77,28 @@ public final class NavigationActivitySmokeTest {
                 screen.isOfflineTileGeneratedForTest());
         assertTrue("The default map camera must open inside available offline map coverage",
                 screen.mapCameraInsideOfflineCoverageForTest());
-        assertTrue("The visible status must only say ready after MapsForge generated an actual tile",
-                status[0].contains("عرض الخريطة: جاهز • تم توليد بلاطة فعلية"));
+        assertTrue("MapsForge must render detailed street tiles in at least four Syrian cities; rendered="
+                +screen.offlineCityTileMatrixCountForTest(),screen.offlineCityTileMatrixCountForTest()>=4);
+        assertTrue("The visible status must only say ready after the city tile matrix is verified",
+                status[0].contains("عرض الخريطة: جاهز"));
+    }
+
+    @Test public void mapPanelsAreCollapsedByDefaultAndCanBeToggled(){
+        NavigationActivity screen=activity.getActivity();
+        View content=screen.findViewById(android.R.id.content);
+        View tools=content.findViewWithTag("navigation_tools_toggle");
+        View guidance=content.findViewWithTag("navigation_guidance_toggle");
+        View toolsPanel=content.findViewWithTag("navigation_tools_panel");
+        View guidancePanel=content.findViewWithTag("navigation_guidance_panel");
+        assertNotNull(tools);assertNotNull(guidance);assertNotNull(toolsPanel);assertNotNull(guidancePanel);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(()->tools.performClick());
+        assertEquals(View.VISIBLE,toolsPanel.getVisibility());
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(()->tools.performClick());
+        assertEquals(View.GONE,toolsPanel.getVisibility());
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(()->guidance.performClick());
+        assertEquals(View.VISIBLE,guidancePanel.getVisibility());
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(()->guidance.performClick());
+        assertEquals(View.GONE,guidancePanel.getVisibility());
     }
 
     @Test public void canSwitchBetweenFreeMapAndGuidedDrivingWithoutGps(){
