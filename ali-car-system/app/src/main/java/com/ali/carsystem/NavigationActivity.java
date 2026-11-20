@@ -48,6 +48,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private boolean offlineMapRenderFailed;
     private volatile boolean offlineTileGenerated;
     private boolean offlineTileVerificationRunning;
+    private boolean offlineTileSourcePreparing;
+    private int offlineCityTileMatrixCount;
+    private AsyncTask<Void,Void,MapsForgeTileSource> offlineTileSourceTask;
     private static final int REQUEST_IMPORT_OFFLINE_MAPS=8401;
     private FusedLocationProviderClient fusedClient;private LocationCallback fusedCallback;
     private boolean fusedRegistered,fusedRequestPending,offlinePreparationRunning;private int gmsAvailabilityCode=-1;
@@ -234,7 +237,22 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         LinearLayout.LayoutParams nightLp=new LinearLayout.LayoutParams(0,dp(42),1);nightLp.setMargins(dp(5),0,0,0);
         savedActions.addView(nightModeButton,nightLp);
         panel.addView(savedActions,new LinearLayout.LayoutParams(-1,dp(44)));
+        panel.setTag("navigation_tools_panel");
         FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(dp(560),-2,Gravity.TOP|Gravity.LEFT);pp.setMargins(dp(16),dp(16),dp(16),0);root.addView(panel,pp);
+        panel.setVisibility(View.GONE);
+        Button toolsToggleButton=new Button(this);toolsToggleButton.setTag("navigation_tools_toggle");
+        styleButton(toolsToggleButton,"بحث وأدوات",0xF20A1B2A);toolsToggleButton.setTextSize(12);
+        FrameLayout.LayoutParams toolsToggleLp=new FrameLayout.LayoutParams(dp(154),dp(42),Gravity.TOP|Gravity.RIGHT);
+        toolsToggleLp.setMargins(0,dp(70),dp(18),0);root.addView(toolsToggleButton,toolsToggleLp);
+        toolsToggleButton.setOnClickListener(v->{
+            boolean show=panel.getVisibility()!=View.VISIBLE;
+            panel.setVisibility(show?View.VISIBLE:View.GONE);
+            toolsToggleButton.setText(show?"إخفاء الأدوات":"بحث وأدوات");
+        });
+        heading.setOnClickListener(v->{
+            panel.setVisibility(View.GONE);
+            toolsToggleButton.setText("بحث وأدوات");
+        });
         followButton=new Button(this);styleButton(followButton,"تتبّع السيارة ✓",0xF20A1B2A);FrameLayout.LayoutParams flp=new FrameLayout.LayoutParams(dp(150),dp(44),Gravity.TOP|Gravity.RIGHT);flp.setMargins(0,dp(18),dp(18),0);root.addView(followButton,flp);
         LinearLayout bottom=new LinearLayout(this);bottom.setOrientation(LinearLayout.VERTICAL);bottom.setPadding(dp(14),dp(10),dp(14),dp(10));bottom.setBackground(rounded(0xF20A1B2A,0xFF24465B,18));
         maneuver=new TextView(this);maneuver.setTag("navigation_maneuver");maneuver.setTextColor(Color.WHITE);maneuver.setTextSize(20);maneuver.setGravity(Gravity.RIGHT);maneuver.setText("بانتظار اختيار وجهة");maneuver.setPadding(0,0,0,dp(5));bottom.addView(maneuver);
@@ -253,9 +271,20 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         LinearLayout.LayoutParams stopLp=new LinearLayout.LayoutParams(0,dp(42),1);stopLp.setMargins(dp(7),0,0,0);
         backgroundActions.addView(stopBackgroundNavigationButton,stopLp);bottom.addView(backgroundActions);
 
+        bottom.setTag("navigation_guidance_panel");
         FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(dp(660),-2,Gravity.BOTTOM|Gravity.LEFT);bp.setMargins(dp(16),0,dp(16),dp(16));root.addView(bottom,bp);
+        bottom.setVisibility(View.GONE);
+        Button guidanceToggleButton=new Button(this);guidanceToggleButton.setTag("navigation_guidance_toggle");
+        styleButton(guidanceToggleButton,"تعليمات المسار",0xF20A1B2A);guidanceToggleButton.setTextSize(12);
+        FrameLayout.LayoutParams guidanceToggleLp=new FrameLayout.LayoutParams(dp(164),dp(42),Gravity.BOTTOM|Gravity.RIGHT);
+        guidanceToggleLp.setMargins(0,0,dp(18),dp(16));root.addView(guidanceToggleButton,guidanceToggleLp);
+        guidanceToggleButton.setOnClickListener(v->{
+            boolean show=bottom.getVisibility()!=View.VISIBLE;
+            bottom.setVisibility(show?View.VISIBLE:View.GONE);
+            guidanceToggleButton.setText(show?"إخفاء التوجيه":"تعليمات المسار");
+        });
         TextView attribution=new TextView(this);attribution.setText("© OpenStreetMap contributors");attribution.setTextColor(-1);attribution.setTextSize(10);attribution.setBackground(rounded(0xAA061522,0x553B6074,8));attribution.setPadding(dp(8),dp(5),dp(8),dp(5));
-        FrameLayout.LayoutParams ap=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);ap.setMargins(0,0,dp(8),dp(7));root.addView(attribution,ap);
+        FrameLayout.LayoutParams ap=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.LEFT);ap.setMargins(dp(8),0,0,dp(7));root.addView(attribution,ap);
         setContentView(root);
         saveDestinationButton.setOnClickListener(v->saveCurrentDestination());
         savedDestinationsButton.setOnClickListener(v->showSavedDestinations());
@@ -582,9 +611,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         boolean ready=OfflineMapsManager.isInstalled(this)&&OfflineMapsManager.hasOfflineRouting(this);
         boolean providerInstalled=map!=null&&offlineTileSource!=null
                 &&map.getTileProvider() instanceof MapsForgeTileProvider;
-        String renderState=offlineMapRenderFailed?"عرض الخريطة: فشل توليد البلاطة"
-                :(providerInstalled&&offlineTileGenerated?"عرض الخريطة: جاهز • تم توليد بلاطة فعلية"
-                :providerInstalled?"عرض الخريطة: جارٍ اختبار توليد البلاطة":"عرض الخريطة: بانتظار التهيئة");
+        String renderState=offlineMapRenderFailed?"عرض الخريطة: فشل فحص بلاطات المدن"
+                :(providerInstalled&&offlineTileGenerated?"عرض الخريطة: جاهز • بلاطات المدن "+offlineCityTileMatrixCount+"/5"
+                :providerInstalled?"عرض الخريطة: جارٍ فحص بلاطات المدن":"عرض الخريطة: بانتظار التهيئة");
         offlineStatus.setText((offlinePreparationRunning&&!ready
                 ?"جارٍ نسخ وتثبيت بيانات الخرائط المحلية... • ":"")+packageState+" • "+renderState);
         offlineStatus.setTextColor(ready&&!offlineMapRenderFailed&&providerInstalled&&offlineTileGenerated
@@ -594,6 +623,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     private void configureMapTiles(){
         refreshOfflineStatus();
         if(map==null)return;
+        map.setUseDataConnection(false);
         File[] maps=OfflineMapsManager.getMapFiles(this);
         if(maps.length==0){
             offlineTileSource=null;
@@ -604,21 +634,56 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                     :"الخريطة المحلية غير مثبتة — لا يتم تحميل خرائط من الإنترنت");
             return;
         }
-        try{
-            offlineMapRenderFailed=false;
-            if(sharedOfflineTileSource==null){
-                synchronized(NavigationActivity.class){
-                    if(sharedOfflineTileSource==null){
-                        MapsForgeTileSource.createInstance(getApplication());
-                        AssetsRenderTheme cockpitTheme=new AssetsRenderTheme(
-                                getAssets(),"mapsforge/","ali-car-dark.xml");
-                        sharedOfflineTileSource=MapsForgeTileSource.createFromFiles(
-                                maps,cockpitTheme,"ALI-CAR-COCKPIT-FLAT","ar");
+        if(offlineTileSource!=null){
+            attachOfflineTileSource(offlineTileSource);
+            return;
+        }
+        if(offlineTileSourcePreparing)return;
+        offlineTileSourcePreparing=true;
+        if(status!=null)status.setText("جارٍ تهيئة محرك الخريطة المحلية في الخلفية...");
+        offlineTileSourceTask=new AsyncTask<Void,Void,MapsForgeTileSource>(){
+            private String failure;
+            @Override protected MapsForgeTileSource doInBackground(Void... ignored){
+                try{
+                    if(sharedOfflineTileSource!=null)return sharedOfflineTileSource;
+                    synchronized(NavigationActivity.class){
+                        if(sharedOfflineTileSource==null){
+                            MapsForgeTileSource.createInstance(getApplication());
+                            AssetsRenderTheme cockpitTheme=new AssetsRenderTheme(
+                                    getAssets(),"mapsforge/","ali-car-dark.xml");
+                            sharedOfflineTileSource=MapsForgeTileSource.createFromFiles(
+                                    maps,cockpitTheme,"ALI-CAR-COCKPIT-FLAT","ar");
+                        }
                     }
+                    return sharedOfflineTileSource;
+                }catch(Exception error){
+                    failure=error.getClass().getSimpleName()+": "+String.valueOf(error.getMessage());
+                    return null;
                 }
             }
-            offlineTileSource=sharedOfflineTileSource;
+            @Override protected void onPostExecute(MapsForgeTileSource source){
+                offlineTileSourcePreparing=false;
+                offlineTileSourceTask=null;
+                if(isFinishing()||map==null)return;
+                if(source==null){
+                    offlineTileSource=null;
+                    offlineMapRenderFailed=true;
+                    map.setUseDataConnection(false);
+                    refreshOfflineStatus();
+                    if(status!=null)status.setText("تعذر تهيئة الخريطة المحلية: "+failure+" • لم يتم تشغيل خرائط الإنترنت كبديل");
+                    return;
+                }
+                attachOfflineTileSource(source);
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+    }
+    private void attachOfflineTileSource(MapsForgeTileSource source){
+        if(map==null||source==null)return;
+        try{
+            offlineMapRenderFailed=false;
+            offlineTileSource=source;
             offlineTileGenerated=false;
+            map.setUseDataConnection(false);
             map.setTileProvider(new MapsForgeTileProvider(new SimpleRegisterReceiver(this),offlineTileSource,null));
             centerMapOnOfflineCoverage();
             refreshOfflineStatus();
@@ -663,12 +728,47 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
             int y=MapView.getTileSystem().getTileYFromLatitude(latitude,zoom);
             long tileIndex=MapTileIndex.getTileIndex(zoom,x,y);
             android.graphics.drawable.Drawable tile=offlineTileSource.renderTile(tileIndex);
-            return tile!=null;
+            if(tile==null)return false;
+            android.graphics.Bitmap bitmap;
+            if(tile instanceof android.graphics.drawable.BitmapDrawable
+                    &&((android.graphics.drawable.BitmapDrawable)tile).getBitmap()!=null){
+                bitmap=((android.graphics.drawable.BitmapDrawable)tile).getBitmap();
+            }else{
+                int width=Math.max(256,tile.getIntrinsicWidth());
+                int height=Math.max(256,tile.getIntrinsicHeight());
+                bitmap=android.graphics.Bitmap.createBitmap(width,height,android.graphics.Bitmap.Config.ARGB_8888);
+                android.graphics.Canvas canvas=new android.graphics.Canvas(bitmap);
+                tile.setBounds(0,0,width,height);
+                tile.draw(canvas);
+            }
+            java.util.HashSet<Integer> colors=new java.util.HashSet<>();
+            for(int y0=4;y0<bitmap.getHeight();y0+=4){
+                for(int x0=4;x0<bitmap.getWidth();x0+=4){
+                    int color=bitmap.getPixel(x0,y0);
+                    if(android.graphics.Color.alpha(color)>0)colors.add(color);
+                    if(colors.size()>=6)return true;
+                }
+            }
+            return false;
         }catch(Exception error){
             AppDiagnostics.record(this,"Render offline MapsForge tile test",error);
             return false;
         }
     }
+    private boolean verifyOfflineCityTileMatrix(){
+        double[][] cities={
+                {33.5138d,36.2765d}, // Damascus
+                {34.7308d,36.7094d}, // Homs
+                {36.2021d,37.1343d}, // Aleppo
+                {35.5317d,35.7917d}, // Latakia
+                {32.6250d,36.1050d}  // Daraa
+        };
+        int rendered=0;
+        for(double[] city:cities)if(renderOfflineTileForTest(city[0],city[1],10))rendered++;
+        offlineCityTileMatrixCount=rendered;
+        return rendered>=4;
+    }
+    int offlineCityTileMatrixCountForTest(){return offlineCityTileMatrixCount;}
     boolean mapCameraInsideOfflineCoverageForTest(){
         if(map==null||offlineTileSource==null)return false;
         try{
@@ -708,9 +808,9 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         offlineTileVerificationRunning=true;
         new AsyncTask<Void,Void,Boolean>(){
             protected Boolean doInBackground(Void...ignored){
-                for(int attempt=0;attempt<16;attempt++){
-                    if(renderOfflineTileForTest(33.5138d,36.2765d,10))return true;
-                    try{Thread.sleep(500L);}catch(InterruptedException error){Thread.currentThread().interrupt();return false;}
+                for(int attempt=0;attempt<8;attempt++){
+                    if(verifyOfflineCityTileMatrix())return true;
+                    try{Thread.sleep(750L);}catch(InterruptedException error){Thread.currentThread().interrupt();return false;}
                 }
                 return false;
             }
@@ -721,8 +821,8 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 refreshOfflineStatus();
                 if(status!=null&&destination==null){
                     status.setText(offlineTileGenerated
-                            ?"تم توليد بلاطة خريطة سوريا فعلياً • الخريطة دون إنترنت جاهزة"
-                            :"ملفات الخريطة موجودة لكن تعذر توليد بلاطة فعلية • راجع تقرير التشخيص");
+                            ?"تم التحقق من رسم "+offlineCityTileMatrixCount+"/5 بلاطات مدن سورية • الخرائط دون إنترنت جاهزة"
+                            :"فشل فحص بلاطات المدن ("+offlineCityTileMatrixCount+"/5) • راجع سلامة بيانات الخريطة والتغطية");
                 }
                 if(map!=null)map.invalidate();
             }
@@ -730,17 +830,24 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
 
     private void ensureBundledOfflineData(){
-        if(OfflineMapsManager.isInstalled(this)&&OfflineMapsManager.hasOfflineRouting(this)){
-            refreshOfflineStatus();
-            return;
-        }
+        if(offlinePreparationRunning)return;
         offlinePreparationRunning=true;
         refreshOfflineStatus();
-        if(status!=null)status.setText("جارٍ تجهيز الخريطة المحلية وبيانات التوجيه...");
+        if(status!=null)status.setText("جارٍ التحقق من سلامة خرائط سوريا وتهيئة البيانات المحلية...");
         new AsyncTask<Void,Void,String>(){
             protected String doInBackground(Void...ignored){
-                try{OfflineMapsManager.ensureBundledAssets(getApplicationContext());return null;}
-                catch(Exception error){return error.getMessage()==null?error.getClass().getSimpleName():error.getMessage();}
+                try{
+                    Context app=getApplicationContext();
+                    boolean ready=OfflineMapsManager.isInstalled(app)
+                            &&OfflineMapsManager.hasOfflineRouting(app)
+                            &&OfflineMapsManager.verifyInstalledBundle(app);
+                    if(!ready)OfflineMapsManager.ensureBundledAssets(app);
+                    if(!OfflineMapsManager.verifyInstalledBundle(app))
+                        throw new IllegalStateException("فشل التحقق الكامل من SHA-256 بعد تجهيز حزمة الخرائط");
+                    return null;
+                }catch(Exception error){
+                    return error.getMessage()==null?error.getClass().getSimpleName():error.getMessage();
+                }
             }
             protected void onPostExecute(String error){
                 offlinePreparationRunning=false;
@@ -748,10 +855,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
                 configureMapTiles();
                 refreshOfflineStatus();
                 String packageState=OfflineMapsManager.status(NavigationActivity.this);
-                if(error!=null)status.setText("تعذر تجهيز خريطة سوريا المضمّنة: "+error+" • "+packageState);
+                if(error!=null)status.setText("تعذر التحقق أو تجهيز خريطة سوريا: "+error+" • "+packageState);
                 else if(!areOfflineAssetsReadyForTest()||!isOfflineTileProviderReadyForTest())
-                    status.setText("اكتمل النسخ لكن لم تكتمل تهيئة مزود الخريطة: "+packageState);
-                else status.setText("تم تثبيت الخريطة وقاعدة الأماكن والتوجيه دون إنترنت بنجاح");
+                    status.setText("اكتمل التحقق لكن لم تكتمل تهيئة مزود الخريطة: "+packageState);
+                else status.setText("تم التحقق من بصمات الخرائط وقاعدة الأماكن وبيانات التوجيه محلياً");
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
@@ -809,12 +916,13 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         return GeoMath.isUsableFix(l.getTime(),System.currentTimeMillis(),maxAgeMs,0);
     }
     private boolean isNavigationFixUsable(Location l){
-        return isFreshLocation(l,180000)&&l.hasAccuracy()
-                &&GeoMath.isAccuracyUsable(l.getAccuracy(),250f);
+        return isFreshLocation(l,LocationFixPolicy.NAVIGATION_MAX_FIX_AGE_MS)&&l.hasAccuracy()
+                &&GeoMath.isAccuracyUsable(l.getAccuracy(),LocationFixPolicy.NAVIGATION_MAX_ACCURACY_METERS);
     }
     private boolean isRouteStartUsable(Location l){
-        return isFreshLocation(l,180000L)&&l.hasAccuracy()
-                &&GeoMath.isAccuracyUsable(l.getAccuracy(),1000f)
+        return isFreshLocation(l,LocationFixPolicy.ROUTE_START_MAX_FIX_AGE_MS)&&l.hasAccuracy()
+                &&GeoMath.isAccuracyUsable(l.getAccuracy(),LocationFixPolicy.ROUTE_START_MAX_ACCURACY_METERS)
+                &&Double.isFinite(l.getLatitude())&&Double.isFinite(l.getLongitude())
                 &&Math.abs(l.getLatitude())<=90d&&Math.abs(l.getLongitude())<=180d;
     }
     private void loadLastKnown(){
@@ -1229,10 +1337,10 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         if(candidate==null)return false;
         double lat=candidate.getLatitude(),lon=candidate.getLongitude();
         if(Double.isNaN(lat)||Double.isNaN(lon)||Math.abs(lat)>90d||Math.abs(lon)>180d)return false;
-        if(!isFreshLocation(candidate,180000L))return false;
+        if(!isFreshLocation(candidate,LocationFixPolicy.NAVIGATION_MAX_FIX_AGE_MS))return false;
         float accuracy=candidate.hasAccuracy()?candidate.getAccuracy():999f;
-        if(!GeoMath.isAccuracyUsable(accuracy,1000f))return false;
-        if(current!=null&&isFreshLocation(current,180000L)&&!isNewerFix(candidate,current))return false;
+        if(!GeoMath.isAccuracyUsable(accuracy,LocationFixPolicy.ROUTE_START_MAX_ACCURACY_METERS))return false;
+        if(current!=null&&isFreshLocation(current,LocationFixPolicy.NAVIGATION_MAX_FIX_AGE_MS)&&!isNewerFix(candidate,current))return false;
         return true;
     }
     boolean acceptsLocationForTest(Location candidate){return shouldAcceptIncomingFix(candidate);}
@@ -1274,6 +1382,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
     }
     @Override protected void onResume(){
         super.onResume();if(map!=null)map.onResume();
+        if(offlineTileSource==null&&!offlineTileSourcePreparing)configureMapTiles();
         applyMapNightMode();
         // Never carry a stale marker across a long pause; reacquire only from live providers.
         if(!isRouteStartUsable(current))current=null;
