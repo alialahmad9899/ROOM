@@ -309,7 +309,7 @@ require("dashboard_settings_button" in MAIN and "dashboard_media_previous" in MA
 require("offlineTileGenerated" in NAV and "renderOfflineTileForTest" in NAV
         and "getTileProvider() instanceof MapsForgeTileProvider" in NAV
         and "verifyOfflineCityTileMatrix" in NAV
-        and "offlineCityTileMatrixCount>=4" in NAV,
+        and "return rendered>=4;" in NAV,
         "offline navigation verifies non-empty rendered MapsForge detail in at least four city tiles before declaring the map ready")
 require("offlineTileSourcePreparing" in NAV and "doInBackground(Void... ignored)" in NAV
         and "MapsForgeTileSource.createFromFiles" in NAV,
