@@ -12,16 +12,28 @@ android {
         applicationId 'com.ali.carsystem'
         minSdk 21
         targetSdk 22
-        versionCode 3111
-        versionName '3.11.1'
+        versionCode 3120
+        versionName '3.12.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
+    // Public test-only signing identity: never reuse this certificate for production.
+    signingConfigs {
+        ciTest {
+            storeFile file('ci/ali-car-ci-test.jks')
+            storePassword 'ALICAR-TEST-ONLY-2026'
+            keyAlias 'ali-car-test'
+            keyPassword 'ALICAR-TEST-ONLY-2026'
+        }
+    }
     buildTypes {
-        debug { applicationIdSuffix '' }
+        debug {
+            applicationIdSuffix ''
+            signingConfig signingConfigs.ciTest
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
