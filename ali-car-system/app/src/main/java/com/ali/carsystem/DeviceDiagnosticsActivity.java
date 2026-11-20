@@ -19,6 +19,7 @@ import android.net.wifi.WifiManager;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.AsyncTask;
 import android.os.Debug;
 import android.os.Environment;
 import android.os.StatFs;
@@ -39,6 +40,7 @@ import java.util.Locale;
 public final class DeviceDiagnosticsActivity extends BaseActivity {
     private LinearLayout rows;
     private String latestReport="";
+    private TextView offlineShaStatus;
 
     private int dp(int value){return (int)(value*getResources().getDisplayMetrics().density+.5f);}
 
@@ -93,7 +95,7 @@ public final class DeviceDiagnosticsActivity extends BaseActivity {
         d.setStroke(dp(1),stroke);return d;
     }
 
-    private void addRow(String tag,String label,String value,boolean good){
+    private TextView addRow(String tag,String label,String value,boolean good){
         LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(12),dp(8),dp(12),dp(8));card.setBackground(round(0xCC102332,0x663D7188));
         TextView heading=new TextView(this);heading.setText(label);heading.setTextSize(12);
@@ -105,6 +107,7 @@ public final class DeviceDiagnosticsActivity extends BaseActivity {
         card.addView(detail,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(7);
         rows.addView(card,lp);
+        return detail;
     }
 
     private String yesNo(boolean value){return value?"مفعّل":"غير مفعّل";}
@@ -245,10 +248,28 @@ public final class DeviceDiagnosticsActivity extends BaseActivity {
                 +" • BRouter: "+yesNo(routingReady)+" • manifest والأحجام: "+yesNo(manifestReady)
                 +" • مساحة الحزمة: "+mb(requiredMapBytes)+" • المتاح: "+mb(availableMapBytes);
         addRow("device_diagnostics_offline_maps","الخرائط دون إنترنت",mapLine,offlineGood);
+        offlineShaStatus=addRow("device_diagnostics_offline_sha256","سلامة محتوى الخرائط",
+                "جارٍ التحقق من SHA-256 في الخلفية...",false);
         report.append("Offline maps: ").append(offline).append("\n")
                 .append("Map package required: ").append(mb(requiredMapBytes))
                 .append(", available: ").append(mb(availableMapBytes))
-                .append(", manifest/size valid: ").append(manifestReady).append("\n");
+                .append(", manifest/size valid: ").append(manifestReady)
+                .append(", SHA-256: verification running").append("\n");
+        final String integrityPrefix="Offline maps SHA-256: ";
+        new AsyncTask<Void,Void,Boolean>(){
+            @Override protected Boolean doInBackground(Void... ignored){
+                return OfflineMapsManager.verifyInstalledBundle(getApplicationContext());
+            }
+            @Override protected void onPostExecute(Boolean verified){
+                if(isFinishing()||offlineShaStatus==null)return;
+                String line=Boolean.TRUE.equals(verified)
+                        ?"SHA-256 لجميع ملفات الخريطة والأماكن والتوجيه مطابق"
+                        :"فشل SHA-256 أو الحزمة غير مثبتة بالكامل — أعد التحقق أو تثبيت الخرائط";
+                offlineShaStatus.setText(line);
+                offlineShaStatus.setTextColor(Boolean.TRUE.equals(verified)?0xFFE8F6F8:0xFFFFD18B);
+                latestReport=latestReport+"\n"+integrityPrefix+verified;
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
         boolean mapThemeReady=false;
         try(java.io.InputStream theme=getAssets().open("mapsforge/ali-car-dark.xml")){
             mapThemeReady=theme.read()>=0;
