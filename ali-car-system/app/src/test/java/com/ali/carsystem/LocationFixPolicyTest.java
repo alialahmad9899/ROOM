@@ -30,6 +30,26 @@ public final class LocationFixPolicyTest {
         assertTrue(LocationFixPolicy.isFresh(0L,5_000L,0L,10_000L,5_000L));
         assertFalse(LocationFixPolicy.isFresh(0L,11_000L,0L,10_000L,5_000L));
     }
+    @Test public void onlySatelliteProviderCanDriveVehicleOdometer() {
+        assertTrue(LocationFixPolicy.isGnssProvider("gps"));
+        assertFalse(LocationFixPolicy.isGnssProvider("network"));
+        assertFalse(LocationFixPolicy.isGnssProvider("fused"));
+        assertFalse(LocationFixPolicy.isGnssProvider(null));
+    }
+    @Test public void navigationRejectsOldOrUncertainLocations() {
+        assertTrue(LocationFixPolicy.isUsable(33.5,36.2,true,40f,
+                20_000_000_000L,30_000_000_000L,1_000L,11_000L,
+                LocationFixPolicy.NAVIGATION_MAX_FIX_AGE_MS,
+                LocationFixPolicy.NAVIGATION_MAX_ACCURACY_METERS));
+        assertFalse(LocationFixPolicy.isUsable(33.5,36.2,true,40f,
+                1_000_000_000L,60_000_000_000L,1_000L,60_000L,
+                LocationFixPolicy.NAVIGATION_MAX_FIX_AGE_MS,
+                LocationFixPolicy.NAVIGATION_MAX_ACCURACY_METERS));
+        assertFalse(LocationFixPolicy.isUsable(33.5,36.2,true,300f,
+                20_000_000_000L,30_000_000_000L,1_000L,11_000L,
+                LocationFixPolicy.NAVIGATION_MAX_FIX_AGE_MS,
+                LocationFixPolicy.NAVIGATION_MAX_ACCURACY_METERS));
+    }
     @Test public void rejectsImpossibleSpeedValues() {
         assertEquals(36f,LocationFixPolicy.speedKmh(10f),0.01f);
         assertEquals(0f,LocationFixPolicy.speedKmh(Float.NaN),0f);
