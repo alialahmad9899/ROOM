@@ -28,6 +28,7 @@ final class OfflineMapsManager {
     private static final long MAX_UNPACKED_BYTES = 1400L * 1024L * 1024L;
     private static final long STORAGE_SAFETY_BYTES = 32L * 1024L * 1024L;
     private static final String MANIFEST = "manifest.sha256";
+    private static volatile String verifiedBundleFingerprint;
     private static final String[] REQUIRED_FILES = {
             "syria.map", "syria-places.sqlite",
             "brouter/segments4/E35_N30.rd5", "brouter/segments4/E35_N35.rd5",
@@ -139,15 +140,30 @@ final class OfflineMapsManager {
     static boolean verifyInstalledBundle(Context context) {
         File root = getRoot(context);
         try {
-            List<ManifestEntry> entries = readManifest(new FileInputStream(new File(root, MANIFEST)));
+            File manifest = new File(root, MANIFEST);
+            List<ManifestEntry> entries = readManifest(new FileInputStream(manifest));
             if (!containsRequired(entries)) return false;
+            StringBuilder fingerprint = new StringBuilder(256);
+            fingerprint.append(manifest.length()).append(':').append(manifest.lastModified());
             for (ManifestEntry entry : entries) {
                 File file = new File(root, entry.path);
-                if (!file.isFile() || file.length() != entry.size
-                        || !entry.sha256.equalsIgnoreCase(sha256(file))) return false;
+                if (!file.isFile() || file.length() != entry.size) return false;
+                fingerprint.append('|').append(entry.path).append(':')
+                        .append(file.length()).append(':').append(file.lastModified());
             }
+            String currentFingerprint = fingerprint.toString();
+            if (currentFingerprint.equals(verifiedBundleFingerprint)) return true;
+            for (ManifestEntry entry : entries) {
+                File file = new File(root, entry.path);
+                if (!entry.sha256.equalsIgnoreCase(sha256(file))) {
+                    verifiedBundleFingerprint = null;
+                    return false;
+                }
+            }
+            verifiedBundleFingerprint = currentFingerprint;
             return true;
         } catch (Exception ignored) {
+            verifiedBundleFingerprint = null;
             return false;
         }
     }
@@ -251,7 +267,7 @@ final class OfflineMapsManager {
         return "الخريطة: " + (map ? "جاهزة" : "غير مثبتة")
                 + " • الأماكن: " + (places ? "جاهزة" : "غير مثبتة")
                 + " • توجيه دون إنترنت: " + (routing ? "جاهز" : "بيانات التوجيه ناقصة")
-                + " • سلامة الملفات: " + (integrity ? "البيانات موثقة" : "يلزم التحقق أو إعادة التثبيت");
+                + " • manifest والأحجام: " + (integrity ? "مطابقة" : "يلزم التحقق أو إعادة التثبيت");
     }
 
     static synchronized void ensureBundledAssets(Context context) throws Exception {
@@ -259,7 +275,7 @@ final class OfflineMapsManager {
         List<ManifestEntry> expected = readManifest(assets.open("offline/" + MANIFEST));
         File root = getRoot(context);
         if (getMapFile(context) != null && getPlacesDatabase(context) != null
-                && hasOfflineRouting(context) && hasValidManifest(root)) return;
+                && hasOfflineRouting(context) && verifyInstalledBundle(context)) return;
         long expectedBytes = 0L;
         for (ManifestEntry entry : expected) expectedBytes = Math.addExact(expectedBytes, entry.size);
         requireStorage(context, expectedBytes, directoryBytes(root));
@@ -287,6 +303,7 @@ final class OfflineMapsManager {
             throw new IllegalStateException("تعذر تثبيت بيانات الخرائط المضمّنة");
         }
         deleteTree(backup);
+        verifiedBundleFingerprint = null;
     }
 
     private static boolean verifyDirectory(File root, List<ManifestEntry> entries) throws Exception {
