@@ -47,6 +47,7 @@ public final class LocationTrackingService extends Service implements LocationLi
     private float maxSpeedKmh;
     private float accuracyMeters = -1f;
     private long lastNotificationAt;
+    private long lastNetworkStatusAt;
     private boolean gpsRegistered;
     private boolean networkRegistered;
     private long lastAcceptedFixElapsedNanos;
@@ -189,7 +190,7 @@ public final class LocationTrackingService extends Service implements LocationLi
     }
 
     private boolean isUsableCurrentFix(Location location) {
-        if (location == null) return false;
+        if (location == null || !LocationFixPolicy.isGnssProvider(location.getProvider())) return false;
         return LocationFixPolicy.isUsable(
                 location.getLatitude(), location.getLongitude(),
                 location.hasAccuracy(), location.hasAccuracy() ? location.getAccuracy() : -1f,
@@ -199,9 +200,20 @@ public final class LocationTrackingService extends Service implements LocationLi
     }
 
     @Override public void onLocationChanged(Location location) {
+        // Network estimates can locate the device coarsely, but must never inflate
+        // vehicle speed, trip distance or the odometer.
+        if (location != null && !LocationFixPolicy.isGnssProvider(location.getProvider())) {
+            long now = SystemClock.elapsedRealtime();
+            if (now - lastNetworkStatusAt >= 15000L) {
+                lastNetworkStatusAt = now;
+                publishStatus("موقع الشبكة متاح بشكل تقريبي؛ عداد السرعة والمسافة ينتظر تثبيت GPS بالأقمار الصناعية");
+            }
+            return;
+        }
         // Never let cached, inaccurate, future-dated or out-of-order fixes affect
         // speed, distance, odometer, maximum speed or the dashboard's GPS status.
         if (!isUsableCurrentFix(location)) return;
+        lastNetworkStatusAt = 0L;
         long now = location.getElapsedRealtimeNanos();
         long wallTime = location.getTime();
         if (!LocationFixPolicy.isNewer(
