@@ -7,6 +7,11 @@ import android.view.ViewGroup;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.rule.ActivityTestRule;
+import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.matcher.ViewMatchers.withText;
+import static androidx.test.espresso.assertion.ViewAssertions.matches;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.action.ViewActions.click;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -54,6 +59,26 @@ public final class DashboardDockNavigationSmokeTest {
         clickDockIconAndExpectActivity(0, NavigationActivity.class);
         clickDockIconAndExpectActivity(2, MusicActivity.class);
         clickDockIconAndExpectActivity(4, YouTubeSearchActivity.class);
+    }
+
+    @Test public void appsTileShowsTheAppsMenuAndItsYoutubeItemUsesTheInternalPlayer() {
+        MainActivity main = activity.getActivity();
+        waitForWelcomeToClose(main);
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        ViewGroup content = (ViewGroup) main.findViewById(android.R.id.content);
+        View appsIcon = content.findViewWithTag("dashboard_dock_icon_3");
+        assertNotNull("Apps dock icon must exist", appsIcon);
+        assertTrue(appsIcon.isClickable());
+        Instrumentation.ActivityMonitor monitor =
+                instrumentation.addMonitor(YouTubeSearchActivity.class.getName(), null, false);
+        instrumentation.runOnMainSync(() -> appsIcon.performClick());
+        onView(withText("تطبيقات السيارة")).check(matches(isDisplayed()));
+        onView(withText("YouTube داخل ALI CAR")).perform(click());
+        Activity opened = instrumentation.waitForMonitorWithTimeout(monitor, 10000L);
+        instrumentation.removeMonitor(monitor);
+        assertNotNull("Apps-menu YouTube item must open the internal search screen", opened);
+        instrumentation.runOnMainSync(opened::finish);
+        instrumentation.waitForIdleSync();
     }
 
     @Test public void volumeControlsArePresentAndInteractive() {
