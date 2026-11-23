@@ -203,11 +203,16 @@ jobs:
       - name: Run API21 x86 UI smoke test
         id: api21-ui-test
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # This Linux runner has no usable KVM; Android Emulator requires explicit TCG opt-in.
+          ANDROID_I_WANT_MY_TCG: yes
         with:
           api-level: 21
           target: default
           arch: x86
           profile: Nexus 7
+          emulator-boot-timeout: 1200
+          disable-linux-hw-accel: true
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-metrics -partition-size 4096 -sdcard /tmp/ali-car-sdcard.img
           disable-animations: true
           working-directory: ali-car-system
