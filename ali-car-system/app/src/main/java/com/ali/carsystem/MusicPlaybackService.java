@@ -3,6 +3,10 @@ package com.ali.carsystem;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.bluetooth.BluetoothA2dp;
+import android.bluetooth.BluetoothProfile;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -67,6 +71,9 @@ public final class MusicPlaybackService extends Service
     private int pendingIndex = -1;
     private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending, resumePlaybackAfterLoad;
     private boolean resumeAfterTransientFocusLoss;
+    private final BluetoothPlaybackPolicy bluetoothPlaybackPolicy = new BluetoothPlaybackPolicy();
+    private BroadcastReceiver bluetoothReceiver;
+    private boolean bluetoothReceiverRegistered;
     private int restoredPositionMs;
     private String pendingAction;
     private Listener listener;
@@ -135,8 +142,22 @@ public final class MusicPlaybackService extends Service
         SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
         shuffle = prefs.getBoolean("shuffle", false);
         repeat = prefs.getBoolean("repeat", false);
-        resumePlaybackAfterLoad = prefs.getBoolean("resume_enabled", false);
+        boolean waitingForBluetooth = prefs.getBoolean("bluetooth_auto_paused", false);
+        bluetoothPlaybackPolicy.restore(waitingForBluetooth);
+        resumePlaybackAfterLoad = prefs.getBoolean("resume_enabled", false) && !waitingForBluetooth;
         restoredPositionMs = Math.max(0, prefs.getInt("position_ms", 0));
+        registerBluetoothReceiver();
+        if (waitingForBluetooth && audioManager != null) {
+            try {
+                if (audioManager.isBluetoothA2dpOn() && bluetoothPlaybackPolicy.onProfileConnected()) {
+                    prefs.edit().putBoolean("bluetooth_auto_paused", false)
+                            .putBoolean("resume_enabled", true).apply();
+                    resumePlaybackAfterLoad = true;
+                }
+            } catch (Exception error) {
+                AppDiagnostics.record(this, "Restore Bluetooth music route", error);
+            }
+        }
         try {
             getContentResolver().registerContentObserver(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver);
@@ -144,6 +165,84 @@ public final class MusicPlaybackService extends Service
             AppDiagnostics.record(this, "Register local music library observer", error);
         }
         loadLibraryAsync();
+    }
+
+    private void registerBluetoothReceiver() {
+        if (bluetoothReceiverRegistered) return;
+        bluetoothReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context context, Intent intent) {
+                if (intent == null || !BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED.equals(intent.getAction())) return;
+                int state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, BluetoothProfile.STATE_DISCONNECTED);
+                SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
+                if (state == BluetoothProfile.STATE_DISCONNECTED) {
+                    if (!bluetoothPlaybackPolicy.onProfileDisconnected(isPlaying())) return;
+                    resumeAfterTransientFocusLoss = false;
+                    savePlaybackPosition();
+                    mainHandler.removeCallbacks(positionSaver);
+                    try {
+                        if (player != null && prepared && player.isPlaying()) player.pause();
+                    } catch (Exception error) {
+                        AppDiagnostics.record(MusicPlaybackService.this,
+                                "Pause music after car Bluetooth disconnect", error);
+                    }
+                    prefs.edit().putBoolean("resume_enabled", true)
+                            .putBoolean("bluetooth_auto_paused", true).apply();
+                    notifyChanged();
+                } else if (state == BluetoothProfile.STATE_CONNECTED
+                        && bluetoothPlaybackPolicy.onProfileConnected()) {
+                    prefs.edit().putBoolean("resume_enabled", true)
+                            .putBoolean("bluetooth_auto_paused", false).apply();
+                    resumeMusicAfterBluetoothReconnect();
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED);
+        try {
+            registerReceiver(bluetoothReceiver, filter);
+            bluetoothReceiverRegistered = true;
+        } catch (Exception error) {
+            bluetoothReceiver = null;
+            AppDiagnostics.record(this, "Register car Bluetooth audio receiver", error);
+        }
+    }
+
+    private void resumeMusicAfterBluetoothReconnect() {
+        try {
+            if (player != null && prepared) {
+                int focus = audioManager == null ? AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+                        : audioManager.requestAudioFocus(this, AudioManager.STREAM_MUSIC,
+                                AudioManager.AUDIOFOCUS_GAIN);
+                if (focus != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                    notifyChanged();
+                    return;
+                }
+                player.start();
+                mainHandler.removeCallbacks(positionSaver);
+                mainHandler.postDelayed(positionSaver, 5000L);
+                notifyChanged();
+                return;
+            }
+            resumePlaybackAfterLoad = true;
+            if (!libraryLoaded) {
+                loadLibraryAsync();
+                return;
+            }
+            if (index < 0) restoreLastSong();
+            if (index >= 0) playAt(index);
+            else {
+                resumePlaybackAfterLoad = false;
+                notifyChanged();
+            }
+        } catch (Exception error) {
+            AppDiagnostics.record(this, "Resume music after car Bluetooth reconnect", error);
+            notifyChanged();
+        }
+    }
+
+    private void clearBluetoothAutoResumeForManualAction() {
+        bluetoothPlaybackPolicy.userRequestedPlayback();
+        getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE)
+                .edit().putBoolean("bluetooth_auto_paused", false).apply();
     }
 
     @Override public IBinder onBind(Intent intent) {
@@ -296,6 +395,7 @@ public final class MusicPlaybackService extends Service
     }
 
     public void playSongId(long songId) {
+        clearBluetoothAutoResumeForManualAction();
         if (!libraryLoaded) { loadLibraryAsync(); return; }
         for (int i = 0; i < songs.size(); i++) {
             if (songs.get(i).id == songId) {
@@ -379,7 +479,8 @@ public final class MusicPlaybackService extends Service
     }
 
     public void toggle() {
-        // A deliberate user action overrides any pending automatic focus resume.
+        // A deliberate user action overrides pending Bluetooth and focus resumes.
+        clearBluetoothAutoResumeForManualAction();
         resumeAfterTransientFocusLoss = false;
         if (player == null || index < 0) {
             if (!songs.isEmpty()) playAt(index < 0 ? 0 : index);
@@ -412,6 +513,7 @@ public final class MusicPlaybackService extends Service
     }
 
     public void next() {
+        clearBluetoothAutoResumeForManualAction();
         if (songs.isEmpty()) return;
         int nextIndex = shuffle ? new Random().nextInt(songs.size())
                 : positiveModulo(index + 1, songs.size());
@@ -419,6 +521,7 @@ public final class MusicPlaybackService extends Service
     }
 
     public void previous() {
+        clearBluetoothAutoResumeForManualAction();
         if (songs.isEmpty()) return;
         if (player != null && prepared && getPosition() > 3000) {
             try { player.seekTo(0); } catch (Exception ignored) { }
@@ -691,7 +794,7 @@ public final class MusicPlaybackService extends Service
                 .setContentTitle(title)
                 .setContentText(subtitle == null ? "" : subtitle)
                 .setContentIntent(content)
-                .setOngoing(isPlaying())
+                .setOngoing(isPlaying() || bluetoothPlaybackPolicy.isWaitingForReconnect())
                 .setOnlyAlertOnce(true)
                 .addAction(android.R.drawable.ic_media_previous, "السابق", previous)
                 .addAction(isPlaying() ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
@@ -713,11 +816,13 @@ public final class MusicPlaybackService extends Service
         update.putExtra("library_loaded", libraryLoaded);
         sendBroadcast(update);
 
-        if (playing) {
+        if (playing || bluetoothPlaybackPolicy.isWaitingForReconnect()) {
             try {
                 startForeground(NOTIFICATION_ID, buildNotification());
                 foreground = true;
-            } catch (Exception ignored) { }
+            } catch (Exception error) {
+                AppDiagnostics.record(this, "Keep music service alive for Bluetooth reconnect", error);
+            }
         } else if (foreground) {
             stopForeground(true);
             foreground = false;
@@ -755,8 +860,9 @@ public final class MusicPlaybackService extends Service
                 if (player.isPlaying()) player.setVolume(0.25f, 0.25f);
             } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
                 player.setVolume(1f, 1f);
-                boolean mayResume = AudioFocusPolicy.shouldResumeAfterTransientLoss(
-                        resumeAfterTransientFocusLoss, prefs.getBoolean("resume_enabled", false));
+                boolean mayResume = !bluetoothPlaybackPolicy.isWaitingForReconnect()
+                        && AudioFocusPolicy.shouldResumeAfterTransientLoss(
+                                resumeAfterTransientFocusLoss, prefs.getBoolean("resume_enabled", false));
                 resumeAfterTransientFocusLoss = false;
                 if (mayResume && !player.isPlaying()) {
                     player.start();
@@ -772,6 +878,10 @@ public final class MusicPlaybackService extends Service
     @Override public void onDestroy() {
         destroyed = true;
         savePlaybackPosition();
+        if (bluetoothReceiverRegistered && bluetoothReceiver != null) {
+            try { unregisterReceiver(bluetoothReceiver); } catch (Exception ignored) { }
+            bluetoothReceiverRegistered = false;
+        }
         try { getContentResolver().unregisterContentObserver(mediaStoreObserver); }
         catch (Exception ignored) { }
         mainHandler.removeCallbacksAndMessages(null);
