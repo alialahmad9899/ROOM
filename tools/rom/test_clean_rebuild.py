@@ -43,6 +43,9 @@ require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN
         "music strip with volume controls and equal responsive dashboard dials are installed")
 require(DASH.count("InstrumentDialStyle.drawFace(c,p,cx,cy,r)") == 2,"shared speedometer and analog clock face")
 require("import android.graphics.Path;" in NAV,"navigation dot heading Path import")
+require("new EmptyOfflineTileProvider(this)" in NAV
+        and (SRC/"java/com/ali/carsystem/EmptyOfflineTileProvider.java").is_file(),
+        "navigation starts with an empty offline tile provider and avoids osmdroid default approximater worker")
 require('digitalClock=label("00:00"' not in MAIN,"digital dashboard clock removed")
 require("dashboard_sleep_toggle" in MAIN and "ambient_sleep_overlay" in MAIN,"manual and automatic sleep screen")
 require("ambient_wake_button" in MAIN and "REST  •  RESET  •  DRIVE SAFE" in MAIN,"sleep clock wake control and English motto")
