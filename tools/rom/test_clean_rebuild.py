@@ -16,7 +16,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 3112" in GRADLE and "versionName '3.11.2'" in GRADLE,"ALI CAR version 3.11.1")
+require("versionCode 3112" in GRADLE and "versionName '3.11.2'" in GRADLE,"ALI CAR version 3.11.2")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -34,6 +34,7 @@ require("new NeonIconView(this,types[i],colors[i])" in MAIN,"custom dashboard ic
 require('getIdentifier("bg_dashboard","drawable"' in MAIN,"embedded drawable wallpaper")
 require("Bitmap.Config.RGB_565" in MAIN,"RGB565 decode")
 require("new AnalogClockView(this)" in MAIN and "new SpeedometerView(this)" in MAIN,"clock and speed gauge")
+require("iconView.setOnClickListener(dockClick)" in MAIN and "caption.setOnClickListener(dockClick)" in MAIN\n        and "item.setOnClickListener(dockClick)" in MAIN,\n        "custom dock icon, caption and tile all dispatch their app action")
 require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN
         and "dashboard_media_bar" in MAIN and "dashboard_volume_seekbar" in MAIN
          and MAIN.count("new LinearLayout.LayoutParams(dialSize,dialSize)") == 2,
