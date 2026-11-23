@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ali-car-system-api21-x86-${{ github.ref }}
+  group: ali-car-system-api21-x86-3.11.2-functional-repair-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
