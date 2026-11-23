@@ -34,7 +34,9 @@ require("new NeonIconView(this,types[i],colors[i])" in MAIN,"custom dashboard ic
 require('getIdentifier("bg_dashboard","drawable"' in MAIN,"embedded drawable wallpaper")
 require("Bitmap.Config.RGB_565" in MAIN,"RGB565 decode")
 require("new AnalogClockView(this)" in MAIN and "new SpeedometerView(this)" in MAIN,"clock and speed gauge")
-require("iconView.setOnClickListener(dockClick)" in MAIN and "caption.setOnClickListener(dockClick)" in MAIN\n        and "item.setOnClickListener(dockClick)" in MAIN,\n        "custom dock icon, caption and tile all dispatch their app action")
+require("iconView.setOnClickListener(dockClick)" in MAIN and "caption.setOnClickListener(dockClick)" in MAIN
+        and "item.setOnClickListener(dockClick)" in MAIN,
+        "custom dock icon, caption and tile all dispatch their app action")
 require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN
         and "dashboard_media_bar" in MAIN and "dashboard_volume_seekbar" in MAIN
          and MAIN.count("new LinearLayout.LayoutParams(dialSize,dialSize)") == 2,
