@@ -16,7 +16,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 3111" in GRADLE and "versionName '3.11.1'" in GRADLE,"ALI CAR version 3.11.1")
+require("versionCode 3112" in GRADLE and "versionName '3.11.2'" in GRADLE,"ALI CAR version 3.11.1")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -35,8 +35,9 @@ require('getIdentifier("bg_dashboard","drawable"' in MAIN,"embedded drawable wal
 require("Bitmap.Config.RGB_565" in MAIN,"RGB565 decode")
 require("new AnalogClockView(this)" in MAIN and "new SpeedometerView(this)" in MAIN,"clock and speed gauge")
 require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN
-        and "dashboard_media_bar" in MAIN and "dp(194)" in MAIN and "dp(224)" in MAIN,
-        "left media panel, right reference clock and secondary speedometer are installed")
+        and "dashboard_media_bar" in MAIN and "dashboard_volume_seekbar" in MAIN
+         and MAIN.count("new LinearLayout.LayoutParams(dialSize,dialSize)") == 2,
+        "music strip with volume controls and equal responsive dashboard dials are installed")
 require(DASH.count("InstrumentDialStyle.drawFace(c,p,cx,cy,r)") == 2,"shared speedometer and analog clock face")
 require("import android.graphics.Path;" in NAV,"navigation dot heading Path import")
 require('digitalClock=label("00:00"' not in MAIN,"digital dashboard clock removed")
@@ -209,9 +210,10 @@ require("gmsAvailabilityCode" in NAV and "gmsLocationStatus" in NAV,"Google Play
 require("windowSoftInputMode=" in MAN and "adjustResize" in MAN,"navigation keyboard resize")
 require("sendExtraCommand" in NAV and "force_xtra_injection" in NAV and "force_time_injection" in NAV,"optional A-GPS assistance refresh")
 require("ACCESS_LOCATION_EXTRA_COMMANDS" in MAN,"GPS assistance permission")
-for name in ("GeoMathTest.java","VideoApiTest.java","ArtistMatcherTest.java","MusicFilePolicyTest.java","TripResetPolicyTest.java"):
+for name in ("GeoMathTest.java","VideoApiTest.java","ArtistMatcherTest.java","MusicFilePolicyTest.java","TripResetPolicyTest.java","BluetoothPlaybackPolicyTest.java"):
  require((APP/"src/test/java/com/ali/carsystem"/name).is_file(),"unit test "+name)
 require((APP/"src/androidTest/java/com/ali/carsystem/LaunchSmokeTest.java").is_file(),"dashboard UI smoke test")
+require((APP/"src/androidTest/java/com/ali/carsystem/DashboardDockNavigationSmokeTest.java").is_file(),"dock navigation and volume controls instrumentation test")
 require((APP/"src/androidTest/java/com/ali/carsystem/WelcomeStartupSmokeTest.java").is_file(),
         "first-boot welcome stability and deferred-startup instrumentation test")
 require((APP/"src/androidTest/java/com/ali/carsystem/DashboardSleepSmokeTest.java").is_file(),"dashboard sleep and gauge UI smoke test")
@@ -274,9 +276,10 @@ require("welcome_voice_rate" in MAIN and "setSpeechRate" in MAIN and "setPitch" 
 require("Math.min(Visualizer.getMaxCaptureRate(),10000)" in music
         and "postInvalidateDelayed(66)" in music,
         "music visualizer and disc animation are throttled for low-memory devices")
-require("openYouTubeLite" in MAIN and "https://m.youtube.com" in MAIN
-        and "YouTube Lite" in MAIN and "openRadioApp" not in MAIN,
-        "radio is removed and the dock opens the lightweight YouTube mobile site")
+require("openYouTubeInsideApp" in MAIN and "YouTubeSearchActivity.class" in MAIN
+        and "openYouTubeLite" not in MAIN and "https://m.youtube.com" not in MAIN
+        and "openRadioApp" not in MAIN,
+        "dashboard YouTube shortcut restores the in-app search and ExoPlayer route")
 require("dashboard_four_way_swipe_surface" in MAIN
         and "DashboardGesturePolicy.LEFT" in MAIN and "DashboardGesturePolicy.RIGHT" in MAIN
         and "DashboardGesturePolicy.UP" in MAIN and "DashboardGesturePolicy.DOWN" in MAIN
@@ -324,4 +327,7 @@ require("offRouteReroutePolicy.shouldReroute" in NAV
         and (APP/"src/test/java/com/ali/carsystem/OffRouteReroutePolicyTest.java").is_file(),
         "automatic offline rerouting is debounced, accuracy-gated and unit-tested")
 
-print("PASS: ALI CAR 3.10.0 cockpit, YouTube Lite shortcut, four-way gestures, GPS fix policy, offline maps and music contracts")
+require("BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
+        and "bluetoothPlaybackPolicy.isWaitingForReconnect()" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8"),
+        "music pauses on active A2DP disconnect and resumes only after reconnect")
+print("PASS: ALI CAR 3.11.2 cockpit, in-app YouTube, working dock, volume, equal responsive dials, Bluetooth auto-resume, offline maps and GPS contracts")
