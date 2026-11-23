@@ -190,7 +190,7 @@ public final class NavigationActivity extends BaseActivity implements LocationLi
         };
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xFF07111C);
-        map=new MapView(this);map.setTag("navigation_offline_map");map.setUseDataConnection(false);map.setMultiTouchControls(true);
+        map=new MapView(this,new EmptyOfflineTileProvider(this));map.setTag("navigation_offline_map");map.setUseDataConnection(false);map.setMultiTouchControls(true);
         // The first frame must open inside the bundled Syria map, not osmdroid's default (0,0).
         map.setInitCenter(new GeoPoint(33.5138d,36.2765d));
         map.setTilesScaledToDpi(false);
