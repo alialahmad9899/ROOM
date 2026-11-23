@@ -285,7 +285,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         if(isFinishing()||pager==null||welcomeOverlay!=null)return;
         splashPending=false;
         dismissAmbient();handler.removeCallbacks(idleTick);
-        NeonSplashView splash=new NeonSplashView(this);welcomeOverlay=splash;
+        NeonSplashView splash=new NeonSplashView(this);splash.setTag("welcome_splash_overlay");welcomeOverlay=splash;
         splash.setBackgroundColor(0xFF030B16);
         addContentView(splash,new FrameLayout.LayoutParams(-1,-1));
         // Prepare the welcome voice after the panel has appeared; GPS remains deferred.
