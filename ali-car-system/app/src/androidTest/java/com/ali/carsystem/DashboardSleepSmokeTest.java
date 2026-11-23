@@ -34,9 +34,20 @@ public final class DashboardSleepSmokeTest {
         analog.getLocationOnScreen(clockPosition);
         assertTrue("Music strip must be above the clock",
                 mediaPosition[1]<clockPosition[1]);
-        assertEquals("Analog clock keeps the reference-sized dial",
-                (int)(166*main.getResources().getDisplayMetrics().density+.5f),
-                analog.getLayoutParams().width);
+        View speed=content.findViewWithTag("dashboard_speed_gauge");
+        assertNotNull("Speedometer must be present beside the clock",speed);
+        assertEquals("Speedometer and analog clock must have identical width",
+                speed.getLayoutParams().width,analog.getLayoutParams().width);
+        assertEquals("Speedometer and analog clock must have identical height",
+                speed.getLayoutParams().height,analog.getLayoutParams().height);
+        assertTrue("Responsive cockpit dials must be large enough to read",
+                analog.getLayoutParams().width >= (int)(168*main.getResources().getDisplayMetrics().density+.5f));
+        assertNotNull("Top music strip must include volume control",
+                content.findViewWithTag("dashboard_volume_seekbar"));
+        assertNotNull("Volume decrement control must be available",
+                content.findViewWithTag("dashboard_volume_down"));
+        assertNotNull("Volume increment control must be available",
+                content.findViewWithTag("dashboard_volume_up"));
         assertEquals("HUD stays hidden until an active route is received",View.GONE,hud.getVisibility());
         assertTrue("Route HUD is placed in the top information area",
                 hud.getParent() instanceof android.widget.LinearLayout);
