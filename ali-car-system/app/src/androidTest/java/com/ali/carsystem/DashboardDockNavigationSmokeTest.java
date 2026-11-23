@@ -85,6 +85,7 @@ public final class DashboardDockNavigationSmokeTest {
 
     @Test public void volumeControlsArePresentAndInteractive() {
         MainActivity main = activity.getActivity();
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
         waitForWelcomeToClose(main);
         ViewGroup content = (ViewGroup) main.findViewById(android.R.id.content);
         SeekBar seek = (SeekBar) content.findViewWithTag("dashboard_volume_seekbar");
