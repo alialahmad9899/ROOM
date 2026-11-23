@@ -3,6 +3,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 import java.net.URLDecoder;
 import org.json.JSONObject;
+import org.json.JSONArray;
 public class VideoApiTest {
  @Test public void arabicSearchEncodingRoundTripsUtf8() throws Exception {
   String query="موسيقى عربية للسيارة", encoded=VideoApi.encodeQuery(query);
