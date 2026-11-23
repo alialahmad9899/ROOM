@@ -283,6 +283,13 @@ require("openYouTubeInsideApp" in MAIN and "YouTubeSearchActivity.class" in MAIN
         and "openYouTubeLite" not in MAIN and "https://m.youtube.com" not in MAIN
         and "openRadioApp" not in MAIN,
         "dashboard YouTube shortcut restores the in-app search and ExoPlayer route")
+require('"https://yt.chocolatemoo53.com"' in VIDEO
+        and "defaultInvidiousEndpoints()" in VIDEO
+        and "fromInvidious(data,item.title,excluded)" in VIDEO
+        and (APP/"src/test/java/com/ali/carsystem/VideoApiTest.java").is_file(),
+        "YouTube search has a live-tested Invidious stream-resolution fallback and parser tests")
+require("https://www.youtube.com" not in VIDEO and "m.youtube.com" not in VIDEO,
+        "YouTube playback stays in the embedded stream resolver, not a browser URL")
 require("dashboard_four_way_swipe_surface" in MAIN
         and "DashboardGesturePolicy.LEFT" in MAIN and "DashboardGesturePolicy.RIGHT" in MAIN
         and "DashboardGesturePolicy.UP" in MAIN and "DashboardGesturePolicy.DOWN" in MAIN
