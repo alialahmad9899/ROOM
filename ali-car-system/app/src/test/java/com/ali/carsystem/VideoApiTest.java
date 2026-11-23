@@ -24,21 +24,38 @@ public class VideoApiTest {
   assertTrue(VideoApi.defaultInvidiousEndpoints().contains("https://inv.nadeko.net"));
  }
  @Test public void extractsInvidiousDashStream() throws Exception {
-  JSONObject response=new JSONObject("{\\"title\\":\\"Dash video\\",\\"dashUrl\\":\\"https://cdn.example/manifest.mpd\\"}");
+  JSONObject response=new JSONObject();
+  response.put("title","Dash video");
+  response.put("dashUrl","https://cdn.example/manifest.mpd");
   VideoApi.StreamInfo result=VideoApi.fromInvidious(response,"fallback",null);
   assertNotNull(result);
   assertEquals(VideoApi.StreamInfo.DASH,result.kind);
   assertEquals("https://cdn.example/manifest.mpd",result.url);
  }
  @Test public void extractsInvidiousHlsStream() throws Exception {
-  JSONObject response=new JSONObject("{\\"title\\":\\"HLS video\\",\\"hlsUrl\\":\\"https://cdn.example/master.m3u8\\"}");
+  JSONObject response=new JSONObject();
+  response.put("title","HLS video");
+  response.put("hlsUrl","https://cdn.example/master.m3u8");
   VideoApi.StreamInfo result=VideoApi.fromInvidious(response,"fallback",null);
   assertNotNull(result);
   assertEquals(VideoApi.StreamInfo.HLS,result.kind);
   assertEquals("https://cdn.example/master.m3u8",result.url);
  }
  @Test public void extractsInvidiousAdaptiveMp4AudioAndVideo() throws Exception {
-  JSONObject response=new JSONObject("{\\"title\\":\\"Adaptive video\\",\\"adaptiveFormats\\":[{\\"type\\":\\"video/mp4; codecs=avc1\\",\\"url\\":\\"https://cdn.example/video.mp4\\",\\"height\\":480},{\\"type\\":\\"audio/mp4; codecs=mp4a\\",\\"url\\":\\"https://cdn.example/audio.m4a\\",\\"bitrate\\":128000}]}");
+  JSONObject video=new JSONObject();
+  video.put("type","video/mp4; codecs=avc1");
+  video.put("url","https://cdn.example/video.mp4");
+  video.put("height",480);
+  JSONObject audio=new JSONObject();
+  audio.put("type","audio/mp4; codecs=mp4a");
+  audio.put("url","https://cdn.example/audio.m4a");
+  audio.put("bitrate",128000);
+  JSONArray adaptive=new JSONArray();
+  adaptive.put(video);
+  adaptive.put(audio);
+  JSONObject response=new JSONObject();
+  response.put("title","Adaptive video");
+  response.put("adaptiveFormats",adaptive);
   VideoApi.StreamInfo result=VideoApi.fromInvidious(response,"fallback",null);
   assertNotNull(result);
   assertEquals(VideoApi.StreamInfo.SPLIT,result.kind);
