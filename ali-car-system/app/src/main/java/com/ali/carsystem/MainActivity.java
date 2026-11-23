@@ -411,10 +411,10 @@ public final class MainActivity extends BaseActivity implements LocationListener
         root.addView(all,new FrameLayout.LayoutParams(-1,-1));
 
         LinearLayout header=horizontal();
-        TextView brand=label("ALI CAR",26,Color.WHITE,true);
+        TextView brand=label("ALI CAR",30,Color.WHITE,true);
         brand.setLetterSpacing(.14f);brand.setShadowLayer(dp(8),0,0,0xFF47DFFF);
         header.addView(brand,new LinearLayout.LayoutParams(0,dp(42),1f));
-        connectionStatus=label("Wi-Fi ×  •  BT ×  •  GPS ×",10,0xFFE1EFF7,true);
+        connectionStatus=label("Wi-Fi ×  •  BT ×  •  GPS ×",12,0xFFE1EFF7,true);
         connectionStatus.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         header.addView(connectionStatus,new LinearLayout.LayoutParams(-2,dp(42)));
         ImageView settings=iconButton(R.drawable.ic_cockpit_settings,"dashboard_settings_button","الإعدادات");
@@ -436,7 +436,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
 
         // Route and trip information stay at the top, visible before the driver looks at the map.
         tripSummary=label(String.format(Locale.US,"الرحلة %.1f كم  •  السرعة %.0f كم/س",tripKm,lastDisplayedSpeed),
-                12,0xFFEAF7FC,true);
+                14,0xFFEAF7FC,true);
         tripSummary.setTag("dashboard_trip_top");
         tripSummary.setGravity(Gravity.CENTER);
         all.addView(tripSummary,new LinearLayout.LayoutParams(-1,dp(24)));
@@ -570,13 +570,13 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout clockPanel=vertical();
         clockPanel.setTag("dashboard_clock_panel");
         clockPanel.setGravity(Gravity.CENTER);
-        digitalClock=label("",32,Color.WHITE,true);
+        digitalClock=label("",34,Color.WHITE,true);
         digitalClock.setTag("dashboard_digital_clock");digitalClock.setGravity(Gravity.CENTER);
         clockPanel.addView(digitalClock,new LinearLayout.LayoutParams(-1,dp(38)));
         AnalogClockView analog=new AnalogClockView(this);
         analog.setTag("dashboard_analog_clock");
         clockPanel.addView(analog,new LinearLayout.LayoutParams(dialSize,dialSize));
-        dateLabel=label("",12,0xFFE5F4FF,true);dateLabel.setGravity(Gravity.CENTER);
+        dateLabel=label("",14,0xFFE5F4FF,true);dateLabel.setGravity(Gravity.CENTER);
         clockPanel.addView(dateLabel,new LinearLayout.LayoutParams(-1,dp(22)));
         LinearLayout.LayoutParams clockLp=new LinearLayout.LayoutParams(0,-1,1.0f);
         main.addView(clockPanel,clockLp);
@@ -617,7 +617,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         }
         LinearLayout.LayoutParams dockLp=new LinearLayout.LayoutParams(-1,dp(80));
         dockLp.topMargin=dp(2);all.addView(dock,dockLp);
-        TextView footer=label("ALI CAR  •  SMART COCKPIT",9,0xFFD7EAF2,true);
+        TextView footer=label("ALI CAR  •  SMART COCKPIT",10,0xFFD7EAF2,true);
         footer.setGravity(Gravity.CENTER);
         all.addView(footer,new LinearLayout.LayoutParams(-1,dp(14)));
         updateClock();
@@ -718,7 +718,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         TextView title=label("DRIVE CENTER  •  لوحة القيادة",20,Color.WHITE,true);
         title.setGravity(Gravity.CENTER);header.addView(title,new LinearLayout.LayoutParams(0,dp(38),1));
         all.addView(header);
-        TextView swipeBack=label("اسحب لليمين للعودة إلى الشاشة الرئيسية",10,0xFFB9D3DF,false);
+        TextView swipeBack=label("اسحب لليمين للعودة إلى الشاشة الرئيسية",12,0xFFB9D3DF,false);
         swipeBack.setTag("dashboard_secondary_swipe_hint");swipeBack.setGravity(Gravity.CENTER);
         all.addView(swipeBack,new LinearLayout.LayoutParams(-1,dp(20)));
         clusterGauge=new SpeedometerView(this);clusterGauge.setTag("dashboard_speed_gauge");clusterGauge.setSpeed(lastDisplayedSpeed);
