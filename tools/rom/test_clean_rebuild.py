@@ -232,6 +232,8 @@ require((SRC/"java/com/ali/carsystem/PhoneActivity.java").is_file()
         "secondary cockpit shortcuts retain phone, contacts and Bluetooth access")
 require((APP/"src/androidTest/java/com/ali/carsystem/OpenMusicInstallerSmokeTest.java").is_file(),"legacy bundled music removal instrumentation test")
 require((APP/"src/androidTest/java/com/ali/carsystem/NavigationActivitySmokeTest.java").is_file(),"navigation screen UI smoke test")
+require((APP/"src/androidTest/java/com/ali/carsystem/VideoApiInvidiousParserSmokeTest.java").is_file(),
+        "Android runtime tests cover Invidious JSON DASH/HLS/MP4 stream parsing")
 java="\n".join(p.read_text(encoding="utf-8") for p in (SRC/"java").rglob("*.java"))
 require("new WebView" not in java,"WebView prohibited")
 wallpaper=(ROOT/"tools"/"rom"/"materialize_dashboard_asset.py").read_text(encoding="utf-8")
