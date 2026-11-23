@@ -2,6 +2,8 @@ package com.ali.carsystem;
 
 import android.app.Activity;
 import android.app.Instrumentation;
+import android.media.AudioManager;
+import android.widget.SeekBar;
 import android.view.View;
 import android.view.ViewGroup;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -85,7 +87,7 @@ public final class DashboardDockNavigationSmokeTest {
         MainActivity main = activity.getActivity();
         waitForWelcomeToClose(main);
         ViewGroup content = (ViewGroup) main.findViewById(android.R.id.content);
-        View seek = content.findViewWithTag("dashboard_volume_seekbar");
+        SeekBar seek = (SeekBar) content.findViewWithTag("dashboard_volume_seekbar");
         View down = content.findViewWithTag("dashboard_volume_down");
         View up = content.findViewWithTag("dashboard_volume_up");
         assertNotNull("Music volume seek bar must be visible on dashboard", seek);
@@ -94,5 +96,24 @@ public final class DashboardDockNavigationSmokeTest {
         assertTrue(seek.isEnabled());
         assertTrue(down.isClickable());
         assertTrue(up.isClickable());
+
+        AudioManager audio = (AudioManager) main.getSystemService(MainActivity.AUDIO_SERVICE);
+        int original = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+        int expected;
+        if (original > 0) {
+            expected = original - 1;
+            instrumentation.runOnMainSync(down::performClick);
+            assertEquals("Volume-down button must change the media stream", expected,
+                    audio.getStreamVolume(AudioManager.STREAM_MUSIC));
+            instrumentation.runOnMainSync(up::performClick);
+        } else {
+            expected = Math.min(seek.getMax(), original + 1);
+            instrumentation.runOnMainSync(up::performClick);
+            assertEquals("Volume-up button must change the media stream", expected,
+                    audio.getStreamVolume(AudioManager.STREAM_MUSIC));
+            instrumentation.runOnMainSync(down::performClick);
+        }
+        assertEquals("Volume buttons must restore the original media level", original,
+                audio.getStreamVolume(AudioManager.STREAM_MUSIC));
     }
 }
