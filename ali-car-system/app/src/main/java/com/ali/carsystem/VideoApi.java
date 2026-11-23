@@ -35,6 +35,15 @@ final class VideoApi {
         SearchCache(List<Item> values){created=System.currentTimeMillis();items=Collections.unmodifiableList(new ArrayList<>(values));}
     }
     private static volatile long discoveryTime;
+    static List<String> defaultInvidiousEndpoints(){
+        // Public instances are volatile. Keep several fallbacks, with the currently
+        // verified instance first; discovery refresh appends any newer live instances.
+        return Collections.unmodifiableList(Arrays.asList(
+                "https://yt.chocolatemoo53.com",
+                "https://inv.nadeko.net",
+                "https://invidious.nerdvpn.de",
+                "https://invidious.tiekoetter.com"));
+    }
     private static void ensureDefaultEndpoints(){
         if(pipedCache!=null&&invidiousCache!=null)return;
         synchronized(VideoApi.class){
@@ -42,7 +51,7 @@ final class VideoApi {
                     "https://api.piped.private.coffee",
                     "https://piped-api.privacy.com.de",
                     "https://pipedapi.kavin.rocks"));
-            if(invidiousCache==null)invidiousCache=Collections.emptyList();
+            if(invidiousCache==null)invidiousCache=defaultInvidiousEndpoints();
         }
     }
     private static void scheduleDiscovery(Context context){
@@ -64,7 +73,7 @@ final class VideoApi {
     }
     private static synchronized void refresh(Context context){
         if(pipedCache!=null&&System.currentTimeMillis()-discoveryTime<20*60*1000L)return;
-        List<String> p=new ArrayList<>(),v=new ArrayList<>();
+        List<String> p=new ArrayList<>(),v=new ArrayList<>(defaultInvidiousEndpoints());
         // Known live API host aliases. The official wiki currently uses both
         // "api.piped.*" and "piped-api.*" naming forms; keep these explicit
         // fallbacks so a stale public-instance page cannot empty the list.
@@ -163,19 +172,35 @@ final class VideoApi {
         }return out;
     }
     static StreamInfo resolve(Context c,Item item,String excluded)throws Exception{
-        Exception last=null;List<String> p=new ArrayList<>();
+        Exception last=null;
+        List<String> v=new ArrayList<>();
+        if(item.base!=null&&"INVIDIOUS".equals(item.backend))v.add(item.base);
+        for(String x:invidious(c))if(!v.contains(x))v.add(x);
+
+        // Resolve on the backend which returned the selected search result first.
+        // Piped search may remain up while its /streams endpoint is failing. In that
+        // case fall back to Invidious metadata and its direct HLS/DASH/MP4 URLs.
+        if("INVIDIOUS".equals(item.backend)){
+            for(String base:v)try{
+                JSONObject data=new JSONObject(read(c,base+"/api/v1/videos/"+URLEncoder.encode(item.id,"UTF-8")+"?hl=ar"));
+                StreamInfo result=fromInvidious(data,item.title,excluded);if(result!=null)return result;
+            }catch(Exception e){last=e;}
+        }
+
+        List<String> p=new ArrayList<>();
         if(item.base!=null&&"PIPED".equals(item.backend))p.add(item.base);
         for(String x:piped(c))if(!p.contains(x))p.add(x);
         for(String base:p)try{
             JSONObject data=new JSONObject(read(c,base+"/streams/"+URLEncoder.encode(item.id,"UTF-8")));
             StreamInfo result=fromPiped(data,item.title,excluded);if(result!=null)return result;
         }catch(Exception e){last=e;}
-        List<String> v=new ArrayList<>();if(item.base!=null&&"INVIDIOUS".equals(item.backend))v.add(item.base);
-        for(String x:invidious(c))if(!v.contains(x))v.add(x);
-        for(String base:v)try{
-            JSONObject data=new JSONObject(read(c,base+"/api/v1/videos/"+URLEncoder.encode(item.id,"UTF-8")+"?hl=ar"));
-            StreamInfo result=fromInvidious(data,item.title,excluded);if(result!=null)return result;
-        }catch(Exception e){last=e;}
+
+        if(!"INVIDIOUS".equals(item.backend)){
+            for(String base:v)try{
+                JSONObject data=new JSONObject(read(c,base+"/api/v1/videos/"+URLEncoder.encode(item.id,"UTF-8")+"?hl=ar"));
+                StreamInfo result=fromInvidious(data,item.title,excluded);if(result!=null)return result;
+            }catch(Exception e){last=e;}
+        }
         throw new IOException(last==null?"لا يوجد مصدر فيديو متوافق (MP4 أو DASH أو HLS)":last.getMessage(),last);
     }
     private static StreamInfo fromPiped(JSONObject data,String fallback,String excluded){
@@ -200,7 +225,7 @@ final class VideoApi {
             return new StreamInfo(hls,null,title,StreamInfo.HLS);
         return null;
     }
-    private static StreamInfo fromInvidious(JSONObject data,String fallback,String excluded){
+    static StreamInfo fromInvidious(JSONObject data,String fallback,String excluded){
         String title=data.optString("title",fallback);
         List<JSONObject> muxed=new ArrayList<>();JSONArray formats=data.optJSONArray("formatStreams");
         if(formats!=null)for(int i=0;i<formats.length();i++){
