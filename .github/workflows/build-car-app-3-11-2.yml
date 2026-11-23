@@ -41,6 +41,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Configure Gradle caching before BRouter and app builds.
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.7"
+
       - name: Install Android build and archive tools
         run: |
           command -v git
@@ -53,7 +58,17 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/offline-map-build"
           git clone --depth 1 --branch v1.7.10 https://github.com/abrensch/brouter.git "$GITHUB_WORKSPACE/offline-map-build/brouter"
           cd "$GITHUB_WORKSPACE/offline-map-build/brouter"
-          ./gradlew --no-daemon :brouter-server:smallJar
+          for attempt in 1 2 3; do
+            if ./gradlew --no-daemon :brouter-server:smallJar; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "BRouter dependency resolution failed after 3 attempts"
+              exit 1
+            fi
+            echo "BRouter dependency resolution attempt $attempt failed; retrying after backoff"
+            sleep $((attempt * 45))
+          done
           JAR="$(find brouter-server/build/libs -maxdepth 1 -type f -name 'brouter-*-ro.jar' | head -n 1)"
           test -s "$JAR"
           mkdir -p "$GITHUB_WORKSPACE/ali-car-system/app/libs"
@@ -141,10 +156,6 @@ jobs:
 
       - name: Install Android platform and emulator
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'emulator' 'system-images;android-21;default;x86'
-
-      - uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: "8.7"
 
       - name: Run unit tests and assemble
         working-directory: ali-car-system
