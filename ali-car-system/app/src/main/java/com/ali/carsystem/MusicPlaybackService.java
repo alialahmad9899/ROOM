@@ -74,6 +74,7 @@ public final class MusicPlaybackService extends Service
     private final BluetoothPlaybackPolicy bluetoothPlaybackPolicy = new BluetoothPlaybackPolicy();
     private BroadcastReceiver bluetoothReceiver;
     private boolean bluetoothReceiverRegistered;
+    private boolean bluetoothA2dpConnected;
     private int restoredPositionMs;
     private String pendingAction;
     private Listener listener;
@@ -139,6 +140,8 @@ public final class MusicPlaybackService extends Service
     @Override public void onCreate() {
         super.onCreate();
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+        try { bluetoothA2dpConnected = audioManager != null && audioManager.isBluetoothA2dpOn(); }
+        catch (Exception ignored) { bluetoothA2dpConnected = false; }
         SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
         shuffle = prefs.getBoolean("shuffle", false);
         repeat = prefs.getBoolean("repeat", false);
@@ -175,6 +178,7 @@ public final class MusicPlaybackService extends Service
                 int state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, BluetoothProfile.STATE_DISCONNECTED);
                 SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
                 if (state == BluetoothProfile.STATE_DISCONNECTED) {
+                    bluetoothA2dpConnected = false;
                     if (!bluetoothPlaybackPolicy.onProfileDisconnected(isPlaying())) return;
                     resumeAfterTransientFocusLoss = false;
                     savePlaybackPosition();
@@ -188,11 +192,13 @@ public final class MusicPlaybackService extends Service
                     prefs.edit().putBoolean("resume_enabled", true)
                             .putBoolean("bluetooth_auto_paused", true).apply();
                     notifyChanged();
-                } else if (state == BluetoothProfile.STATE_CONNECTED
-                        && bluetoothPlaybackPolicy.onProfileConnected()) {
-                    prefs.edit().putBoolean("resume_enabled", true)
-                            .putBoolean("bluetooth_auto_paused", false).apply();
-                    resumeMusicAfterBluetoothReconnect();
+                } else if (state == BluetoothProfile.STATE_CONNECTED) {
+                    bluetoothA2dpConnected = true;
+                    if (bluetoothPlaybackPolicy.onProfileConnected()) {
+                        prefs.edit().putBoolean("resume_enabled", true)
+                                .putBoolean("bluetooth_auto_paused", false).apply();
+                        resumeMusicAfterBluetoothReconnect();
+                    }
                 }
             }
         };
@@ -842,17 +848,33 @@ public final class MusicPlaybackService extends Service
         if (player == null || !prepared) return;
         try {
             SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
+            boolean wasPlaying = player.isPlaying();
+            boolean a2dpCurrentlyOn = false;
+            try { a2dpCurrentlyOn = audioManager != null && audioManager.isBluetoothA2dpOn(); }
+            catch (Exception ignored) { }
+            // Some Android builds report audio-focus loss just before sending the
+            // A2DP profile broadcast. Preserve the car-resume intent across that race.
+            if (wasPlaying && bluetoothA2dpConnected && !a2dpCurrentlyOn
+                    && bluetoothPlaybackPolicy.onProfileDisconnected(true)) {
+                prefs.edit().putBoolean("resume_enabled", true)
+                        .putBoolean("bluetooth_auto_paused", true).apply();
+                mainHandler.removeCallbacks(positionSaver);
+            }
             if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
-                // Permanent focus loss must never trigger an automatic restart.
+                // Permanent focus loss must never trigger an automatic restart,
+                // except when the loss is the car's Bluetooth route disconnect.
+                boolean waitForBluetooth = bluetoothPlaybackPolicy.isWaitingForReconnect();
                 resumeAfterTransientFocusLoss = false;
                 if (player.isPlaying()) player.pause();
                 savePlaybackPosition();
-                prefs.edit().putBoolean("resume_enabled", false).apply();
+                prefs.edit().putBoolean("resume_enabled", waitForBluetooth)
+                        .putBoolean("bluetooth_auto_paused", waitForBluetooth).apply();
                 mainHandler.removeCallbacks(positionSaver);
             } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-                // Remember only playback that was active before the interruption.
-                resumeAfterTransientFocusLoss = player.isPlaying()
-                        && prefs.getBoolean("resume_enabled", false);
+                // Remember transient interruptions only when they are not a
+                // Bluetooth disconnect that must wait for the car to reconnect.
+                resumeAfterTransientFocusLoss = !bluetoothPlaybackPolicy.isWaitingForReconnect()
+                        && wasPlaying && prefs.getBoolean("resume_enabled", false);
                 if (player.isPlaying()) player.pause();
                 savePlaybackPosition();
                 mainHandler.removeCallbacks(positionSaver);
