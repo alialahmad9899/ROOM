@@ -26,11 +26,20 @@ public final class DashboardDockNavigationSmokeTest {
 
     private void waitForWelcomeToClose(MainActivity main) {
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
-        long deadline = android.os.SystemClock.elapsedRealtime() + 8000L;
+        long start = android.os.SystemClock.elapsedRealtime();
+        long deadline = start + 9000L;
+        boolean welcomeWasSeen = false;
         while (android.os.SystemClock.elapsedRealtime() < deadline) {
             instrumentation.waitForIdleSync();
             ViewGroup content = (ViewGroup) main.findViewById(android.R.id.content);
-            if (content.findViewWithTag("welcome_splash_overlay") == null) return;
+            boolean visible = content.findViewWithTag("welcome_splash_overlay") != null;
+            if (visible) welcomeWasSeen = true;
+            if (welcomeWasSeen && !visible) return;
+            // showWelcome is posted shortly after onCreate; do not mistake its
+            // scheduled-but-not-yet-visible interval for a completed dismissal.
+            if (!welcomeWasSeen && android.os.SystemClock.elapsedRealtime() - start > 1200L) {
+                fail("Welcome overlay was never displayed");
+            }
             android.os.SystemClock.sleep(100L);
         }
         fail("Welcome overlay did not close before testing dashboard actions");
