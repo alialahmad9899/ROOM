@@ -34,8 +34,10 @@ public final class DashboardSleepSmokeTest {
         analog.getLocationOnScreen(clockPosition);
         assertTrue("Music strip must be above the clock",
                 mediaPosition[1]<clockPosition[1]);
-        View speed=content.findViewWithTag("dashboard_speed_gauge");
-        assertNotNull("Speedometer must be present beside the clock",speed);
+        View speedPanel=content.findViewWithTag("dashboard_speed_panel");
+        assertNotNull("Main speed panel must exist",speedPanel);
+        View speed=((ViewGroup)speedPanel).findViewWithTag("dashboard_speed_gauge");
+        assertNotNull("Main speedometer must be present beside the clock",speed);
         assertEquals("Speedometer and analog clock must have identical width",
                 speed.getLayoutParams().width,analog.getLayoutParams().width);
         assertEquals("Speedometer and analog clock must have identical height",
