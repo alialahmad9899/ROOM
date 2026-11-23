@@ -223,6 +223,7 @@ public final class MusicPlaybackService extends Service
                     return;
                 }
                 player.start();
+                refreshBluetoothA2dpRoute();
                 mainHandler.removeCallbacks(positionSaver);
                 mainHandler.postDelayed(positionSaver, 5000L);
                 notifyChanged();
@@ -242,6 +243,14 @@ public final class MusicPlaybackService extends Service
         } catch (Exception error) {
             AppDiagnostics.record(this, "Resume music after car Bluetooth reconnect", error);
             notifyChanged();
+        }
+    }
+
+    private void refreshBluetoothA2dpRoute() {
+        try {
+            bluetoothA2dpConnected = audioManager != null && audioManager.isBluetoothA2dpOn();
+        } catch (Exception ignored) {
+            bluetoothA2dpConnected = false;
         }
     }
 
@@ -450,6 +459,7 @@ public final class MusicPlaybackService extends Service
                     resumePlaybackAfterLoad = false;
                     restoredPositionMs = 0;
                     mp.start();
+                    refreshBluetoothA2dpRoute();
                     getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
                             .putBoolean("resume_enabled", true).apply();
                     mainHandler.removeCallbacks(positionSaver);
@@ -508,6 +518,7 @@ public final class MusicPlaybackService extends Service
                         if (focus != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return;
                     }
                     player.start();
+                    refreshBluetoothA2dpRoute();
                     getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE).edit()
                             .putBoolean("resume_enabled", true).apply();
                     mainHandler.removeCallbacks(positionSaver);
@@ -888,6 +899,7 @@ public final class MusicPlaybackService extends Service
                 resumeAfterTransientFocusLoss = false;
                 if (mayResume && !player.isPlaying()) {
                     player.start();
+                    refreshBluetoothA2dpRoute();
                     prefs.edit().putBoolean("resume_enabled", true).apply();
                     mainHandler.removeCallbacks(positionSaver);
                     mainHandler.postDelayed(positionSaver, 5000L);
