@@ -27,7 +27,13 @@ public final class NavigationActivitySmokeTest {
         assertNotNull(content.findViewWithTag("navigation_route_choices"));
         assertNotNull(content.findViewWithTag("navigation_start_background"));
         assertNotNull(content.findViewWithTag("navigation_stop_background"));
-        assertNotNull("Offline vector map view",content.findViewWithTag("navigation_offline_map"));
+        View mapView=content.findViewWithTag("navigation_offline_map");
+        assertNotNull("Offline vector map view",mapView);
+        assertTrue("MapView must use the explicit offline placeholder or the MapsForge provider",
+                mapView instanceof org.osmdroid.views.MapView);
+        assertFalse("Do not create osmdroid's default MapTileProviderBasic/MapTileApproximater threads",
+                ((org.osmdroid.views.MapView)mapView).getTileProvider()
+                        instanceof org.osmdroid.tileprovider.MapTileProviderBasic);
         assertNotNull("Save selected destination",content.findViewWithTag("navigation_save_destination"));
         assertNotNull("Saved and recent destinations",content.findViewWithTag("navigation_saved_places"));
         assertNotNull("Save/reopen parking position",content.findViewWithTag("navigation_parking"));
