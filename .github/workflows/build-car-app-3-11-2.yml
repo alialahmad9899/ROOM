@@ -303,7 +303,10 @@ jobs:
             - Bundled music/audio: none in any supported format; the player scans only the user's local library. Added SHA-256 duplicate prevention on imports, searchable and sortable tracks, duplicate review, playlist removal and confirmation-gated permanent deletion.
             - Main dashboard: live GPS speedometer and analog/digital clock without surrounding cards; trip summary and route guidance are at the top, with a compact local music strip above the main cockpit.
             - The horizontal swipe pages retain the drive-centre and trip history; the central gesture surface supports left/right paging and up/down shortcuts to navigation and music.
-            - The bottom dock replaces Radio with YouTube Lite-style mobile browsing. It opens https://m.youtube.com in an installed browser; no unofficial or discontinued YouTube APK is bundled.
+            - The bottom dock launches the restored in-app YouTube search/player through VideoApi and ExoPlayer; it does not redirect the dock action to Chrome or m.youtube.com.
+            - Dock tap handling is attached to the custom icon, its caption and the parent tile so each visible control dispatches its action.
+            - The top music strip includes volume down, a STREAM_MUSIC slider and volume up; dashboard analog clock and speedometer share one responsive dial size.
+            - Local music pauses on an active Bluetooth A2DP disconnect and resumes only after reconnection when playback was active before the disconnect. Manual playback controls cancel the automatic resume.
             - GPS fixes are age/accuracy/coordinate checked; stale/out-of-order Fused fixes and saved preference coordinates are never presented as the live position. Sustained off-route drift triggers a debounced offline BRouter reroute.
             - Build type: Debug-signed testing APK; not a production signing-key build.
             - Welcome voice is slower and selects an installed female English TTS voice when the local engine exposes one; the actual voice remains engine-dependent.
