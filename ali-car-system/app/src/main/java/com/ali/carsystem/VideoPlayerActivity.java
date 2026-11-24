@@ -23,7 +23,8 @@ import javax.net.ssl.HttpsURLConnection;
 
 public final class VideoPlayerActivity extends BaseActivity {
     private PlayerView playerView;private ExoPlayer player;private TextView status,titleView;
-    private VideoApi.Item item;private VideoApi.StreamInfo active;private int attempts;private boolean resolving,released,resumeOnReturn;
+    private VideoApi.Item item;private VideoApi.StreamInfo active;private int attempts;
+    private boolean resolving,released,resumeOnReturn,activityPaused,musicPauseRequested;
     private int dp(float v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
     @Override protected void onCreate(Bundle b){
         super.onCreate(b);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -48,7 +49,11 @@ public final class VideoPlayerActivity extends BaseActivity {
     }
     private void resolveNext(String excluded){
         if(resolving||released)return;
-        if(attempts>=7){status.setText("تعذر إيجاد مصدر متوافق بعد تجربة عدة خوادم وصيغ بث. جرّب نتيجة أخرى.");return;}
+        if(attempts>=7){
+            status.setText("تعذر إيجاد مصدر متوافق بعد تجربة عدة خوادم وصيغ بث. جرّب نتيجة أخرى.");
+            resumeMusicAfterVideo();
+            return;
+        }
         resolving=true;attempts++;status.setText("جارٍ تجربة المصدر "+attempts+" من 7…");
         new AsyncTask<Void,Void,VideoApi.StreamInfo>(){
             Exception error;
@@ -89,7 +94,15 @@ public final class VideoPlayerActivity extends BaseActivity {
                 @Override public void onPlaybackStateChanged(int state){
                     if(state==Player.STATE_BUFFERING)status.setText("جارٍ تحميل الفيديو والصوت…");
                     else if(state==Player.STATE_READY)status.setText("");
-                    else if(state==Player.STATE_ENDED)status.setText("انتهى الفيديو");
+                    else if(state==Player.STATE_ENDED){
+                        status.setText("انتهى الفيديو");
+                        resumeMusicAfterVideo();
+                    }
+                }
+                @Override public void onIsPlayingChanged(boolean isPlaying){
+                    if(isPlaying)pauseMusicForVideo();
+                    else if(!activityPaused && player!=null && !player.getPlayWhenReady()
+                            && player.getPlaybackState()==Player.STATE_READY)resumeMusicAfterVideo();
                 }
                 @Override public void onPlayerError(PlaybackException error){
                     status.setText("تعذر هذا المصدر، جارٍ تجربة صيغة أو خادم بديل…");
@@ -97,14 +110,44 @@ public final class VideoPlayerActivity extends BaseActivity {
                 }
             });
             player.setMediaSource(makeSource(info));player.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+            pauseMusicForVideo();
             player.prepare();player.setPlayWhenReady(true);titleView.setText(info.title);
             status.setText("تم العثور على المصدر — جارٍ تجهيز الفيديو والصوت معاً…");
         }catch(Exception e){
             String bad=info.identity();status.setText("صيغة المصدر غير متوافقة، تجربة بديل…");releasePlayer();resolveNext(bad);
         }
     }
+    private void pauseMusicForVideo(){
+        if(musicPauseRequested)return;
+        if(MusicPlaybackService.isAudioPlaying(this)){
+            musicPauseRequested=true;
+            MusicPlaybackService.pauseForExternalVideo(this);
+        }
+    }
+    private void resumeMusicAfterVideo(){
+        if(!musicPauseRequested)return;
+        musicPauseRequested=false;
+        MusicPlaybackService.resumeAfterExternalVideo(this);
+    }
     private void releasePlayer(){if(player!=null){try{playerView.setPlayer(null);player.release();}catch(Exception ignored){}player=null;}}
-    @Override protected void onPause(){resumeOnReturn=player!=null&&player.getPlayWhenReady();super.onPause();if(player!=null)player.setPlayWhenReady(false);}
-    @Override protected void onResume(){super.onResume();if(player!=null&&resumeOnReturn)player.setPlayWhenReady(true);}
-    @Override protected void onDestroy(){released=true;releasePlayer();super.onDestroy();}
+    @Override protected void onPause(){
+        activityPaused=true;
+        resumeOnReturn=player!=null&&player.getPlayWhenReady();
+        super.onPause();
+        if(player!=null)player.setPlayWhenReady(false);
+    }
+    @Override protected void onResume(){
+        super.onResume();
+        activityPaused=false;
+        if(player!=null&&resumeOnReturn){
+            pauseMusicForVideo();
+            player.setPlayWhenReady(true);
+        }
+    }
+    @Override protected void onDestroy(){
+        released=true;
+        resumeMusicAfterVideo();
+        releasePlayer();
+        super.onDestroy();
+    }
 }
