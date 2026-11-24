@@ -40,7 +40,7 @@ public final class SettingsActivity extends BaseActivity {
         });
         box.addView(voiceVolume,new LinearLayout.LayoutParams(-1,dp(42)));
 
-        add("مظهر القيادة");
+        add("المظهر والتصميم — 8 سمات احترافية");
         SharedPreferences appPrefs=getSharedPreferences("ali_car_v3",MODE_PRIVATE);
         CheckBox smartNight=new CheckBox(this);
         smartNight.setText("الوضع الليلي الذكي (تلقائي من 20:00 حتى 06:00)");
@@ -50,7 +50,7 @@ public final class SettingsActivity extends BaseActivity {
         smartNight.setOnCheckedChangeListener((button,checked)->
                 appPrefs.edit().putBoolean("smart_night_mode",checked).apply());
         box.addView(smartNight);
-        button("اختيار ثيم لوحة القيادة",()->showDashboardThemePicker(appPrefs));
+        button("معاينة واختيار السمة",()->showDashboardThemePicker(appPrefs));
         add("صوت الترحيب Welcome Ali");
         add("يبحث التطبيق عن صوت أنثوي إن كان محرك Android TTS المثبت يوفّره. يمكن ضبط سرعة الترحيب هنا.");
         float welcomeRate=appPrefs.getFloat("welcome_voice_rate",0.78f);
