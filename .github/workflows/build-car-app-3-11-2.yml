@@ -42,6 +42,33 @@ jobs:
           python-version: "3.12"
 
       # Configure Gradle caching before BRouter and app builds.
+      # Keep the debug signing identity stable between CI builds so an APK
+      # update can be installed over the previous ALI CAR build without
+      # changing the app's signing certificate on every fresh GitHub runner.
+      - name: Restore persistent Android debug signing key
+        id: debug-signing-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: ali-car-system-debug-keystore-api21-v1
+
+      - name: Create Android debug signing key when the cache is empty
+        if: steps.debug-signing-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "C=US, O=Android, CN=Android Debug"
+          keytool -list -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -alias androiddebugkey
+
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.7"

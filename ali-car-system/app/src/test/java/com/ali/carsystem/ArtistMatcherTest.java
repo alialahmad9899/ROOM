@@ -21,7 +21,7 @@ public final class ArtistMatcherTest {
     @Test public void normalizesUnicodeLettersDigitsAndSeparatorsWithoutUnicodeRegexProperties() {
         assertEquals("اليسا fairuz 2024",
                 ArtistMatcher.normalize("إِلْيِسَا — Fairuz_2024!"));
-        assertEquals("نصيف زيتون 123",
+        assertEquals("نصيف زيتون ١٢٣",
                 ArtistMatcher.normalize("نَصِيفُ زَيْتُون ١٢٣"));
     }
 
