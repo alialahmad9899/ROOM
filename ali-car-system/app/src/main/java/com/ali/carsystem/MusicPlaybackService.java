@@ -310,6 +310,8 @@ public final class MusicPlaybackService extends Service
         if (!wasPlaying) externalAudioHandoff.cancelResume();
         resumeAfterTransientFocusLoss=false;
         savePlaybackPosition();
+        restoredPositionMs=Math.max(restoredPositionMs,prefs.getInt("position_ms",0));
+        resumePlaybackAfterLoad=false;
         mainHandler.removeCallbacks(positionSaver);
         try {
             if(player!=null && prepared && player.isPlaying()) player.pause();
