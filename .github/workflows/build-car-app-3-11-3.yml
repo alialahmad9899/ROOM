@@ -2,7 +2,7 @@ name: ALI CAR 3.11.3 Cockpit Functional Repair API21 x86
 
 on:
   push:
-    branches: ["ali-car-system/3.11.3-cockpit-functional-repair-2026-11-24"]
+    branches: ["ali-car-system/3.11.3-themes-cockpit-audio-2026-11-24"]
     paths: ["ali-car-system/**","tools/rom/**","tools/maps/**",".github/workflows/build-car-app-3-11-3.yml"]
   workflow_dispatch:
 
@@ -325,7 +325,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
       - name: Publish verified ALI CAR 3.11.3 release
-        if: success() && github.ref == 'refs/heads/ali-car-system/3.11.3-cockpit-functional-repair-2026-11-24'
+        if: success() && github.ref == 'refs/heads/ali-car-system/3.11.3-themes-cockpit-audio-2026-11-24'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ali-car-v3.11.3-api21-x86
