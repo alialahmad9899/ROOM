@@ -6,6 +6,36 @@ import android.graphics.*;
 import android.view.*;
 import android.widget.*;
 
+final class DashboardBackdropView extends View {
+    private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+    DashboardBackdropView(Context context){super(context);setWillNotDraw(false);}
+    @Override protected void onDraw(Canvas canvas){
+        super.onDraw(canvas);
+        float w=getWidth(),h=getHeight();if(w<=0||h<=0)return;
+        DashboardTheme.Palette theme=DashboardTheme.from(getContext());
+        paint.setShader(new LinearGradient(0,0,w,h,theme.background,theme.backgroundEnd,Shader.TileMode.CLAMP));
+        canvas.drawRect(0,0,w,h,paint);paint.setShader(null);
+        paint.setShader(new RadialGradient(w*.52f,h*.43f,Math.max(w,h)*.68f,
+                new int[]{withAlpha(theme.accent,34),withAlpha(theme.accent,8),0x00000000},
+                null,Shader.TileMode.CLAMP));
+        canvas.drawRect(0,0,w,h,paint);paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Math.max(1f,w*.0012f));
+        paint.setColor(withAlpha(theme.accent,22));
+        Path road=new Path();road.moveTo(w*.42f,h*.43f);road.lineTo(w*.06f,h*1.02f);
+        road.moveTo(w*.58f,h*.43f);road.lineTo(w*.94f,h*1.02f);
+        canvas.drawPath(road,paint);
+        for(int i=1;i<=4;i++){
+            float y=h*(.62f+i*.085f);
+            canvas.drawLine(w*.08f,y,w*.92f,y,paint);
+        }
+        paint.setStrokeWidth(Math.max(1f,w*.0008f));
+        canvas.drawArc(w*.02f,h*.04f,w*.45f,h*.72f,205,74,false,paint);
+        canvas.drawArc(w*.55f,h*.04f,w*.98f,h*.72f,-99,74,false,paint);
+        paint.setStyle(Paint.Style.FILL);
+    }
+    private int withAlpha(int color,int alpha){return InstrumentDialStyle.withAlpha(color,alpha);}
+}
+
 final class NeonIconView extends View {
     private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final int type,color;
@@ -97,24 +127,26 @@ final class NeonIconView extends View {
 }
 final class InstrumentDialStyle {
     private InstrumentDialStyle() {}
-    static void drawFace(Canvas canvas,Paint paint,float cx,float cy,float radius){
+    static void drawFace(Canvas canvas,Paint paint,float cx,float cy,float radius,
+                         DashboardTheme.Palette theme){
         paint.setStyle(Paint.Style.FILL);
-        paint.setShader(new RadialGradient(cx-radius*.25f,cy-radius*.35f,radius*1.7f,
-                new int[]{0xAAFFFFFF,0x553E9AB5,0xCC071321},null,Shader.TileMode.CLAMP));
+        paint.setShader(new RadialGradient(cx-radius*.24f,cy-radius*.30f,radius*1.65f,
+                new int[]{withAlpha(theme.accent,55),theme.surface,theme.background},null,Shader.TileMode.CLAMP));
         canvas.drawCircle(cx,cy,radius,paint);paint.setShader(null);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(Math.max(2,radius*.045f));
         paint.setShader(new LinearGradient(cx-radius,cy-radius,cx+radius,cy+radius,
-                0xFFF8FFFF,0xFF718B9C,Shader.TileMode.CLAMP));
+                0xFFEFF8FF,theme.border,Shader.TileMode.CLAMP));
         canvas.drawCircle(cx,cy,radius,paint);paint.setShader(null);
-        paint.setStrokeWidth(Math.max(1,radius*.012f));paint.setColor(0x6677D5EA);
+        paint.setStrokeWidth(Math.max(1,radius*.012f));paint.setColor(withAlpha(theme.accent,100));
         canvas.drawCircle(cx,cy,radius*.91f,paint);
         paint.setStrokeWidth(Math.max(1.5f,radius*.018f));paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setColor(0x8856CFEF);
-        canvas.drawArc(cx-radius*.98f,cy-radius*.98f,cx+radius*.98f,cy+radius*.98f,205,130,false,paint);
-        paint.setColor(0x55FFD36B);
+        paint.setColor(withAlpha(theme.accent,185));
+        canvas.drawArc(cx-radius*.98f,cy-radius*.98f,cx+radius*.98f,cy+radius*.98f,205,112,false,paint);
+        paint.setColor(withAlpha(theme.secondary,175));
         canvas.drawArc(cx-radius*.98f,cy-radius*.98f,cx+radius*.98f,cy+radius*.98f,25,42,false,paint);
     }
+    static int withAlpha(int color,int alpha){return (color&0x00FFFFFF)|((alpha&255)<<24);}
 }
 
 final class SpeedometerView extends View {
@@ -123,12 +155,13 @@ final class SpeedometerView extends View {
     void setSpeed(float kmh){speed=Math.max(0,Math.min(240,kmh));invalidate();}
     @Override protected void onDraw(Canvas c){
         super.onDraw(c);float cx=getWidth()/2f,cy=getHeight()/2f,r=Math.min(getWidth(),getHeight())*.46f;
-        InstrumentDialStyle.drawFace(c,p,cx,cy,r);
+        DashboardTheme.Palette theme=DashboardTheme.from(getContext());
+        InstrumentDialStyle.drawFace(c,p,cx,cy,r,theme);
 
         p.setStyle(Paint.Style.STROKE);p.setStrokeCap(Paint.Cap.ROUND);
-        p.setStrokeWidth(Math.max(6,r*.065f));p.setColor(0x334B90AE);
+        p.setStrokeWidth(Math.max(6,r*.065f));p.setColor(theme.track);
         c.drawArc(cx-r*.83f,cy-r*.83f,cx+r*.83f,cy+r*.83f,135,270,false,p);
-        p.setShader(new SweepGradient(cx,cy,new int[]{0xFF00DFFF,0xFF49F3D2,0xFFFFC45B,0xFFFF405F},null));
+        p.setShader(new SweepGradient(cx,cy,new int[]{theme.accent,theme.secondary,theme.needle},null));
         c.drawArc(cx-r*.83f,cy-r*.83f,cx+r*.83f,cy+r*.83f,135,270*speed/240f,false,p);p.setShader(null);
 
         p.setStrokeWidth(Math.max(1.5f,r*.014f));
@@ -136,35 +169,66 @@ final class SpeedometerView extends View {
             double angle=Math.toRadians(135+i*5.625);
             boolean major=i%4==0;
             float inner=r*(major?.69f:.75f),outer=r*.82f;
-            p.setColor(major?0xFFFFD36B:0xFF78AFC6);
+            p.setColor(major?theme.secondary:theme.textSecondary);
             c.drawLine(cx+(float)Math.cos(angle)*inner,cy+(float)Math.sin(angle)*inner,
                     cx+(float)Math.cos(angle)*outer,cy+(float)Math.sin(angle)*outer,p);
         }
         double needleAngle=Math.toRadians(135+270.0*speed/240.0);
         float nx=cx+(float)Math.cos(needleAngle)*r*.63f;
         float ny=cy+(float)Math.sin(needleAngle)*r*.63f;
-        p.setStrokeWidth(Math.max(2.8f,r*.026f));p.setColor(0xFFFF5B74);
-        p.setShadowLayer(7,0,0,0xFFFF405F);c.drawLine(cx,cy,nx,ny,p);p.clearShadowLayer();
+        p.setStrokeWidth(Math.max(2.8f,r*.026f));p.setColor(theme.needle);
+        p.setShadowLayer(7,0,0,theme.needle);c.drawLine(cx,cy,nx,ny,p);p.clearShadowLayer();
 
         p.setStyle(Paint.Style.FILL);p.setTextAlign(Paint.Align.CENTER);
         p.setTypeface(Typeface.create("sans-serif-light",Typeface.NORMAL));
-        p.setTextSize(r*.105f);p.setColor(0xFFBDEFFF);
+        p.setTextSize(r*.105f);p.setColor(theme.textSecondary);
         for(int i=0;i<=12;i++){
             double angle=Math.toRadians(135+i*22.5);
             float x=cx+(float)Math.cos(angle)*r*.59f;
             float y=cy+(float)Math.sin(angle)*r*.59f+r*.035f;
             c.drawText(String.valueOf(i*20),x,y,p);
         }
-        p.setTextSize(r*.60f);p.setColor(Color.WHITE);
+        p.setTextSize(r*.60f);p.setColor(theme.textPrimary);
         c.drawText(String.format(java.util.Locale.US,"%.0f",speed),cx,cy+r*.18f,p);
         p.setTypeface(Typeface.create("sans-serif-medium",Typeface.BOLD));
-        p.setTextSize(r*.135f);p.setColor(0xFFFFD36B);c.drawText("km/h",cx,cy+r*.42f,p);
-        p.setColor(0xFFFFD36B);c.drawCircle(cx,cy,r*.055f,p);
+        p.setTextSize(r*.135f);p.setColor(theme.secondary);c.drawText("km/h",cx,cy+r*.42f,p);
+        p.setColor(theme.accent);c.drawCircle(cx,cy,r*.055f,p);
         if(speed>120){
             p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(Math.max(2,r*.025f));
-            p.setColor(0xCCFF365E);p.setShadowLayer(12,0,0,0xFFFF365E);
+            p.setColor(withAlpha(theme.needle,210));p.setShadowLayer(12,0,0,theme.needle);
             c.drawCircle(cx,cy,r*1.035f,p);p.clearShadowLayer();
         }
+    }
+    private int withAlpha(int color,int alpha){return InstrumentDialStyle.withAlpha(color,alpha);}
+}
+
+final class TripDistanceGaugeView extends View {
+    private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private double distanceKm;
+    TripDistanceGaugeView(Context c){super(c);setLayerType(View.LAYER_TYPE_SOFTWARE,null);}
+    void setDistanceKm(double value){distanceKm=Math.max(0,value);invalidate();}
+    @Override protected void onDraw(Canvas canvas){
+        super.onDraw(canvas);
+        float cx=getWidth()/2f,cy=getHeight()/2f,r=Math.min(getWidth(),getHeight())*.46f;
+        if(r<=0)return;
+        DashboardTheme.Palette theme=DashboardTheme.from(getContext());
+        InstrumentDialStyle.drawFace(canvas,p,cx,cy,r,theme);
+        p.setStyle(Paint.Style.STROKE);p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(Math.max(5,r*.075f));p.setColor(theme.track);
+        canvas.drawArc(cx-r*.76f,cy-r*.76f,cx+r*.76f,cy+r*.76f,135,270,false,p);
+        double scale=Math.max(100d,Math.ceil(Math.max(1d,distanceKm)/100d)*100d);
+        float sweep=(float)(270d*Math.min(1d,distanceKm/scale));
+        p.setColor(theme.accent);p.setShadowLayer(6,0,0,theme.glow);
+        canvas.drawArc(cx-r*.76f,cy-r*.76f,cx+r*.76f,cy+r*.76f,135,sweep,false,p);p.clearShadowLayer();
+        p.setStyle(Paint.Style.FILL);p.setTextAlign(Paint.Align.CENTER);
+        p.setTypeface(Typeface.create("sans-serif-medium",Typeface.BOLD));
+        p.setTextSize(r*.33f);p.setColor(theme.textPrimary);
+        canvas.drawText(String.format(java.util.Locale.US,"%.1f",distanceKm),cx,cy+r*.12f,p);
+        p.setTextSize(r*.13f);p.setColor(theme.secondary);
+        canvas.drawText("TRIP  KM",cx,cy+r*.39f,p);
+        p.setTextSize(r*.105f);p.setColor(theme.textSecondary);
+        canvas.drawText(String.format(java.util.Locale.US,"MAX %.0f",scale),cx,cy+r*.60f,p);
+        canvas.drawCircle(cx,cy-r*.69f,r*.035f,p);
     }
 }
 
@@ -175,19 +239,20 @@ final class AnalogClockView extends View {
     @Override protected void onDraw(Canvas c){
         super.onDraw(c);cal.setTimeInMillis(System.currentTimeMillis());
         float cx=getWidth()/2f,cy=getHeight()/2f,r=Math.min(getWidth(),getHeight())*.46f;
-        InstrumentDialStyle.drawFace(c,p,cx,cy,r);
+        DashboardTheme.Palette theme=DashboardTheme.from(getContext());
+        InstrumentDialStyle.drawFace(c,p,cx,cy,r,theme);
         for(int i=0;i<60;i++){
             double a=Math.PI*i/30;boolean major=i%5==0;
             float inner=r*(major?.77f:.86f);
             p.setStyle(Paint.Style.STROKE);p.setStrokeCap(Paint.Cap.ROUND);
             p.setStrokeWidth(major?Math.max(2.2f,r*.022f):Math.max(1,r*.009f));
-            p.setColor(major?0xFFFFD36B:0xFF9BB8C9);
+            p.setColor(major?theme.secondary:theme.textSecondary);
             c.drawLine(cx+(float)Math.sin(a)*inner,cy-(float)Math.cos(a)*inner,
                     cx+(float)Math.sin(a)*r*.92f,cy-(float)Math.cos(a)*r*.92f,p);
         }
         p.setStyle(Paint.Style.FILL);p.setTextAlign(Paint.Align.CENTER);
         p.setTypeface(Typeface.create("sans-serif-medium",Typeface.BOLD));
-        p.setTextSize(r*.135f);p.setColor(0xFFFFD36B);
+        p.setTextSize(r*.135f);p.setColor(theme.secondary);
         String[] marks={"12","3","6","9"};
         int[] positions={0,15,30,45};
         for(int i=0;i<4;i++){
@@ -199,10 +264,10 @@ final class AnalogClockView extends View {
         float sec=cal.get(java.util.Calendar.SECOND);
         float min=cal.get(java.util.Calendar.MINUTE)+sec/60f;
         float hr=cal.get(java.util.Calendar.HOUR)+min/60f;
-        hand(c,cx,cy,r*.45f,hr/12f*360,Math.max(4,r*.040f),0xFFFFFFFF);
-        hand(c,cx,cy,r*.68f,min/60f*360,Math.max(2.8f,r*.026f),0xFF89EFFF);
-        hand(c,cx,cy,r*.77f,sec/60f*360,Math.max(1.5f,r*.013f),0xFFFF5574);
-        p.setStyle(Paint.Style.FILL);p.setColor(0xFFFFD36B);
+        hand(c,cx,cy,r*.45f,hr/12f*360,Math.max(4,r*.040f),theme.textPrimary);
+        hand(c,cx,cy,r*.68f,min/60f*360,Math.max(2.8f,r*.026f),theme.accent);
+        hand(c,cx,cy,r*.77f,sec/60f*360,Math.max(1.5f,r*.013f),theme.needle);
+        p.setStyle(Paint.Style.FILL);p.setColor(theme.secondary);
         c.drawCircle(cx,cy,r*.055f,p);postInvalidateDelayed(1000);
     }
     private void hand(Canvas c,float x,float y,float len,float deg,float width,int color){
