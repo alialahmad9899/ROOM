@@ -2,7 +2,6 @@ package com.ali.carsystem;
 
 import android.app.ActivityManager;
 import android.app.AlertDialog;
-import android.app.Dialog;
 import android.app.admin.DevicePolicyManager;
 import android.content.*;
 import android.os.*;
@@ -112,7 +111,7 @@ public final class SettingsActivity extends BaseActivity {
         list.setPadding(pad,dp(8),pad,dp(8));
         scroll.addView(list,new ScrollView.LayoutParams(-1,-2));
 
-        final Dialog dialog=new AlertDialog.Builder(this)
+        final AlertDialog dialog=new AlertDialog.Builder(this)
                 .setTitle("المظهر والتصميم  •  اختر قمرة القيادة")
                 .setNegativeButton("إغلاق",null).create();
 
