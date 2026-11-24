@@ -12,8 +12,8 @@ android {
         applicationId 'com.ali.carsystem'
         minSdk 21
         targetSdk 22
-        versionCode 3112
-        versionName '3.11.2'
+        versionCode 3113
+        versionName '3.11.3'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions {
