@@ -16,7 +16,7 @@ def require(ok,msg):
  if not ok: raise SystemExit("FAIL: "+msg)
 require("applicationId 'com.ali.carsystem'" in GRADLE,"application package")
 require("minSdk 21" in GRADLE and "targetSdk 22" in GRADLE,"API 21/22 target")
-require("versionCode 3112" in GRADLE and "versionName '3.11.2'" in GRADLE,"ALI CAR version 3.11.2")
+require("versionCode 3113" in GRADLE and "versionName '3.11.3'" in GRADLE,"ALI CAR version 3.11.3")
 require("versionNameSuffix" not in GRADLE,"debug APK version name matches release metadata")
 require("com.google.android.exoplayer:exoplayer:2.19.1" in GRADLE,"API21 ExoPlayer dependency")
 require('android:largeHeap="true"' in MAN and 'android:hardwareAccelerated="true"' in MAN,"heap/hardware config")
@@ -39,9 +39,10 @@ require("iconView.setOnClickListener(dockClick)" in MAIN and "caption.setOnClick
         "custom dock icon, caption and tile all dispatch their app action")
 require("dashboard_speed_gauge" in MAIN and "dashboard_analog_clock" in MAIN
         and "dashboard_media_bar" in MAIN and "dashboard_volume_seekbar" in MAIN
-         and MAIN.count("new LinearLayout.LayoutParams(dialSize,dialSize)") == 2,
-        "music strip with volume controls and equal responsive dashboard dials are installed")
-require(DASH.count("InstrumentDialStyle.drawFace(c,p,cx,cy,r)") == 2,"shared speedometer and analog clock face")
+        and "dashboard_trip_gauge" in MAIN and "dashboard_thematic_background" in MAIN
+        and MAIN.count("new LinearLayout.LayoutParams(dialSize,dialSize)") == 2,
+        "theme-aware cockpit backdrop, larger speed dial, trip gauge, music controls and clock are installed")
+require(DASH.count("InstrumentDialStyle.drawFace(c,p,cx,cy,r,theme)") == 2,"shared theme-aware speedometer and analog clock face")
 require("import android.graphics.Path;" in NAV,"navigation dot heading Path import")
 require("new EmptyOfflineTileProvider(this)" in NAV
         and (SRC/"java/com/ali/carsystem/EmptyOfflineTileProvider.java").is_file(),
@@ -249,6 +250,18 @@ require("dashboard_media_bar" in MAIN and "all.addView(navigationHud,hudLp)" in 
         and "setCompactMode(true)" in MAIN,
         "top route and music strips, frameless main speedometer and clock, and bottom dock")
 require("connectionStatus" in MAIN and "dashboard_night_overlay" in MAIN and "smart_night_mode" in MAIN,"live Wi-Fi/Bluetooth/GPS indicators and smart dashboard night mode")
+THEME=(SRC/"java/com/ali/carsystem/DashboardTheme.java").read_text(encoding="utf-8")
+require(all(name in THEME for name in ("obsidian_red","arctic_blue","emerald_luxe","titanium_silver","neon_pulse")),
+        "five new professional palettes are available alongside the three legacy themes")
+require("TripDistanceGaugeView" in DASH and "TRIP  KM" in DASH and "dashboard_trip_gauge" in MAIN,
+        "second instrument dial displays the live trip-distance value")
+require("pauseForExternalVideo" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
+        and "resumeAfterExternalVideo" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
+        and "pauseMusicForVideo" in (SRC/"java/com/ali/carsystem/VideoPlayerActivity.java").read_text(encoding="utf-8"),
+        "YouTube playback pauses and resumes local music through the playback service")
+require((APP/"src/test/java/com/ali/carsystem/DashboardThemeTest.java").is_file()
+        and (APP/"src/test/java/com/ali/carsystem/ExternalAudioHandoffPolicyTest.java").is_file(),
+        "new theme and audio handoff regression tests exist")
 require("TripHistoryStore.record" in TRACK and "trip_started_at" in TRACK and "showTripHistory" in MAIN,"completed trip history is stored and visible")
 require("96L*1024*1024" in NAV and "64L*1024*1024" in NAV and "setTilesScaledToDpi(false)" in NAV and "sharedOfflineTileSource" in NAV,"bounded warm offline vector map cache and native-resolution rendering")
 require("restoreMapCamera" in NAV and "saved_destinations" in NAV and "recent_destinations" in NAV and "parking_lat" in NAV and "map_night_mode" in NAV
@@ -345,4 +358,4 @@ require("offRouteReroutePolicy.shouldReroute" in NAV
 require("BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8")
         and "bluetoothPlaybackPolicy.isWaitingForReconnect()" in (SRC/"java/com/ali/carsystem/MusicPlaybackService.java").read_text(encoding="utf-8"),
         "music pauses on active A2DP disconnect and resumes only after reconnect")
-print("PASS: ALI CAR 3.11.2 cockpit, in-app YouTube, working dock, volume, equal responsive dials, Bluetooth auto-resume, offline maps and GPS contracts")
+print("PASS: ALI CAR 3.11.3 themed cockpit, trip dial, YouTube audio handoff, dock, volume, Bluetooth, offline maps and GPS contracts")
