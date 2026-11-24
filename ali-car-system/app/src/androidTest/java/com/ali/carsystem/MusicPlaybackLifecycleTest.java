@@ -85,6 +85,37 @@ public final class MusicPlaybackLifecycleTest {
             while(System.currentTimeMillis()<deadline&&!service.isPlaying())Thread.sleep(100L);
             assertTrue("A transient focus interruption resumes the previously playing track",service.isPlaying());
 
+            // Exercise the real started-service handoff, not only the isolated policy object.
+            int beforeVideoPosition=service.getPosition();
+            assertTrue("Local music state is published before the video handoff",
+                    MusicPlaybackService.isAudioPlaying(context));
+            MusicPlaybackService.pauseForExternalVideo(context);
+            deadline=System.currentTimeMillis()+5000L;
+            while(System.currentTimeMillis()<deadline&&service.isPlaying())Thread.sleep(100L);
+            assertFalse("External video start pauses the real MediaPlayer service",service.isPlaying());
+            int videoPausedPosition=service.getPosition();
+            assertTrue("Pause preserves the previous song position",videoPausedPosition>=beforeVideoPosition);
+
+            MusicPlaybackService.resumeAfterExternalVideo(context);
+            deadline=System.currentTimeMillis()+5000L;
+            while(System.currentTimeMillis()<deadline&&!service.isPlaying())Thread.sleep(100L);
+            assertTrue("External video stop resumes the same local track",service.isPlaying());
+            assertTrue("The resumed track continues from its saved position",
+                    service.getPosition()>=videoPausedPosition);
+
+            // A song the user paused before opening a video must remain paused afterwards.
+            service.toggle();
+            assertFalse("Manual pause succeeds before simulated video",service.isPlaying());
+            MusicPlaybackService.pauseForExternalVideo(context);
+            MusicPlaybackService.resumeAfterExternalVideo(context);
+            Thread.sleep(400L);
+            assertFalse("Video completion never starts music that was already paused",
+                    service.isPlaying());
+            service.toggle();
+            deadline=System.currentTimeMillis()+5000L;
+            while(System.currentTimeMillis()<deadline&&!service.isPlaying())Thread.sleep(100L);
+            assertTrue("Manual playback can restart after the handoff test",service.isPlaying());
+
             service.onAudioFocusChange(android.media.AudioManager.AUDIOFOCUS_LOSS);
             assertFalse("Permanent focus loss pauses the track",service.isPlaying());
             service.onAudioFocusChange(android.media.AudioManager.AUDIOFOCUS_GAIN);
