@@ -14,6 +14,21 @@ public final class MusicActivitySmokeTest {
     @Rule public ActivityTestRule<MusicActivity> activity =
             new ActivityTestRule<>(MusicActivity.class);
 
+    @Test public void legacyAndroidArtistMatcherAndAutomaticSleepGuardsAreSafe() {
+        assertTrue("Arabic artist lookup must initialize on the device runtime",
+                ArtistMatcher.matchesAny("Nassif Zeytoun", "Toul Al Yom", "نصيف زيتون"));
+        assertTrue("Arabic and Latin artist aliases must both work",
+                ArtistMatcher.matchesAny("فيروز", "Fairuz Classics", "fairuz"));
+        assertFalse("Charging must always block automatic sleep",
+                MusicActivity.shouldAllowAutomaticSleep(true, false, false));
+        assertFalse("Playing music must block automatic sleep",
+                MusicActivity.shouldAllowAutomaticSleep(false, true, false));
+        assertFalse("Active navigation must block automatic sleep",
+                MusicActivity.shouldAllowAutomaticSleep(false, false, true));
+        assertTrue("Idle sleep is permitted only with all blockers absent",
+                MusicActivity.shouldAllowAutomaticSleep(false, false, false));
+    }
+
     @Test public void musicScreenStartsAndInstallsItsLayout() {
         MusicActivity screen=activity.getActivity();
         assertNotNull(screen);

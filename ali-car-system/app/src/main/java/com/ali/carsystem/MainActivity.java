@@ -220,7 +220,13 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private void showAmbientClock(boolean manual){showAmbientClock(manual,false);}
     private void showAmbientClock(boolean manual,boolean bypassPowerLocks){
         if(isFinishing()||pager==null||ambientOverlay!=null)return;
-        if(!manual&&!bypassPowerLocks&&sleepBlocked())return;
+        if(!manual&&!bypassPowerLocks){
+            // The idle callback may run after power broadcasts were delayed.
+            // Query the sticky battery state again before dimming the display.
+            refreshChargingState();
+            musicPlaying=MusicPlaybackService.isAudioPlaying(this);
+            if(sleepBlocked())return;
+        }
         manualSleep=manual;
         FrameLayout overlay=new FrameLayout(this);
         overlay.setTag("ambient_sleep_overlay");

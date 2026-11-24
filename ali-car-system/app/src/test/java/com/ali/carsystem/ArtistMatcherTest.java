@@ -18,6 +18,13 @@ public final class ArtistMatcherTest {
         assertEquals(ArtistMatcher.normalize("هبة طوجي"), ArtistMatcher.normalize("هَبَة طُوجِي"));
     }
 
+    @Test public void normalizesUnicodeLettersDigitsAndSeparatorsWithoutUnicodeRegexProperties() {
+        assertEquals("اليسا fairuz 2024",
+                ArtistMatcher.normalize("إِلْيِسَا — Fairuz_2024!"));
+        assertEquals("نصيف زيتون 123",
+                ArtistMatcher.normalize("نَصِيفُ زَيْتُون ١٢٣"));
+    }
+
     @Test public void doesNotMatchUnrelatedArtistsOrPartialWords() {
         assertFalse(ArtistMatcher.matchesAny("Unknown Artist", "Unknown Song", "فيروز", "fairuz"));
         assertFalse("Partial Latin words must not match الشامي",

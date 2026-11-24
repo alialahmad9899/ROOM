@@ -89,7 +89,14 @@ public final class MusicActivity extends BaseActivity {
         try{Intent i=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));charging=i!=null&&i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED,0)!=0;}
         catch(Exception ignored){charging=false;}
     }
-    private boolean sleepBlocked(){return charging||playing;}
+    static boolean shouldAllowAutomaticSleep(boolean isCharging, boolean isPlaying,
+            boolean isNavigationActive) {
+        return !isCharging && !isPlaying && !isNavigationActive;
+    }
+    private boolean sleepBlocked(){
+        return !shouldAllowAutomaticSleep(charging, playing,
+                NavigationGuidanceService.isActive(this));
+    }
     private void applyScreenPolicy(){
         if(sleepBlocked()){
             handler.removeCallbacks(idleSleep);
@@ -109,6 +116,11 @@ public final class MusicActivity extends BaseActivity {
         if(sleepOverlay==null)scheduleMusicSleep();
     }
     private void showMusicSleep(){
+        // Re-read the live hardware/media state at the moment the timer fires.
+        // Broadcast delivery can be delayed while this Activity is backgrounded.
+        refreshCharging();
+        playing = MusicPlaybackService.isAudioPlaying(this)
+                || (service != null && service.isPlaying());
         if(isFinishing()||sleepBlocked()||sleepOverlay!=null)return;
         FrameLayout overlay=new FrameLayout(this);
         overlay.setClickable(true);overlay.setBackgroundColor(0xFF02060C);

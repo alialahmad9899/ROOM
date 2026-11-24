@@ -2,7 +2,6 @@ package com.ali.carsystem;
 
 import java.text.Normalizer;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 /** Artist matching across Arabic and common Latin spellings used in audio metadata. */
 public final class ArtistMatcher {
@@ -14,9 +13,6 @@ public final class ArtistMatcher {
             "وائل كفوري","راغب علامة","ملحم زين","مروان خوري","كارول سماحة","فضل شاكر",
             "جوليا بطرس","عاصي الحلاني","فارس كرم","وائل جسار","ميريام فارس","هبة طوجي","زياد برجي"
     };
-    private static final Pattern MARKS = Pattern.compile("\\p{M}+");
-    private static final Pattern NON_WORD = Pattern.compile("[^\\p{IsAlphabetic}\\p{IsDigit}]+");
-    private static final Pattern SPACES = Pattern.compile("\\s+");
     private static final String[][] NORMALIZED_SUPPORTED = buildSupportedAliases();
 
     private static String[][] buildSupportedAliases() {
@@ -66,12 +62,33 @@ public final class ArtistMatcher {
     public static String normalize(String value) {
         if (value == null) return "";
         String normalizedInput = value.replace('ئ','ي').replace('ؤ','و').replace("ء","");
-        String s = MARKS.matcher(Normalizer.normalize(normalizedInput, Normalizer.Form.NFD))
-                .replaceAll("").toLowerCase(Locale.ROOT)
+        String s = Normalizer.normalize(normalizedInput, Normalizer.Form.NFD)
+                .toLowerCase(Locale.ROOT)
                 .replace('أ','ا').replace('إ','ا').replace('آ','ا')
                 .replace('ى','ي').replace('ة','ه');
-        s = NON_WORD.matcher(s).replaceAll(" ").trim();
-        return SPACES.matcher(s).replaceAll(" ");
+
+        // Avoid Unicode regex properties such as IsAlphabetic: Android 5's
+        // ICU regex engine rejects them during class initialization.
+        StringBuilder result = new StringBuilder(s.length());
+        boolean pendingSpace = false;
+        for (int offset = 0; offset < s.length();) {
+            int codePoint = s.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+            int type = Character.getType(codePoint);
+            if (type == Character.NON_SPACING_MARK
+                    || type == Character.COMBINING_SPACING_MARK
+                    || type == Character.ENCLOSING_MARK) {
+                continue;
+            }
+            if (Character.isLetterOrDigit(codePoint)) {
+                if (pendingSpace && result.length() > 0) result.append(' ');
+                result.appendCodePoint(codePoint);
+                pendingSpace = false;
+            } else if (result.length() > 0) {
+                pendingSpace = true;
+            }
+        }
+        return result.toString();
     }
 
     public static String[] aliasesFor(String artist) {
