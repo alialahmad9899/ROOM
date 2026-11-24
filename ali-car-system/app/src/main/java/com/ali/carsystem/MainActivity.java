@@ -29,6 +29,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private boolean navigationRouteActive;
     private static final int REQUEST_DASHBOARD_SETTINGS=9100;
     private SpeedometerView speedometer, clusterGauge;
+    private TripDistanceGaugeView tripGauge;
     private TextView gpsStatus, songTitle, digitalClock, dateLabel, ambientTime, connectionStatus, tripSummary;
     private View nightOverlay;
     private LocationManager locationManager;
@@ -110,21 +111,16 @@ public final class MainActivity extends BaseActivity implements LocationListener
 
     private android.content.SharedPreferences prefs(){return getSharedPreferences("ali_car_v3",MODE_PRIVATE);}
     private int dp(float x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
+    private DashboardTheme.Palette palette(){return DashboardTheme.from(this);}
     private int dashboardDialSize(){
         android.util.DisplayMetrics metrics=getResources().getDisplayMetrics();
         int heightDp=Math.round(metrics.heightPixels/metrics.density);
         int widthDp=Math.round(metrics.widthPixels/metrics.density);
-        int reservedHeight=220+(navigationRouteActive?68:0);
-        int byHeight=heightDp-reservedHeight-64;
-        int byWidth=Math.round(widthDp*.245f);
-        return Math.max(168,Math.min(232,Math.min(byHeight,byWidth)));
+        int byHeight=heightDp-300-(navigationRouteActive?68:0);
+        int byWidth=Math.round(widthDp*.285f);
+        return Math.max(150,Math.min(260,Math.min(byHeight,byWidth)));
     }
-    private int accentColor(){
-        String theme=prefs().getString("dashboard_theme","ocean");
-        if("sport".equals(theme))return 0xFFFF745F;
-        if("graphite".equals(theme))return 0xFFB9CAD5;
-        return 0xFF62DDF4;
-    }
+    private int accentColor(){return palette().accent;}
     private GradientDrawable glass(int fill,int stroke,int radius){
         GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{fill,0x66101F31});
         d.setCornerRadius(dp(radius));d.setStroke(dp(1),stroke);return d;
@@ -392,24 +388,18 @@ public final class MainActivity extends BaseActivity implements LocationListener
     private View buildDashboard(){
         FrameLayout root=new FrameLayout(this);
         root.setTag("dashboard_main_page");
-        root.setBackgroundColor(0xFF020812);
-        ImageView bg=new ImageView(this);bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        Bitmap wallpaper=CarApplication.getBitmap("dashboard");
-        if(wallpaper==null){
-            int res=getResources().getIdentifier("bg_dashboard","drawable",getPackageName());
-            try(java.io.InputStream in=getResources().openRawResource(res)){
-                BitmapFactory.Options o=new BitmapFactory.Options();o.inPreferredConfig=Bitmap.Config.RGB_565;
-                wallpaper=BitmapFactory.decodeStream(in,null,o);CarApplication.putBitmap("dashboard",wallpaper);
-            }catch(Exception ignored){}
-        }
-        if(wallpaper!=null)bg.setImageBitmap(wallpaper);
-        root.addView(bg,new FrameLayout.LayoutParams(-1,-1));
+        DashboardTheme.Palette theme=palette();
+        root.setBackgroundColor(theme.background);
+        DashboardBackdropView backdrop=new DashboardBackdropView(this);
+        backdrop.setTag("dashboard_thematic_background");
+        root.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));
         View shade=new View(this);
         shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0x66020812,0x00020812,0x55020812}));
+                new int[]{0x66000000,0x00000000,0x55000000}));
         root.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         nightOverlay=new View(this);nightOverlay.setTag("dashboard_night_overlay");
-        nightOverlay.setBackgroundColor(0x5D020915);nightOverlay.setVisibility(View.GONE);
+        nightOverlay.setBackgroundColor(InstrumentDialStyle.withAlpha(theme.background,125));
+        nightOverlay.setVisibility(View.GONE);
         root.addView(nightOverlay,new FrameLayout.LayoutParams(-1,-1));
 
         LinearLayout all=vertical();
@@ -417,10 +407,10 @@ public final class MainActivity extends BaseActivity implements LocationListener
         root.addView(all,new FrameLayout.LayoutParams(-1,-1));
 
         LinearLayout header=horizontal();
-        TextView brand=label("ALI CAR",30,Color.WHITE,true);
-        brand.setLetterSpacing(.14f);brand.setShadowLayer(dp(8),0,0,0xFF47DFFF);
+        TextView brand=label("ALI CAR",30,theme.textPrimary,true);
+        brand.setLetterSpacing(.14f);brand.setShadowLayer(dp(8),0,0,theme.glow);
         header.addView(brand,new LinearLayout.LayoutParams(0,dp(42),1f));
-        connectionStatus=label("Wi-Fi ×  •  BT ×  •  GPS ×",12,0xFFE1EFF7,true);
+        connectionStatus=label("Wi-Fi ×  •  BT ×  •  GPS ×",12,theme.textSecondary,true);
         connectionStatus.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         header.addView(connectionStatus,new LinearLayout.LayoutParams(-2,dp(42)));
         ImageView settings=iconButton(R.drawable.ic_cockpit_settings,"dashboard_settings_button","الإعدادات");
@@ -434,7 +424,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         sleep.setOnClickListener(v->showAmbientClock(true));
         TextView phone=label("☎",21,0xFFEAFBFF,true);
         phone.setTag("dashboard_phone_button");phone.setGravity(Gravity.CENTER);
-        phone.setBackground(glass(0x443A7D99,0x886CDFFF,24));
+        phone.setBackground(glass(theme.raised,theme.border,24));
         LinearLayout.LayoutParams phoneLp=new LinearLayout.LayoutParams(dp(40),dp(40));
         phoneLp.leftMargin=dp(7);header.addView(phone,phoneLp);
         phone.setOnClickListener(v->startActivity(new Intent(this,PhoneActivity.class)));
@@ -442,7 +432,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
 
         // Route and trip information stay at the top, visible before the driver looks at the map.
         tripSummary=label(String.format(Locale.US,"الرحلة %.1f كم  •  السرعة %.0f كم/س",tripKm,lastDisplayedSpeed),
-                14,0xFFEAF7FC,true);
+                14,theme.textPrimary,true);
         tripSummary.setTag("dashboard_trip_top");
         tripSummary.setGravity(Gravity.CENTER);
         all.addView(tripSummary,new LinearLayout.LayoutParams(-1,dp(24)));
@@ -459,11 +449,11 @@ public final class MainActivity extends BaseActivity implements LocationListener
         mediaBar.setTag("dashboard_media_bar");
         mediaBar.setGravity(Gravity.CENTER_VERTICAL);
         mediaBar.setPadding(dp(10),dp(2),dp(10),dp(2));
-        mediaBar.setBackground(glass(0xB5101F2C,accentColor(),16));
+        mediaBar.setBackground(glass(theme.surface,theme.border,16));
         LinearLayout trackInfo=vertical();trackInfo.setGravity(Gravity.CENTER_VERTICAL);
-        TextView mediaKicker=label("MUSIC  •  LOCAL LIBRARY",11,accentColor(),true);
+        TextView mediaKicker=label("MUSIC  •  LOCAL LIBRARY",11,theme.accent,true);
         trackInfo.addView(mediaKicker,new LinearLayout.LayoutParams(-1,dp(16)));
-        songTitle=label(prefs().getString("last_song","لا توجد أغنية قيد التشغيل"),15,Color.WHITE,true);
+        songTitle=label(prefs().getString("last_song","لا توجد أغنية قيد التشغيل"),15,theme.textPrimary,true);
         songTitle.setTag("dashboard_song_title");songTitle.setSingleLine(true);
         songTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
         trackInfo.addView(songTitle,new LinearLayout.LayoutParams(-1,dp(27)));
@@ -478,7 +468,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout volumeControls=horizontal();
         volumeControls.setTag("dashboard_volume_controls");
         volumeControls.setGravity(Gravity.CENTER);
-        TextView volumeDown=label("−",21,Color.WHITE,true);
+        TextView volumeDown=label("−",21,theme.textPrimary,true);
         volumeDown.setTag("dashboard_volume_down");
         volumeDown.setContentDescription("خفض صوت الموسيقى");
         volumeDown.setGravity(Gravity.CENTER);
@@ -495,7 +485,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
             public void onStartTrackingTouch(SeekBar bar){}
             public void onStopTrackingTouch(SeekBar bar){}
         });
-        TextView volumeUp=label("+",21,Color.WHITE,true);
+        TextView volumeUp=label("+",21,theme.textPrimary,true);
         volumeUp.setTag("dashboard_volume_up");
         volumeUp.setContentDescription("رفع صوت الموسيقى");
         volumeUp.setGravity(Gravity.CENTER);
@@ -534,10 +524,10 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout.LayoutParams speedLp=new LinearLayout.LayoutParams(dialSize,dialSize);
         speedLp.gravity=Gravity.CENTER;
         speedPanel.addView(speedometer,speedLp);
-        TextView speedCaption=label("GPS SPEED  •  KM/H",12,accentColor(),true);
+        TextView speedCaption=label("GPS SPEED  •  KM/H",12,theme.accent,true);
         speedCaption.setGravity(Gravity.CENTER);
         speedPanel.addView(speedCaption,new LinearLayout.LayoutParams(-1,dp(22)));
-        gpsStatus=label("بانتظار إشارة GPS",12,0xFFD7E9F1,false);
+        gpsStatus=label("بانتظار إشارة GPS",12,theme.textSecondary,false);
         gpsStatus.setTag("dashboard_gps_status");gpsStatus.setGravity(Gravity.CENTER);
         gpsStatus.setMaxLines(2);gpsStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
         speedPanel.addView(gpsStatus,new LinearLayout.LayoutParams(-1,dp(28)));
@@ -547,10 +537,15 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout center=vertical();
         center.setTag("dashboard_four_way_swipe_surface");
         center.setGravity(Gravity.CENTER);
-        TextView centerHint=label("اسحب يساراً أو يميناً أو للأعلى أو للأسفل",12,0xFFEAF5FA,true);
+        tripGauge=new TripDistanceGaugeView(this);
+        tripGauge.setTag("dashboard_trip_gauge");
+        tripGauge.setDistanceKm(tripKm);
+        LinearLayout.LayoutParams tripGaugeLp=new LinearLayout.LayoutParams(dp(144),dp(144));
+        tripGaugeLp.gravity=Gravity.CENTER;
+        center.addView(tripGauge,tripGaugeLp);
+        TextView centerHint=label("TRIP DISTANCE",10,theme.textSecondary,true);
         centerHint.setGravity(Gravity.CENTER);
-        centerHint.setShadowLayer(dp(4),0,dp(1),0xCC06111B);
-        center.addView(centerHint,new LinearLayout.LayoutParams(-1,dp(32)));
+        center.addView(centerHint,new LinearLayout.LayoutParams(-1,dp(20)));
         final float[] touchStart=new float[2];
         center.setOnTouchListener((view,event)->{
             if(event.getAction()==MotionEvent.ACTION_DOWN){
@@ -576,13 +571,13 @@ public final class MainActivity extends BaseActivity implements LocationListener
         LinearLayout clockPanel=vertical();
         clockPanel.setTag("dashboard_clock_panel");
         clockPanel.setGravity(Gravity.CENTER);
-        digitalClock=label("",34,Color.WHITE,true);
+        digitalClock=label("",34,theme.textPrimary,true);
         digitalClock.setTag("dashboard_digital_clock");digitalClock.setGravity(Gravity.CENTER);
         clockPanel.addView(digitalClock,new LinearLayout.LayoutParams(-1,dp(38)));
         AnalogClockView analog=new AnalogClockView(this);
         analog.setTag("dashboard_analog_clock");
         clockPanel.addView(analog,new LinearLayout.LayoutParams(dialSize,dialSize));
-        dateLabel=label("",14,0xFFE5F4FF,true);dateLabel.setGravity(Gravity.CENTER);
+        dateLabel=label("",14,theme.textSecondary,true);dateLabel.setGravity(Gravity.CENTER);
         clockPanel.addView(dateLabel,new LinearLayout.LayoutParams(-1,dp(22)));
         LinearLayout.LayoutParams clockLp=new LinearLayout.LayoutParams(0,-1,1.0f);
         main.addView(clockPanel,clockLp);
@@ -591,13 +586,13 @@ public final class MainActivity extends BaseActivity implements LocationListener
         dock.setGravity(Gravity.CENTER);dock.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         String[] names={"الملاحة","بلوتوث","الموسيقى","التطبيقات","YouTube"};
         int[] types={1,3,2,5,6};
-        int[] colors={accentColor(),0xFF58B5F0,0xFFE98AFF,0xFFFFD05E,0xFFFF5555};
+        int[] colors={theme.accent,theme.secondary,theme.needle,theme.secondary,theme.accent};
         for(int i=0;i<names.length;i++){
             final int index=i;
             LinearLayout item=vertical();item.setTag("dashboard_dock_item_"+index);
             item.setGravity(Gravity.CENTER);item.setClickable(true);item.setFocusable(true);
             item.setPadding(dp(4),dp(2),dp(4),dp(2));
-            item.setBackground(glass(0x77304457,0x66DCEEF7,16));
+            item.setBackground(glass(theme.raised,theme.border,16));
             View.OnClickListener dockClick=v->onDock(index);
             View iconView;
             if(i==4){
@@ -623,7 +618,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         }
         LinearLayout.LayoutParams dockLp=new LinearLayout.LayoutParams(-1,dp(80));
         dockLp.topMargin=dp(2);all.addView(dock,dockLp);
-        TextView footer=label("ALI CAR  •  SMART COCKPIT",10,0xFFD7EAF2,true);
+        TextView footer=label("ALI CAR  •  SMART COCKPIT",10,theme.textSecondary,true);
         footer.setGravity(Gravity.CENTER);
         all.addView(footer,new LinearLayout.LayoutParams(-1,dp(14)));
         updateClock();
@@ -713,8 +708,9 @@ public final class MainActivity extends BaseActivity implements LocationListener
 
     private View buildCluster(){
         FrameLayout root=new FrameLayout(this);root.setTag("dashboard_secondary_page");
+        DashboardTheme.Palette theme=palette();
         root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{0xFF101F2B,0xFF030A12,0xFF1C3442}));
+                new int[]{theme.backgroundEnd,theme.background,theme.surface}));
         LinearLayout all=vertical();all.setPadding(dp(18),dp(10),dp(18),dp(10));
         root.addView(all,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=horizontal();
@@ -745,7 +741,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         for(int i=0;i<quickLabels.length;i++){
             final Runnable action=quickActions[i];
             TextView chip=label(quickLabels[i],13,Color.WHITE,true);
-            chip.setGravity(Gravity.CENTER);chip.setBackground(glass(0x77304457,accentColor(),16));
+            chip.setGravity(Gravity.CENTER);chip.setBackground(glass(theme.raised,theme.border,16));
             LinearLayout.LayoutParams chipLp=new LinearLayout.LayoutParams(0,dp(42),1f);
             chipLp.leftMargin=dp(4);chipLp.rightMargin=dp(4);quick.addView(chip,chipLp);
             chip.setOnClickListener(v->action.run());
@@ -766,7 +762,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
                 }).show());
         TextView history=label("▤  سجل الرحلات",15,accentColor(),true);
         history.setTag("trip_history_button");history.setGravity(Gravity.CENTER);
-        history.setBackground(glass(0x443A2730,0x886CDFFF,16));
+        history.setBackground(glass(theme.surface,theme.border,16));
         LinearLayout.LayoutParams historyLp=new LinearLayout.LayoutParams(dp(220),dp(44));
         historyLp.gravity=Gravity.CENTER;historyLp.topMargin=dp(5);all.addView(history,historyLp);
         history.setOnClickListener(v->showTripHistory());
@@ -780,6 +776,7 @@ public final class MainActivity extends BaseActivity implements LocationListener
         return box;
     }
     private void updateStats(){
+        if(tripGauge!=null)tripGauge.setDistanceKm(tripKm);
         if(pager==null||pager.getCurrentItem()!=1)return;
         View page=pager.getChildAt(1);if(page==null)return;
         updateStat(page,"trip",String.format(Locale.US,"%.1f km",tripKm));
