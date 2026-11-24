@@ -630,7 +630,8 @@ public final class MainActivity extends BaseActivity implements LocationListener
         image.setImageResource(drawable);image.setColorFilter(Color.WHITE);
         image.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         image.setPadding(dp(10),dp(10),dp(10),dp(10));
-        image.setBackground(glass(0x443A7D99,0x886CDFFF,24));
+        DashboardTheme.Palette theme=palette();
+        image.setBackground(glass(theme.raised,theme.border,24));
         return image;
     }
     private ImageView mediaIconButton(int drawable,String action,String tag){
@@ -639,12 +640,14 @@ public final class MainActivity extends BaseActivity implements LocationListener
         image.setImageResource(drawable);image.setColorFilter(Color.WHITE);
         image.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         image.setPadding(dp(10),dp(10),dp(10),dp(10));
-        image.setBackground(glass(0x444B91B0,0x556EEBFF,24));
+        DashboardTheme.Palette theme=palette();
+        image.setBackground(glass(theme.raised,theme.border,24));
         image.setOnClickListener(v->MusicPlaybackService.dispatch(MainActivity.this,action));
         return image;
     }
     private TextView mediaButton(String symbol,String action){
-        TextView b=label(symbol,28,Color.WHITE,true);b.setGravity(Gravity.CENTER);b.setBackground(glass(0x444B91B0,0x556EEBFF,24));
+        DashboardTheme.Palette theme=palette();
+        TextView b=label(symbol,28,theme.textPrimary,true);b.setGravity(Gravity.CENTER);b.setBackground(glass(theme.raised,theme.border,24));
         b.setTag("dashboard_media_play");
         b.setContentDescription("تشغيل أو إيقاف الموسيقى");
         b.setOnClickListener(v->MusicPlaybackService.dispatch(MainActivity.this,action));return b;
@@ -777,12 +780,12 @@ public final class MainActivity extends BaseActivity implements LocationListener
     }
     private void updateStats(){
         if(tripGauge!=null)tripGauge.setDistanceKm(tripKm);
+        if(tripSummary!=null)tripSummary.setText(String.format(Locale.US,"الرحلة %.1f كم  •  السرعة %.0f كم/س",tripKm,lastDisplayedSpeed));
         if(pager==null||pager.getCurrentItem()!=1)return;
         View page=pager.getChildAt(1);if(page==null)return;
         updateStat(page,"trip",String.format(Locale.US,"%.1f km",tripKm));
         updateStat(page,"odometer",String.format(Locale.US,"%.1f km",odometerKm));
         updateStat(page,"max",String.format(Locale.US,"%.0f km/h",maxSpeed));
-        if(tripSummary!=null)tripSummary.setText(String.format(Locale.US,"الرحلة %.1f كم  •  السرعة %.0f كم/س",tripKm,lastDisplayedSpeed));
     }
     private void showTripHistory(){
         String historyText=TripHistoryStore.format(this);
