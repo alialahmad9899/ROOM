@@ -2,9 +2,11 @@ package com.ali.carsystem;
 
 import android.app.ActivityManager;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.app.admin.DevicePolicyManager;
 import android.content.*;
 import android.os.*;
+import android.graphics.drawable.GradientDrawable;
 import android.provider.Settings;
 import android.view.*;
 import android.widget.*;
@@ -102,18 +104,83 @@ public final class SettingsActivity extends BaseActivity {
     }
 
     private void showDashboardThemePicker(SharedPreferences appPrefs){
-        String current=appPrefs.getString("dashboard_theme","ocean");
-        String[] labels={"Ocean Blue  •  أزرق هادئ","Graphite  •  رمادي راقٍ","Sport  •  رياضي"};
-        String[] values={"ocean","graphite","sport"};
-        int selected=0;
-        for(int i=0;i<values.length;i++)if(values[i].equals(current))selected=i;
-        new AlertDialog.Builder(this).setTitle("ثيم لوحة القيادة")
-                .setSingleChoiceItems(labels,selected,(dialog,which)->{
-                    appPrefs.edit().putString("dashboard_theme",values[which]).apply();
-                    setResult(RESULT_OK);
-                    dialog.dismiss();
-                    Toast.makeText(this,"تم حفظ الثيم. سيُطبّق عند العودة إلى لوحة القيادة.",Toast.LENGTH_LONG).show();
-                }).setNegativeButton("إغلاق",null).show();
+        final String current=appPrefs.getString("dashboard_theme","ocean");
+        final int pad=dp(12);
+        ScrollView scroll=new ScrollView(this);
+        LinearLayout list=new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(pad,dp(8),pad,dp(8));
+        scroll.addView(list,new ScrollView.LayoutParams(-1,-2));
+
+        final Dialog dialog=new AlertDialog.Builder(this)
+                .setTitle("المظهر والتصميم  •  اختر قمرة القيادة")
+                .setNegativeButton("إغلاق",null).create();
+
+        for(DashboardTheme.Palette palette:DashboardTheme.all()){
+            LinearLayout row=new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(12),dp(10),dp(12),dp(10));
+            GradientDrawable rowBackground=new GradientDrawable(
+                    GradientDrawable.Orientation.TL_BR,
+                    new int[]{palette.surface,palette.backgroundEnd});
+            rowBackground.setCornerRadius(dp(14));
+            rowBackground.setStroke(dp(1),palette.border);
+            row.setBackground(rowBackground);
+            LinearLayout.LayoutParams rowLp=new LinearLayout.LayoutParams(-1,dp(76));
+            rowLp.bottomMargin=dp(8);
+            list.addView(row,rowLp);
+
+            LinearLayout swatches=new LinearLayout(this);
+            swatches.setOrientation(LinearLayout.VERTICAL);
+            swatches.setGravity(Gravity.CENTER);
+            int[] colors={palette.accent,palette.secondary,palette.needle};
+            for(int color:colors){
+                View swatch=new View(this);
+                GradientDrawable swatchShape=new GradientDrawable();
+                swatchShape.setColor(color);
+                swatchShape.setCornerRadius(dp(5));
+                swatch.setBackground(swatchShape);
+                LinearLayout.LayoutParams swatchLp=new LinearLayout.LayoutParams(dp(30),dp(10));
+                swatchLp.bottomMargin=dp(3);
+                swatches.addView(swatch,swatchLp);
+            }
+            LinearLayout.LayoutParams swatchesLp=new LinearLayout.LayoutParams(dp(40),-1);
+            swatchesLp.rightMargin=dp(12);
+            row.addView(swatches,swatchesLp);
+
+            LinearLayout labels=new LinearLayout(this);
+            labels.setOrientation(LinearLayout.VERTICAL);
+            labels.setGravity(Gravity.CENTER_VERTICAL);
+            TextView name=label(palette.name,16,palette.textPrimary);
+            TextView description=label(palette.description,12,palette.textSecondary);
+            labels.addView(name);
+            labels.addView(description);
+            row.addView(labels,new LinearLayout.LayoutParams(0,-1,1f));
+
+            boolean selected=palette.id.equals(current);
+            TextView check=label(selected?"✓":"○",22,selected?palette.accent:palette.textSecondary);
+            check.setGravity(Gravity.CENTER);
+            row.addView(check,new LinearLayout.LayoutParams(dp(34),-1));
+            row.setContentDescription(palette.name+" — "+palette.description+(selected?" — محدد حالياً":""));
+            row.setOnClickListener(v->{
+                appPrefs.edit().putString("dashboard_theme",palette.id).apply();
+                setResult(RESULT_OK);
+                dialog.dismiss();
+                Toast.makeText(this,"تم تطبيق "+palette.name+" عند العودة إلى لوحة القيادة",Toast.LENGTH_LONG).show();
+            });
+        }
+        dialog.setView(scroll);
+        dialog.show();
+    }
+
+    private TextView label(String value,int size,int color){
+        TextView view=new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        view.setIncludeFontPadding(false);
+        return view;
     }
 
     private static final int REQUEST_BACKUP_EXPORT=9341,REQUEST_BACKUP_IMPORT=9342;
