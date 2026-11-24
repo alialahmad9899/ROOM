@@ -393,6 +393,22 @@ public final class MainActivity extends BaseActivity implements LocationListener
         DashboardBackdropView backdrop=new DashboardBackdropView(this);
         backdrop.setTag("dashboard_thematic_background");
         root.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));
+        // Keep the optimized project wallpaper as a quiet texture above the live theme gradient.
+        ImageView bg=new ImageView(this);
+        bg.setTag("dashboard_photo_texture");
+        bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        Bitmap wallpaper=CarApplication.getBitmap("dashboard");
+        if(wallpaper==null){
+            int res=getResources().getIdentifier("bg_dashboard","drawable",getPackageName());
+            try(java.io.InputStream in=getResources().openRawResource(res)){
+                BitmapFactory.Options options=new BitmapFactory.Options();
+                options.inPreferredConfig=Bitmap.Config.RGB_565;
+                wallpaper=BitmapFactory.decodeStream(in,null,options);
+                CarApplication.putBitmap("dashboard",wallpaper);
+            }catch(Exception ignored){}
+        }
+        if(wallpaper!=null){bg.setImageBitmap(wallpaper);bg.setImageAlpha(62);}
+        root.addView(bg,new FrameLayout.LayoutParams(-1,-1));
         View shade=new View(this);
         shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{0x66000000,0x00000000,0x55000000}));
