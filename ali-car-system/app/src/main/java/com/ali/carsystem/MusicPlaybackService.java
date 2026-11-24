@@ -42,6 +42,8 @@ public final class MusicPlaybackService extends Service
     private static final String ACTION_TOGGLE = "com.ali.carsystem.TOGGLE";
     private static final String ACTION_NEXT = "com.ali.carsystem.NEXT";
     private static final String ACTION_PREVIOUS = "com.ali.carsystem.PREVIOUS";
+    private static final String ACTION_EXTERNAL_VIDEO_START = "com.ali.carsystem.EXTERNAL_VIDEO_START";
+    private static final String ACTION_EXTERNAL_VIDEO_STOP = "com.ali.carsystem.EXTERNAL_VIDEO_STOP";
 
     private final IBinder binder = new LocalBinder();
     private final ArrayList<Song> songs = new ArrayList<>();
@@ -72,6 +74,7 @@ public final class MusicPlaybackService extends Service
     private boolean prepared, repeat, shuffle, libraryLoading, libraryLoaded, foreground, refreshPending, resumePlaybackAfterLoad;
     private boolean resumeAfterTransientFocusLoss;
     private final BluetoothPlaybackPolicy bluetoothPlaybackPolicy = new BluetoothPlaybackPolicy();
+    private final ExternalAudioHandoffPolicy externalAudioHandoff = new ExternalAudioHandoffPolicy();
     private BroadcastReceiver bluetoothReceiver;
     private boolean bluetoothReceiverRegistered;
     private boolean bluetoothA2dpConnected;
@@ -134,6 +137,20 @@ public final class MusicPlaybackService extends Service
         if ("previous".equals(action)) intent.setAction(ACTION_PREVIOUS);
         else if ("next".equals(action)) intent.setAction(ACTION_NEXT);
         else intent.setAction(ACTION_TOGGLE);
+        try { context.startService(intent); } catch (Exception ignored) { }
+    }
+
+    /** Temporarily pauses the local player only when it was actively playing before a video. */
+    public static void pauseForExternalVideo(Context context) {
+        if (context == null || !isAudioPlaying(context)) return;
+        Intent intent = new Intent(context, MusicPlaybackService.class).setAction(ACTION_EXTERNAL_VIDEO_START);
+        try { context.startService(intent); } catch (Exception ignored) { }
+    }
+
+    /** Restores only the playback interrupted by the matching video session. */
+    public static void resumeAfterExternalVideo(Context context) {
+        if (context == null) return;
+        Intent intent = new Intent(context, MusicPlaybackService.class).setAction(ACTION_EXTERNAL_VIDEO_STOP);
         try { context.startService(intent); } catch (Exception ignored) { }
     }
 
@@ -266,15 +283,75 @@ public final class MusicPlaybackService extends Service
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        String action = intent == null ? null : intent.getAction();
+        if (ACTION_EXTERNAL_VIDEO_START.equals(action)) {
+            beginExternalVideoPlayback();
+            return START_STICKY;
+        }
+        if (ACTION_EXTERNAL_VIDEO_STOP.equals(action)) {
+            finishExternalVideoPlayback();
+            return START_STICKY;
+        }
         loadLibraryAsync();
-        if (intent != null && intent.getAction() != null) {
-            String action = intent.getAction();
+        if (action != null) {
             if (!libraryLoaded) pendingAction = action;
             else performAction(action);
         } else {
             notifyChanged();
         }
         return START_STICKY;
+    }
+
+    private void beginExternalVideoPlayback() {
+        if (externalAudioHandoff.isActive()) return;
+        SharedPreferences prefs=getSharedPreferences(AUDIO_PREFS,MODE_PRIVATE);
+        boolean wasPlaying=isPlaying() || prefs.getBoolean("playing",false);
+        externalAudioHandoff.begin(wasPlaying);
+        if (!wasPlaying) externalAudioHandoff.cancelResume();
+        resumeAfterTransientFocusLoss=false;
+        savePlaybackPosition();
+        mainHandler.removeCallbacks(positionSaver);
+        try {
+            if(player!=null && prepared && player.isPlaying()) player.pause();
+        } catch(Exception error) {
+            AppDiagnostics.record(this,"Pause ALI CAR music for external video",error);
+        }
+        // Keep resume_enabled intact: it represents the user's pre-video playback intent.
+        notifyChanged();
+    }
+
+    private void finishExternalVideoPlayback() {
+        SharedPreferences prefs=getSharedPreferences(AUDIO_PREFS,MODE_PRIVATE);
+        boolean shouldResume=externalAudioHandoff.finish(prefs.getBoolean("resume_enabled",false));
+        if(shouldResume) {
+            try {
+                if(player!=null && prepared) {
+                    int focus=audioManager==null?AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                            audioManager.requestAudioFocus(this,AudioManager.STREAM_MUSIC,AudioManager.AUDIOFOCUS_GAIN);
+                    if(focus==AudioManager.AUDIOFOCUS_REQUEST_GRANTED && !player.isPlaying()) {
+                        player.start();
+                        refreshBluetoothA2dpRoute();
+                        mainHandler.removeCallbacks(positionSaver);
+                        mainHandler.postDelayed(positionSaver,5000L);
+                    }
+                } else {
+                    restoredPositionMs=Math.max(restoredPositionMs,prefs.getInt("position_ms",0));
+                    resumePlaybackAfterLoad=true;
+                    if(libraryLoaded) {
+                        if(index<0)restoreLastSong();
+                        if(index>=0)playAt(index);
+                        else resumePlaybackAfterLoad=false;
+                    } else {
+                        loadLibraryAsync();
+                    }
+                }
+            } catch(Exception error) {
+                AppDiagnostics.record(this,"Resume ALI CAR music after external video",error);
+            }
+        } else {
+            externalAudioHandoff.finish(false);
+        }
+        notifyChanged();
     }
 
     private void loadLibraryAsync() {
@@ -421,6 +498,7 @@ public final class MusicPlaybackService extends Service
     }
 
     public void playAt(int requestedIndex) {
+        if(externalAudioHandoff.isActive()) return;
         resumeAfterTransientFocusLoss = false;
         if (!libraryLoaded) {
             pendingIndex = requestedIndex;
@@ -495,6 +573,7 @@ public final class MusicPlaybackService extends Service
     }
 
     public void toggle() {
+        if(externalAudioHandoff.isActive()) return;
         // A deliberate user action overrides pending Bluetooth and focus resumes.
         clearBluetoothAutoResumeForManualAction();
         resumeAfterTransientFocusLoss = false;
@@ -530,6 +609,7 @@ public final class MusicPlaybackService extends Service
     }
 
     public void next() {
+        if(externalAudioHandoff.isActive()) return;
         clearBluetoothAutoResumeForManualAction();
         if (songs.isEmpty()) return;
         int nextIndex = shuffle ? new Random().nextInt(songs.size())
@@ -538,6 +618,7 @@ public final class MusicPlaybackService extends Service
     }
 
     public void previous() {
+        if(externalAudioHandoff.isActive()) return;
         clearBluetoothAutoResumeForManualAction();
         if (songs.isEmpty()) return;
         if (player != null && prepared && getPosition() > 3000) {
@@ -856,6 +937,11 @@ public final class MusicPlaybackService extends Service
     }
 
     @Override public void onAudioFocusChange(int focusChange) {
+        if (externalAudioHandoff.isActive()) {
+            savePlaybackPosition();
+            notifyChanged();
+            return;
+        }
         if (player == null || !prepared) return;
         try {
             SharedPreferences prefs = getSharedPreferences(AUDIO_PREFS, MODE_PRIVATE);
