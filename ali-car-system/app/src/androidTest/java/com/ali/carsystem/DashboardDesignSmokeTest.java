@@ -27,6 +27,8 @@ public final class DashboardDesignSmokeTest {
             View music=content.findViewWithTag("dashboard_media_bar");
             assertNotNull(trip);
             assertNotNull(content.findViewWithTag("dashboard_speed_gauge"));
+            assertNotNull("The live trip-distance dial is present",content.findViewWithTag("dashboard_trip_gauge"));
+            assertNotNull("The theme-aware cockpit background is present",content.findViewWithTag("dashboard_thematic_background"));
             assertNotNull(content.findViewWithTag("dashboard_four_way_swipe_surface"));
             assertSame("Trip, route and music must share the top information column",trip.getParent(),route.getParent());
             assertSame(trip.getParent(),music.getParent());
